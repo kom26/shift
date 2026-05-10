@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>シフト管理</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+:root{--bg:#ffffff;--bg-panel:#f9f8f5;--bg-muted:#f0efe9;--text:#18180f;--text-muted:#8a8880;--border:#e6e4dc;--hover:#f0efe9;--accent:#4f46e5;--accent-soft:#eef2ff;}
+@media(prefers-color-scheme:dark){:root{--bg:#18180f;--bg-panel:#201f16;--bg-muted:#28271e;--text:#eae8de;--text-muted:#6b6a60;--border:#2e2d24;--hover:#28271e;--accent:#818cf8;--accent-soft:#1e1d3a;}}
+*{box-sizing:border-box;}html,body,#root{height:100%;margin:0;}
+body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP','YuGothic',sans-serif;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+input[type="date"]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;}
+input[type="color"]{appearance:none;padding:0;border:none;}input[type="color"]::-webkit-color-swatch-wrapper{padding:0;}input[type="color"]::-webkit-color-swatch{border:none;border-radius:50%;}
+select{cursor:pointer;}
+.drag-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:0.85;transform:scale(1.05);transition:none;}
+/* モバイル：長押し時の選択・拡大・コールアウトを無効化 */
+[data-date],[data-unplaced]{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+.touch-chip{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useCallback,useEffect,useRef,useMemo}=React;
+
+// ── 定数 ────────────────────────────────────────────────────
+const WEEK_DAYS_SUN=[“日”,“月”,“火”,“水”,“木”,“金”,“土”];
+const WEEK_DAYS_MON=[“月”,“火”,“水”,“木”,“金”,“土”,“日”];
+const STORAGE_KEY=“shift-sched-events”;
+const SETTINGS_KEY=“shift-sched-settings”;
+const COLORS_KEY=“shift-sched-custom-colors”;
+const HOLIDAYS_KEY=“shift-sched-holidays”;
+const DEFAULT_COLORS=[”#6366f1”,”#06b6d4”,”#f59e0b”,”#ec4899”,”#10b981”,”#f97316”,”#8b5cf6”,”#ef4444”];
+
+// ── 祝日 ────────────────────────────────────────────────────
+const BUILTIN_HOLIDAYS={
+“2025-01-01”:“元日”,“2025-01-13”:“成人の日”,“2025-02-11”:“建国記念の日”,“2025-02-23”:“天皇誕生日”,“2025-02-24”:“振替休日”,“2025-03-20”:“春分の日”,“2025-04-29”:“昭和の日”,“2025-05-03”:“憲法記念日”,“2025-05-04”:“みどりの日”,“2025-05-05”:“こどもの日”,“2025-05-06”:“振替休日”,“2025-07-21”:“海の日”,“2025-08-11”:“山の日”,“2025-09-15”:“敬老の日”,“2025-09-23”:“秋分の日”,“2025-10-13”:“スポーツの日”,“2025-11-03”:“文化の日”,“2025-11-23”:“勤労感謝の日”,“2025-11-24”:“振替休日”,
+“2026-01-01”:“元日”,“2026-01-12”:“成人の日”,“2026-02-11”:“建国記念の日”,“2026-02-23”:“天皇誕生日”,“2026-03-20”:“春分の日”,“2026-04-29”:“昭和の日”,“2026-05-03”:“憲法記念日”,“2026-05-04”:“みどりの日”,“2026-05-05”:“こどもの日”,“2026-05-06”:“振替休日”,“2026-07-20”:“海の日”,“2026-08-11”:“山の日”,“2026-09-21”:“敬老の日”,“2026-09-23”:“秋分の日”,“2026-10-12”:“スポーツの日”,“2026-11-03”:“文化の日”,“2026-11-23”:“勤労感謝の日”,
+“2027-01-01”:“元日”,“2027-01-11”:“成人の日”,“2027-02-11”:“建国記念の日”,“2027-02-23”:“天皇誕生日”,“2027-03-21”:“春分の日”,“2027-04-29”:“昭和の日”,“2027-05-03”:“憲法記念日”,“2027-05-04”:“みどりの日”,“2027-05-05”:“こどもの日”,“2027-07-19”:“海の日”,“2027-08-11”:“山の日”,“2027-09-20”:“敬老の日”,“2027-09-23”:“秋分の日”,“2027-10-11”:“スポーツの日”,“2027-11-03”:“文化の日”,“2027-11-23”:“勤労感謝の日”,
+“2028-01-01”:“元日”,“2028-01-10”:“成人の日”,“2028-02-11”:“建国記念の日”,“2028-02-23”:“天皇誕生日”,“2028-03-20”:“春分の日”,“2028-04-29”:“昭和の日”,“2028-05-03”:“憲法記念日”,“2028-05-04”:“みどりの日”,“2028-05-05”:“こどもの日”,“2028-07-17”:“海の日”,“2028-08-11”:“山の日”,“2028-09-18”:“敬老の日”,“2028-09-22”:“秋分の日”,“2028-10-09”:“スポーツの日”,“2028-11-03”:“文化の日”,“2028-11-23”:“勤労感謝の日”,
+};
+let HOLIDAYS_CACHE={…BUILTIN_HOLIDAYS};
+try{const r=localStorage.getItem(HOLIDAYS_KEY);if(r)Object.assign(HOLIDAYS_CACHE,JSON.parse(r));}catch{}
+const FETCHED_YEARS=new Set(Object.keys(HOLIDAYS_CACHE).map(k=>k.slice(0,4)));
+async function fetchHolidaysForYear(year){
+const y=String(year);if(FETCHED_YEARS.has(y))return;FETCHED_YEARS.add(y);
+try{const res=await fetch(`https://holidays-jp.github.io/api/v1/${y}/date.json`);if(!res.ok)return;const data=await res.json();Object.assign(HOLIDAYS_CACHE,data);try{localStorage.setItem(HOLIDAYS_KEY,JSON.stringify(HOLIDAYS_CACHE));}catch{}}catch{}
+}
+function getHoliday(d){return HOLIDAYS_CACHE[d]||null;}
+
+// ── ユーティリティ ──────────────────────────────────────────
+function toDateStr(date){const d=new Date(date);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+function addDays(date,n){const d=new Date(date);d.setDate(d.getDate()+n);return d;}
+function dateInRange(ds,s,e){return ds>=s&&ds<=(e||s);}
+function genId(){return Math.random().toString(36).slice(2)+Date.now().toString(36);}
+function daysBetween(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
+function resolveEndDate(sd,ed,allDay,st,et){
+if(!sd)return ed||null;if(allDay||!st||!et)return ed||sd;
+if(et<=st)return toDateStr(addDays(new Date(sd),1));
+if(!ed||ed<sd)return sd;return ed;
+}
+function getDayType(ds,dow){if(getHoliday(ds))return”holiday”;if(dow===0)return”sunday”;if(dow===6)return”saturday”;return”normal”;}
+function dayTextColor(type,isToday){if(isToday)return”var(–accent)”;if(type===“saturday”)return”#3b82f6”;if(type===“sunday”||type===“holiday”)return”#ef4444”;return”var(–text-muted)”;}
+function timeLabel(ev){if(!ev)return””;if(ev.allDay)return”終日”;if(ev.startTime&&ev.endTime)return`${ev.startTime}〜${ev.endTime}`;if(ev.startTime)return`${ev.startTime}〜`;return””;}
+function calcWorkHours(st,et,allDay){
+if(allDay||!st||!et)return null;
+const[sh,sm]=st.split(”:”).map(Number);const[eh,em]=et.split(”:”).map(Number);
+let mins=(eh*60+em)-(sh*60+sm);if(mins<=0)mins+=1440;
+let brk=mins>480?60:mins>360?45:0;
+return Math.round(mins-brk)/60;
+}
+function fmtHours(h){if(h==null||isNaN(h))return”-”;const hh=Math.floor(h),mm=Math.round((h-hh)*60);return mm>0?`${hh}h${mm}m`:`${hh}h`;}
+const TIME_OPTIONS=Array.from({length:48},(_,i)=>`${String(Math.floor(i/2)).padStart(2,"0")}:${i%2===0?"00":"30"}`);
+
+// ── localStorage ────────────────────────────────────────────
+const lsGet=(k,fb)=>{try{const r=localStorage.getItem(k);return r?JSON.parse(r):fb;}catch{return fb;}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
+function loadCustomColors(){return lsGet(COLORS_KEY,[]);}
+function saveCustomColors(c){lsSet(COLORS_KEY,c);}
+function loadEvents(){return lsGet(STORAGE_KEY,null);}
+function saveEvents(e){lsSet(STORAGE_KEY,e);}
+function loadSettings(){return lsGet(SETTINGS_KEY,{});}
+function saveSettings(s){lsSet(SETTINGS_KEY,s);}
+
+const SAMPLE_EVENTS=[
+{id:“s1”,title:“夜勤バイト”,memo:“翌朝まで”,color:”#6366f1”,startDate:null,endDate:null,placed:false,allDay:false,startTime:“22:00”,endTime:“06:00”,workHours:null},
+{id:“s2”,title:“早番シフト”,memo:””,color:”#06b6d4”,startDate:null,endDate:null,placed:false,allDay:false,startTime:“07:00”,endTime:“15:00”,workHours:null},
+{id:“s3”,title:“遅番シフト”,memo:””,color:”#10b981”,startDate:null,endDate:null,placed:false,allDay:false,startTime:“15:00”,endTime:“23:00”,workHours:null},
+{id:“s4”,title:“土日夜勤”,memo:””,color:”#ec4899”,startDate:null,endDate:null,placed:false,allDay:false,startTime:“23:00”,endTime:“08:00”,workHours:null},
+];
+
+// ── モバイル判定 hook ────────────────────────────────────────
+function useIsMobile(){
+const[isMobile,setIsMobile]=useState(()=>window.innerWidth<768);
+useEffect(()=>{
+const h=()=>setIsMobile(window.innerWidth<768);
+window.addEventListener(“resize”,h);return()=>window.removeEventListener(“resize”,h);
+},[]);
+return isMobile;
+}
+
+// ── タッチD&D hook（モバイル専用） ───────────────────────────
+function useTouchDrag({onDrop,onDropUnplaced,onDragStart}){
+const ghostRef=useRef(null);
+const draggingEv=useRef(null);
+const touchId=useRef(null);
+const longPressTimer=useRef(null);
+const isDragging=useRef(false);
+const startPos=useRef({x:0,y:0});
+const pendingEv=useRef(null);   // touchstart前に登録されるev候補
+const pendingLabel=useRef(””);
+const allowScroll=useRef(false);
+
+const cleanup=()=>{
+ghostRef.current&&ghostRef.current.remove();
+ghostRef.current=null;
+draggingEv.current=null;
+pendingEv.current=null;
+touchId.current=null;
+isDragging.current=false;
+allowScroll.current=false;
+clearTimeout(longPressTimer.current);
+document.body.style.overflow=””;
+document.body.style.userSelect=””;
+document.body.style.webkitUserSelect=””;
+};
+
+useEffect(()=>{
+const onStart=e=>{
+if(!pendingEv.current) return; // チップ以外のタッチは無視
+if(e.touches.length!==1){cleanup();return;}
+const t=e.touches[0];
+touchId.current=t.identifier;
+startPos.current={x:t.clientX,y:t.clientY};
+allowScroll.current=false;
+isDragging.current=false;
+const ev=pendingEv.current;
+const label=pendingLabel.current;
+// 長押し中はスクロールを止める（passive:false で登録しているので有効）
+e.preventDefault();
+clearTimeout(longPressTimer.current);
+longPressTimer.current=setTimeout(()=>{
+isDragging.current=true;
+draggingEv.current=ev;
+onDragStart(ev);
+document.body.style.overflow=“hidden”;
+document.body.style.userSelect=“none”;
+document.body.style.webkitUserSelect=“none”;
+const ghost=document.createElement(“div”);
+ghost.className=“drag-ghost”;
+ghost.style.cssText=`left:${startPos.current.x-60}px;top:${startPos.current.y-28}px;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;white-space:nowrap;border-left:3px solid ${ev.color};background:${ev.color}28;color:${ev.color};box-shadow:0 4px 16px rgba(0,0,0,0.18);`;
+ghost.textContent=label||ev.title;
+document.body.appendChild(ghost);
+ghostRef.current=ghost;
+if(navigator.vibrate)navigator.vibrate(30);
+},380);
+};
+const onMove=e=>{
+const t=Array.from(e.touches).find(t=>t.identifier===touchId.current);
+if(!t||allowScroll.current)return;
+const dx=t.clientX-startPos.current.x;
+const dy=t.clientY-startPos.current.y;
+if(!isDragging.current){
+if(Math.sqrt(dx*dx+dy*dy)>10){
+// 大きく動いたらキャンセル・スクロール解放
+clearTimeout(longPressTimer.current);
+allowScroll.current=true;
+pendingEv.current=null;
+cleanup();
+return;
+}
+e.preventDefault(); // 長押し待ち中はスクロール禁止
+return;
+}
+e.preventDefault();
+if(ghostRef.current){
+ghostRef.current.style.left=`${t.clientX-60}px`;
+ghostRef.current.style.top=`${t.clientY-28}px`;
+}
+};
+const onEnd=e=>{
+clearTimeout(longPressTimer.current);
+pendingEv.current=null;
+if(!isDragging.current){cleanup();return;}
+const t=Array.from(e.changedTouches).find(t=>t.identifier===touchId.current);
+if(t){
+if(ghostRef.current)ghostRef.current.style.display=“none”;
+const el=document.elementFromPoint(t.clientX,t.clientY);
+if(ghostRef.current)ghostRef.current.style.display=””;
+const cell=el?.closest(”[data-date]”);
+const unplacedZone=el?.closest(”[data-unplaced]”);
+const ev=draggingEv.current;
+cleanup();
+if(cell&&ev)onDrop(ev,cell.dataset.date);
+else if(unplacedZone&&ev)onDropUnplaced(ev);
+}else cleanup();
+};
+// passive:false で登録することで preventDefault() が効く
+window.addEventListener(“touchstart”,onStart,{passive:false});
+window.addEventListener(“touchmove”,onMove,{passive:false});
+window.addEventListener(“touchend”,onEnd);
+window.addEventListener(“touchcancel”,cleanup);
+return()=>{
+window.removeEventListener(“touchstart”,onStart);
+window.removeEventListener(“touchmove”,onMove);
+window.removeEventListener(“touchend”,onEnd);
+window.removeEventListener(“touchcancel”,cleanup);
+};
+},[onDrop,onDropUnplaced,onDragStart]);
+
+// startDrag: onTouchStart から呼ばれ「このevをドラッグ候補に登録」するだけ
+// 実際の処理は window の touchstart リスナーが行う
+const startDrag=useCallback((e,ev,labelText)=>{
+pendingEv.current=ev;
+pendingLabel.current=labelText||ev.title;
+},[]);
+
+return{startDrag};
+}
+
+// ── スパン計算 ───────────────────────────────────────────────
+function computeWeekSpans(events,weekCells){
+const vd=weekCells.map(d=>d?toDateStr(d):null);
+const first=vd.find(Boolean),last=[…vd].reverse().find(Boolean);
+if(!first||!last)return[];
+const spans=[];
+for(const ev of events.filter(e=>e.placed&&e.startDate)){
+const evEnd=ev.endDate||ev.startDate;
+if(ev.startDate>last||evEnd<first)continue;
+const cs=vd.findIndex(d=>d&&d>=ev.startDate);
+const cer=[…vd].reverse().findIndex(d=>d&&d<=evEnd);
+const ce=cer===-1?6:6-cer;
+if(cs===-1)continue;
+spans.push({ev,col:cs,span:ce-cs+1,isStart:ev.startDate>=first&&ev.startDate<=last,isEnd:evEnd>=first&&evEnd<=last});
+}
+spans.sort((a,b)=>a.col-b.col);
+const rows=[];
+for(const s of spans){
+let p=false;
+for(const row of rows){if(!row.some(r=>r.col<s.col+s.span&&r.col+r.span>s.col)){row.push(s);p=true;break;}}
+if(!p)rows.push([s]);
+}
+return rows;
+}
+
+// ── DayHeader ───────────────────────────────────────────────
+function DayHeader({dateStr,label,isToday,compact=false}){
+const dow=new Date(dateStr).getDay();
+const type=getDayType(dateStr,dow);
+const tc=dayTextColor(type,isToday);
+const holiday=getHoliday(dateStr);
+return(
+<div className={`text-center ${isToday?"bg-[var(--accent-soft)]":""} ${compact?"py-1":"py-1.5"}`}>
+<div style={{fontSize:compact?“9px”:“10px”,color:tc,fontWeight:500}}>{label}</div>
+<div style={{fontSize:compact?“12px”:“14px”,fontWeight:700,color:tc,lineHeight:1.2}}>{new Date(dateStr).getDate()}</div>
+{holiday&&!compact&&<div style={{fontSize:“8px”,color:”#ef4444”,lineHeight:1.1}}>{holiday}</div>}
+</div>
+);
+}
+
+// ── PC版 EventChip ───────────────────────────────────────────
+function EventChip({event,onDragStart,onClick,colSpan=1,inCalendar=false,onResizeStart=null}){
+const[copying,setCopying]=useState(false);
+useEffect(()=>{
+const h=e=>setCopying(e.ctrlKey||e.metaKey);
+const hu=()=>setCopying(false);
+window.addEventListener(“keydown”,h);window.addEventListener(“keyup”,hu);
+return()=>{window.removeEventListener(“keydown”,h);window.removeEventListener(“keyup”,hu);};
+},[]);
+const tl=timeLabel(event);
+return(
+<div draggable onDragStart={e=>onDragStart(e,event)} onClick={e=>{e.stopPropagation();onClick(event);}}
+style={{backgroundColor:event.color+“28”,borderLeft:`3px solid ${event.color}`,
+outline:copying?`1.5px dashed ${event.color}88`:“none”,
+…(inCalendar&&colSpan>1?{position:“absolute”,left:0,width:`calc(${colSpan*100}% - 4px)`,zIndex:2}:{})}}
+className=“rounded-r-md cursor-grab active:cursor-grabbing select-none hover:brightness-95 transition-all duration-100 overflow-hidden flex items-stretch”>
+<div className="flex-1 px-1.5 py-0.5 min-w-0 flex flex-col justify-center">
+<span style={{color:event.color}} className="text-[11px] font-semibold truncate leading-tight">{event.title}</span>
+{tl&&<span style={{color:event.color+“bb”}} className=“text-[9px] leading-tight truncate”>{tl}</span>}
+</div>
+{onResizeStart&&inCalendar&&(
+<div className=“flex-shrink-0 w-3 flex items-center justify-center cursor-col-resize”
+onMouseDown={e=>{e.stopPropagation();e.preventDefault();onResizeStart(e,event);}}
+onClick={e=>e.stopPropagation()}>
+<div className="w-0.5 h-4 rounded-full opacity-30 hover:opacity-80" style={{backgroundColor:event.color}}/>
+</div>
+)}
+</div>
+);
+}
+
+// ── モバイル版 TouchChip ─────────────────────────────────────
+function TouchChip({event,onClick,startDrag,compact=false}){
+const tl=timeLabel(event);
+return(
+<div
+onTouchStart={e=>startDrag(e,event,event.title)}
+onClick={e=>{e.stopPropagation();onClick(event);}}
+style={{backgroundColor:event.color+“28”,borderLeft:`3px solid ${event.color}`}}
+className=“touch-chip rounded-r-md overflow-hidden active:brightness-90 transition-all”>
+<div className={`px-2 ${compact?"py-0.5":"py-1"} min-w-0`}>
+<span style={{color:event.color}} className={`font-semibold truncate block leading-tight ${compact?"text-[11px]":"text-[13px]"}`}>{event.title}</span>
+{tl&&<span style={{color:event.color+“bb”}} className=“text-[10px] leading-tight block truncate”>{tl}</span>}
+</div>
+</div>
+);
+}
+
+// ── PC週ビュー ───────────────────────────────────────────────
+function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId}){
+const weekDays=Array.from({length:7},(_,i)=>addDays(weekStart,i));
+const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
+const today=toDateStr(new Date());
+const SPAN_H=26;
+const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
+const getForDay=ds=>vis.filter(e=>e.placed&&e.startDate&&dateInRange(ds,e.startDate,e.endDate));
+return(
+<div className="flex flex-col h-full select-none">
+<div className="grid grid-cols-7 border-b border-[var(--border)] flex-shrink-0">
+{weekDays.map((day,i)=><DayHeader key={i} dateStr={toDateStr(day)} label={labels[i]} isToday={toDateStr(day)===today}/>)}
+</div>
+<div className="grid grid-cols-7 flex-1 divide-x divide-[var(--border)] overflow-y-auto">
+{weekDays.map((day,i)=>{
+const ds=toDateStr(day),isDO=dragOverDate===ds;
+const dayEvs=getForDay(ds);
+const starting=dayEvs.filter(ev=>ev.startDate===ds);
+const singles=starting.filter(ev=>(ev.endDate||ev.startDate)===ds);
+const multi=starting.filter(ev=>(ev.endDate||ev.startDate)>ds);
+const cont=dayEvs.filter(ev=>ev.startDate!==ds);
+return(
+<div key={i} data-date={ds}
+className={`relative p-1 min-h-[120px] cursor-pointer transition-colors duration-100 ${isDO?"bg-[var(--accent-soft)]":"hover:bg-[var(--hover)]"}`}
+onDragOver={e=>{e.preventDefault();setDragOverDate(ds);}}
+onDragLeave={()=>setDragOverDate(null)}
+onDrop={e=>{onDrop(e,ds);setDragOverDate(null);}}
+onClick={()=>onCellClick(ds)}>
+{isDO&&<div className="absolute inset-0 border-2 border-dashed border-[var(--accent)] rounded pointer-events-none opacity-60 z-10"/>}
+<div className="space-y-0.5">
+{multi.map(ev=>{
+const ec=weekDays.findIndex(d=>toDateStr(d)===(ev.endDate||ev.startDate));
+const span=ec===-1?weekDays.length-i:ec-i+1;
+return(<div key={ev.id} className=“relative” style={{height:`${SPAN_H}px`,marginBottom:“2px”}}>
+<EventChip event={ev} onDragStart={onDragStart} onClick={onEventClick} colSpan={span} inCalendar={true} onResizeStart={onResizeStart}/>
+</div>);
+})}
+{cont.length>0&&<div style={{height:`${SPAN_H}px`,marginBottom:“2px”}}/>}
+{singles.map(ev=><EventChip key={ev.id} event={ev} onDragStart={onDragStart} onClick={onEventClick}/>)}
+</div>
+</div>
+);
+})}
+</div>
+</div>
+);
+}
+
+// ── モバイル週ビュー（3日表示） ──────────────────────────────
+function MobileWeekView({events,dayStart,startMonday,onCellClick,onEventClick,startDrag,draggingId}){
+const days=Array.from({length:3},(_,i)=>addDays(dayStart,i));
+const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
+const today=toDateStr(new Date());
+const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
+const getForDay=ds=>vis.filter(e=>e.placed&&e.startDate&&dateInRange(ds,e.startDate,e.endDate));
+const SPAN_H=28;
+return(
+<div className="flex flex-col h-full">
+<div className="grid grid-cols-3 border-b border-[var(--border)] flex-shrink-0">
+{days.map((day,i)=>{
+const ds=toDateStr(day);
+const dow=day.getDay();
+const lIdx=startMonday?(dow===0?6:dow-1):dow;
+return<DayHeader key={i} dateStr={ds} label={labels[lIdx]} isToday={ds===today}/>;
+})}
+</div>
+<div className="grid grid-cols-3 flex-1 divide-x divide-[var(--border)] overflow-y-auto">
+{days.map((day,i)=>{
+const ds=toDateStr(day);
+const dayEvs=getForDay(ds);
+const starting=dayEvs.filter(ev=>ev.startDate===ds);
+const singles=starting.filter(ev=>(ev.endDate||ev.startDate)===ds);
+const multi=starting.filter(ev=>(ev.endDate||ev.startDate)>ds);
+const cont=dayEvs.filter(ev=>ev.startDate!==ds);
+return(
+<div key={i} data-date={ds}
+className=“relative p-1 min-h-[140px]”
+onClick={()=>onCellClick(ds)}>
+<div className="space-y-0.5">
+{multi.map(ev=>{
+const ec=days.findIndex(d=>toDateStr(d)===(ev.endDate||ev.startDate));
+const span=Math.min(ec===-1?3-i:ec-i+1,3-i);
+return(<div key={ev.id} className=“relative” style={{height:`${SPAN_H}px`,marginBottom:“2px”}}
+onClick={e=>e.stopPropagation()}>
+<div style={{position:“absolute”,left:0,width:span>1?`calc(${span*100}% - 4px)`:“calc(100% - 4px)”,height:`${SPAN_H}px`,zIndex:2}}>
+<TouchChip event={ev} onClick={onEventClick} startDrag={startDrag} compact/>
+</div>
+</div>);
+})}
+{cont.length>0&&<div style={{height:`${SPAN_H}px`,marginBottom:“2px”}}/>}
+{singles.map(ev=><div key={ev.id} className=“mb-0.5” onClick={e=>e.stopPropagation()}>
+<TouchChip event={ev} onClick={onEventClick} startDrag={startDrag} compact/>
+</div>)}
+</div>
+</div>
+);
+})}
+</div>
+</div>
+);
+}
+
+// ── PC月ビュー ───────────────────────────────────────────────
+function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId}){
+const year=currentDate.getFullYear(),month=currentDate.getMonth();
+const firstDay=new Date(year,month,1);
+const offset=startMonday?(firstDay.getDay()+6)%7:firstDay.getDay();
+const dim=new Date(year,month+1,0).getDate();
+const totalCells=Math.ceil((offset+dim)/7)*7;
+const cells=Array.from({length:totalCells},(*,i)=>{
+const n=i-offset+1;
+return{date:new Date(year,month,n),ghost:n<1||n>dim};
+});
+const weeks=Array.from({length:cells.length/7},(*,w)=>cells.slice(w*7,w*7+7));
+const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
+const today=toDateStr(new Date());
+const SPAN_H=20,HEADER_H=22;
+const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
+const toCellDates=wc=>wc.map(c=>c.date);
+return(
+<div className="flex flex-col h-full select-none">
+<div className="grid grid-cols-7 border-b border-[var(--border)] flex-shrink-0">
+{labels.map((l,i)=>{const dow=startMonday?(i+1)%7:i;const tc=dow===0?”#ef4444”:dow===6?”#3b82f6”:“var(–text-muted)”;return<div key={l} className="text-center py-1.5 text-[10px] font-medium" style={{color:tc}}>{l}</div>;})}</div>
+<div className="flex-1 overflow-y-auto flex flex-col">
+{weeks.map((weekCells,wi)=>{
+const rows=computeWeekSpans(vis,toCellDates(weekCells));
+const minH=Math.max(72,HEADER_H+rows.length*SPAN_H+6);
+return(
+<div key={wi} className=“grid grid-cols-7 relative flex-shrink-0” style={{minHeight:`${minH}px`}}>
+{weekCells.map(({date,ghost},di)=>{
+const ds=toDateStr(date),isDO=dragOverDate===ds;
+const dow=date.getDay(),type=getDayType(ds,dow);
+const tc=type===“saturday”?”#3b82f6”:type===“sunday”||type===“holiday”?”#ef4444”:“var(–text-muted)”;
+const holiday=getHoliday(ds);
+return(
+<div key={di} data-date={ds}
+className={`border-b border-r border-[var(--border)] cursor-pointer transition-colors duration-100 relative ${isDO?"bg-[var(--accent-soft)]":"hover:bg-[var(--hover)]"}`}
+style={{backgroundColor:ghost&&!isDO?“var(–bg-muted)”:undefined}}
+onDragOver={e=>{e.preventDefault();setDragOverDate(ds);}}
+onDragLeave={()=>setDragOverDate(null)}
+onDrop={e=>{onDrop(e,ds);setDragOverDate(null);}}
+onClick={()=>onCellClick(ds)}>
+{isDO&&<div className="absolute inset-0 border-2 border-dashed border-[var(--accent)] rounded pointer-events-none opacity-60 z-10"/>}
+<div className="flex items-center gap-1 p-1 pb-0 flex-wrap">
+<span style={{color:tc,opacity:ghost?0.45:1}} className="text-[11px] font-semibold">{date.getDate()}</span>
+{holiday&&!ghost&&<span style={{color:”#ef4444”}} className=“text-[9px]”>{holiday}</span>}
+</div>
+</div>
+);
+})}
+{rows.map((row,ri)=>row.map(({ev,col,span,isStart,isEnd})=>{
+const top=HEADER_H+ri*SPAN_H;
+return(
+<div key={ev.id+”-”+wi} draggable
+onDragStart={e=>{e.stopPropagation();onDragStart(e,ev);}}
+onClick={e=>{e.stopPropagation();onEventClick(ev);}}
+style={{position:“absolute”,left:`calc(${col/7*100}% + 2px)`,width:`calc(${span/7*100}% - 4px)`,top:`${top}px`,height:`${SPAN_H-2}px`,backgroundColor:ev.color+“28”,borderLeft:isStart?`3px solid ${ev.color}`:“none”,zIndex:3}}
+className=“flex items-center overflow-hidden cursor-grab select-none hover:brightness-95 transition-all rounded-r-md”>
+<div className="flex-1 px-1.5 min-w-0">
+{isStart?<><span style={{color:ev.color}} className="text-[11px] font-semibold truncate leading-none block">{ev.title}</span>{timeLabel(ev)&&<span style={{color:ev.color+“99”}} className=“text-[9px] leading-none block truncate”>{timeLabel(ev)}</span>}</>:<span style={{color:ev.color+“88”}} className=“text-[10px] leading-none”>···</span>}
+</div>
+{isEnd&&<div className=“flex-shrink-0 w-3 h-full flex items-center justify-center cursor-col-resize” onMouseDown={e=>{e.stopPropagation();e.preventDefault();onResizeStart(e,ev);}} onClick={e=>e.stopPropagation()}><div className="w-0.5 h-3 rounded-full opacity-30 hover:opacity-80" style={{backgroundColor:ev.color}}/></div>}
+</div>
+);
+}))}
+</div>
+);
+})}
+</div>
+</div>
+);
+}
+
+// ── モバイル月ビュー ─────────────────────────────────────────
+function MobileMonthView({events,currentDate,startMonday,onCellClick,onEventClick,startDrag,draggingId}){
+const year=currentDate.getFullYear(),month=currentDate.getMonth();
+const firstDay=new Date(year,month,1);
+const offset=startMonday?(firstDay.getDay()+6)%7:firstDay.getDay();
+const dim=new Date(year,month+1,0).getDate();
+const totalCells=Math.ceil((offset+dim)/7)*7;
+const cells=Array.from({length:totalCells},(*,i)=>{
+const n=i-offset+1;return{date:new Date(year,month,n),ghost:n<1||n>dim};
+});
+const weeks=Array.from({length:cells.length/7},(*,w)=>cells.slice(w*7,w*7+7));
+const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
+const today=toDateStr(new Date());
+const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
+const SPAN_H=22,HEADER_H=28;
+const toCellDates=wc=>wc.map(c=>c.date);
+return(
+<div className="flex flex-col h-full">
+<div className="grid grid-cols-7 border-b border-[var(--border)] flex-shrink-0">
+{labels.map((l,i)=>{const dow=startMonday?(i+1)%7:i;const tc=dow===0?”#ef4444”:dow===6?”#3b82f6”:“var(–text-muted)”;return<div key={l} className=“text-center py-1.5” style={{fontSize:“11px”,fontWeight:500,color:tc}}>{l}</div>;})}
+</div>
+<div className="flex-1 overflow-y-auto flex flex-col">
+{weeks.map((weekCells,wi)=>{
+const rows=computeWeekSpans(vis,toCellDates(weekCells));
+const minH=Math.max(80,HEADER_H+rows.length*SPAN_H+6);
+return(
+<div key={wi} className=“grid grid-cols-7 relative flex-shrink-0” style={{minHeight:`${minH}px`}}>
+{weekCells.map(({date,ghost},di)=>{
+const ds=toDateStr(date);
+const dow=date.getDay(),type=getDayType(ds,dow);
+const tc=type===“saturday”?”#3b82f6”:type===“sunday”||type===“holiday”?”#ef4444”:“var(–text-muted)”;
+return(
+<div key={di} data-date={ds}
+className=“border-b border-r border-[var(–border)] relative”
+style={{backgroundColor:ghost?“var(–bg-muted)”:undefined}}
+onClick={()=>!ghost&&onCellClick(ds)}>
+<div className="p-1 pb-0">
+<span style={{color:tc,opacity:ghost?0.4:1,fontSize:“12px”,fontWeight:600}}>{date.getDate()}</span>
+</div>
+</div>
+);
+})}
+{rows.map((row,ri)=>row.map(({ev,col,span,isStart})=>{
+const top=HEADER_H+ri*SPAN_H;
+return(
+<div key={ev.id+”-”+wi}
+style={{position:“absolute”,left:`calc(${col/7*100}% + 1px)`,width:`calc(${span/7*100}% - 2px)`,top:`${top}px`,height:`${SPAN_H-2}px`,backgroundColor:ev.color+“28”,borderLeft:isStart?`3px solid ${ev.color}`:“none”,zIndex:3,borderRadius:“0 4px 4px 0”}}
+className=“touch-chip flex items-center overflow-hidden”
+onTouchStart={e=>startDrag(e,ev,ev.title)}
+onClick={e=>{e.stopPropagation();onEventClick(ev);}}>
+{isStart&&<span style={{color:ev.color,fontSize:“10px”,fontWeight:600,paddingLeft:“4px”}} className=“truncate block”>{ev.title}</span>}
+</div>
+);
+}))}
+</div>
+);
+})}
+</div>
+</div>
+);
+}
+
+// ── PC サイドパネル ──────────────────────────────────────────
+function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,currentDate,weekStart}){
+const[showSum,setShowSum]=useState(false);
+const sorted=[…events].sort((a,b)=>{
+if(a.placed&&a.startDate&&b.placed&&b.startDate)return a.startDate.localeCompare(b.startDate);
+if(a.placed&&a.startDate)return-1;if(b.placed&&b.startDate)return 1;return 0;
+});
+const ws=toDateStr(weekStart),we=toDateStr(addDays(weekStart,6));
+const y=currentDate.getFullYear(),mo=currentDate.getMonth();
+const ms=`${y}-${String(mo+1).padStart(2,"0")}-01`,me=toDateStr(new Date(y,mo+1,0));
+const cg={};
+for(const ev of events){
+if(!cg[ev.color])cg[ev.color]={color:ev.color,title:ev.title,placed:{week:0,month:0},unplaced:{week:0,month:0}};
+const wh=ev.workHours!=null?ev.workHours:calcWorkHours(ev.startTime,ev.endTime,ev.allDay);
+if(!wh)continue;
+if(ev.placed&&ev.startDate){
+if(dateInRange(ev.startDate,ws,we))cg[ev.color].placed.week+=wh;
+if(dateInRange(ev.startDate,ms,me))cg[ev.color].placed.month+=wh;
+}else{cg[ev.color].unplaced.week+=wh;cg[ev.color].unplaced.month+=wh;}
+}
+const groups=Object.values(cg).filter(g=>g.placed.week||g.placed.month||g.unplaced.week||g.unplaced.month);
+return(
+<div className=“flex flex-col border-r border-[var(–border)] bg-[var(–bg-panel)] transition-all duration-300 overflow-hidden flex-shrink-0” style={{width:collapsed?“38px”:“210px”}}>
+<div className="flex items-center px-2 py-2.5 border-b border-[var(--border)] flex-shrink-0">
+{!collapsed&&<span className="text-xs font-bold text-[var(--text)] flex-1 truncate">予定リスト</span>}
+<button onClick={onToggle} className="text-[var(--text-muted)] hover:text-[var(--text)] text-xs">{collapsed?“▶”:“◀”}</button>
+</div>
+{!collapsed&&(<>
+<div className="flex-1 overflow-y-auto py-1">
+{sorted.map(ev=>(
+<div key={ev.id} draggable onDragStart={e=>onDragStart(e,ev)} onClick={()=>onEventClick(ev)}
+style={{borderLeft:`3px solid ${ev.color}`}}
+className=“flex items-start gap-2 mx-1 px-2 py-1.5 mb-0.5 rounded-r-md cursor-pointer hover:bg-[var(–hover)] transition-colors select-none”>
+<div className="flex-1 min-w-0">
+<div className="text-[11px] font-semibold truncate text-[var(--text)]">{ev.title}</div>
+<div className="text-[10px] text-[var(--text-muted)]">
+{ev.placed&&ev.startDate?<>{ev.startDate.slice(5).replace(”-”,”/”)}
+{ev.endDate&&ev.endDate!==ev.startDate?` → ${ev.endDate.slice(5).replace("-","/")}`:””}{” “}{timeLabel(ev)}{ev.workHours!=null?` ${fmtHours(ev.workHours)}`:””}</>:“未配置”}
+</div>
+</div>
+</div>
+))}
+</div>
+<div className="border-t border-[var(--border)] flex-shrink-0">
+<button onClick={()=>setShowSum(v=>!v)} className=“w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-[var(–hover)]” style={{color:“var(–text-muted)”}}>
+<span>実労働集計</span><span>{showSum?“▲”:“▼”}</span>
+</button>
+{showSum&&<div className="px-2 pb-2 space-y-2">
+{groups.length===0?<p className=“text-[10px] text-center py-2” style={{color:“var(–text-muted)”}}>データなし</p>:groups.map(g=>(
+<div key={g.color} className="rounded-md overflow-hidden border border-[var(--border)]">
+<div className=“flex items-center gap-1.5 px-2 py-1” style={{backgroundColor:g.color+“18”}}>
+<div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor:g.color}}/>
+<span className="text-[11px] font-semibold truncate" style={{color:g.color}}>{g.title}</span>
+</div>
+<table className=“w-full text-[10px]” style={{color:“var(–text-muted)”}}>
+<thead><tr style={{backgroundColor:“var(–bg-muted)”}}><th className="text-left px-2 py-0.5 font-medium"></th><th className="text-right px-2 py-0.5 font-medium">週</th><th className="text-right px-2 py-0.5 font-medium">月</th></tr></thead>
+<tbody>
+<tr><td className="px-2 py-0.5">配置済</td><td className="text-right px-2 py-0.5 font-mono">{fmtHours(g.placed.week)}</td><td className="text-right px-2 py-0.5 font-mono">{fmtHours(g.placed.month)}</td></tr>
+<tr style={{backgroundColor:“var(–bg-muted)”}}><td className="px-2 py-0.5">未配置</td><td className="text-right px-2 py-0.5 font-mono">{fmtHours(g.unplaced.week)}</td><td className="text-right px-2 py-0.5 font-mono">{fmtHours(g.unplaced.month)}</td></tr>
+</tbody>
+</table>
+</div>
+))}
+</div>}
+</div>
+<div className="p-2 border-t border-[var(--border)] flex-shrink-0">
+<button onClick={onAddEvent} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">＋ 予定を追加</button>
+</div>
+</>)}
+</div>
+);
+}
+
+// ── PC 未配置エリア ──────────────────────────────────────────
+function DropGap({idx,active,onOver,onDrop}){
+return(<div className=“flex items-center justify-center transition-all duration-100” style={{width:active?“20px”:“6px”,height:“28px”,flexShrink:0}} onDragOver={e=>onOver(e,idx)} onDrop={e=>onDrop(e,idx)}>
+<div className=“rounded-full transition-all duration-100” style={{width:active?“3px”:“2px”,height:active?“24px”:“12px”,backgroundColor:active?“var(–accent)”:“var(–border)”,opacity:active?1:0.4}}/>
+
+  </div>);
+}
+function UnplacedArea({events,onDragStart,onDrop,onEventClick,dragOverIdx,setDragOverIdx,unplacedInternalDrag,setUnplacedInternalDrag,onReorder,onRecallMonth,currentDate}){
+  const[collapsed,setCollapsed]=useState(false);
+  const[areaOver,setAreaOver]=useState(false);
+  const[dzOver,setDzOver]=useState(false);
+  const unplaced=events.filter(e=>!e.placed);
+  const y=currentDate.getFullYear(),mo=currentDate.getMonth();
+  const ml=`${y}/${String(mo+1).padStart(2,"0")}`;
+  const handleGapOver=(e,idx)=>{e.preventDefault();e.stopPropagation();setDragOverIdx(idx);setAreaOver(false);};
+  const handleGapDrop=(e,idx)=>{
+    e.preventDefault();e.stopPropagation();
+    if(unplacedInternalDrag!==null){onReorder(unplacedInternalDrag,idx);setUnplacedInternalDrag(null);}else onDrop(e,idx);
+    setDragOverIdx(null);setAreaOver(false);
+  };
+  const handleAreaDrop=e=>{
+    e.preventDefault();
+    if(unplacedInternalDrag!==null){onReorder(unplacedInternalDrag,unplaced.length);setUnplacedInternalDrag(null);}else onDrop(e,unplaced.length);
+    setAreaOver(false);setDragOverIdx(null);
+  };
+  const handleDzOver=e=>{e.preventDefault();e.stopPropagation();setDzOver(true);};
+  const handleDzDrop=e=>{e.preventDefault();e.stopPropagation();if(unplacedInternalDrag!==null)return;onDrop(e,unplaced.length);setDzOver(false);};
+  return(
+    <div className="border-t border-[var(--border)] bg-[var(--bg-panel)] flex-shrink-0 flex flex-col">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border)]">
+        <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">未配置</span>
+        <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-muted)] px-1.5 rounded-full">{unplaced.length}</span>
+        <button onClick={onRecallMonth} className="text-[10px] px-2 py-0.5 rounded border border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">{ml}を回収</button>
+        <div className="flex-1"/>
+        <button onClick={()=>setCollapsed(v=>!v)} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text)] px-1">{collapsed?"▲":"▼"}</button>
+      </div>
+      {!collapsed&&(
+        <div className="flex" style={{minHeight:"90px"}}>
+          <div className={`flex-1 px-2 py-2 flex flex-wrap items-start content-start gap-0 transition-colors duration-100 ${areaOver&&dragOverIdx===null?"bg-[var(--accent-soft)]":""}`}
+            data-unplaced="true"
+            onDragOver={e=>{e.preventDefault();setAreaOver(true);}}
+            onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget)){setAreaOver(false);setDragOverIdx(null);}}}
+            onDrop={handleAreaDrop}>
+            {unplaced.length===0?<div className="text-[11px] text-[var(--text-muted)] italic self-center mx-auto mt-2">すべて配置済みです 🎉</div>:(<>
+              <DropGap idx={0} active={dragOverIdx===0} onOver={handleGapOver} onDrop={handleGapDrop}/>
+              {unplaced.map((ev,idx)=>(
+                <div key={ev.id} className="flex items-center mb-1">
+                  <div draggable
+                    onDragStart={e=>{
+                      const g=document.createElement("div");g.style.cssText="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;";document.body.appendChild(g);e.dataTransfer.setDragImage(g,0,0);setTimeout(()=>document.body.removeChild(g),0);
+                      setUnplacedInternalDrag(idx);onDragStart(e,ev);
+                    }}
+                    onDragEnd={()=>setUnplacedInternalDrag(null)}
+                    onClick={()=>onEventClick(ev)}
+                    style={{backgroundColor:ev.color+"28",borderLeft:`3px solid ${ev.color}`}}
+                    className="text-[11px] px-2 py-1 rounded-r-md cursor-grab select-none hover:opacity-80 transition-opacity">
+                    <span style={{color:ev.color}} className="font-semibold">{ev.title}</span>
+                    {timeLabel(ev)&&<span style={{color:ev.color+"99"}} className="ml-1 text-[9px]">{timeLabel(ev)}</span>}
+                  </div>
+                  <DropGap idx={idx+1} active={dragOverIdx===idx+1} onOver={handleGapOver} onDrop={handleGapDrop}/>
+                </div>
+              ))}
+            </>)}
+          </div>
+          <div className="flex-shrink-0 flex flex-col items-center justify-center border-l border-[var(--border)] transition-colors duration-100" data-unplaced="true"
+            style={{width:"90px",minWidth:"90px",alignSelf:"stretch",backgroundColor:dzOver?"var(--accent-soft)":"var(--bg-muted)"}}
+            onDragOver={handleDzOver} onDragLeave={()=>setDzOver(false)} onDrop={handleDzDrop}>
+            <div className="text-[9px] text-center leading-tight select-none" style={{color:dzOver?"var(--accent)":"var(--text-muted)"}}>
+              <div style={{fontSize:"18px",marginBottom:"2px"}}>📥</div><div>未配置</div><div>に戻す</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── モバイル ボトムシート（予定リスト） ──────────────────────
+function MobileListSheet({events,open,onClose,onEventClick,onAddEvent,currentDate,weekStart}){
+const sorted=[…events].sort((a,b)=>{
+if(a.placed&&a.startDate&&b.placed&&b.startDate)return a.startDate.localeCompare(b.startDate);
+if(a.placed&&a.startDate)return-1;if(b.placed&&b.startDate)return 1;return 0;
+});
+const ws=toDateStr(weekStart),we=toDateStr(addDays(weekStart,6));
+const y=currentDate.getFullYear(),mo=currentDate.getMonth();
+const ms=`${y}-${String(mo+1).padStart(2,"0")}-01`,me=toDateStr(new Date(y,mo+1,0));
+const cg={};
+for(const ev of events){
+if(!cg[ev.color])cg[ev.color]={color:ev.color,title:ev.title,placed:{week:0,month:0},unplaced:{week:0,month:0}};
+const wh=ev.workHours!=null?ev.workHours:calcWorkHours(ev.startTime,ev.endTime,ev.allDay);
+if(!wh)continue;
+if(ev.placed&&ev.startDate){
+if(dateInRange(ev.startDate,ws,we))cg[ev.color].placed.week+=wh;
+if(dateInRange(ev.startDate,ms,me))cg[ev.color].placed.month+=wh;
+}else{cg[ev.color].unplaced.week+=wh;cg[ev.color].unplaced.month+=wh;}
+}
+const groups=Object.values(cg).filter(g=>g.placed.week||g.placed.month||g.unplaced.week||g.unplaced.month);
+return(
+<>
+{open&&<div className="fixed inset-0 z-30 bg-black/30" onClick={onClose}/>}
+<div className=“fixed bottom-0 left-0 right-0 z-40 rounded-t-2xl border-t border-[var(–border)] flex flex-col transition-transform duration-300”
+style={{backgroundColor:“var(–bg)”,maxHeight:“75vh”,transform:open?“translateY(0)”:“translateY(100%)”}}>
+<div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] flex-shrink-0">
+<span className=“font-bold text-sm” style={{color:“var(–text)”}}>予定リスト</span>
+<button onClick={onClose} className="text-[var(--text-muted)] text-lg leading-none">✕</button>
+</div>
+<div className="flex-1 overflow-y-auto py-2">
+{sorted.map(ev=>(
+<div key={ev.id} onClick={()=>{onEventClick(ev);onClose();}}
+style={{borderLeft:`3px solid ${ev.color}`}}
+className=“flex items-start gap-3 mx-3 px-3 py-2.5 mb-1 rounded-r-lg active:bg-[var(–hover)]”>
+<div className="flex-1 min-w-0">
+<div className=“font-semibold truncate” style={{fontSize:“14px”,color:“var(–text)”}}>{ev.title}</div>
+<div style={{fontSize:“12px”,color:“var(–text-muted)”}}>
+{ev.placed&&ev.startDate?<>{ev.startDate.slice(5).replace(”-”,”/”)}
+{ev.endDate&&ev.endDate!==ev.startDate?` → ${ev.endDate.slice(5).replace("-","/")}`:””}{” “}{timeLabel(ev)}</>:“未配置”}
+</div>
+</div>
+</div>
+))}
+{groups.length>0&&(
+<div className="mx-3 mt-3 pt-3 border-t border-[var(--border)]">
+<div className=“text-[11px] font-bold uppercase tracking-wider mb-2” style={{color:“var(–text-muted)”}}>実労働集計</div>
+{groups.map(g=>(
+<div key={g.color} className="mb-2 rounded-lg overflow-hidden border border-[var(--border)]">
+<div className=“flex items-center gap-2 px-3 py-1.5” style={{backgroundColor:g.color+“18”}}>
+<div className="w-3 h-3 rounded-full" style={{backgroundColor:g.color}}/>
+<span className="font-semibold text-sm truncate" style={{color:g.color}}>{g.title}</span>
+</div>
+<div className=“grid grid-cols-3 text-center” style={{fontSize:“11px”,color:“var(–text-muted)”}}>
+<div className="py-1 border-r border-[var(--border)]"></div>
+<div className="py-1 border-r border-[var(--border)] font-medium">週</div>
+<div className="py-1 font-medium">月</div>
+<div className="py-1.5 border-r border-t border-[var(--border)] pl-2 text-left">配置済</div>
+<div className="py-1.5 border-r border-t border-[var(--border)] font-mono">{fmtHours(g.placed.week)}</div>
+<div className="py-1.5 border-t border-[var(--border)] font-mono">{fmtHours(g.placed.month)}</div>
+<div className=“py-1.5 border-r border-t border-[var(–border)] pl-2 text-left” style={{backgroundColor:“var(–bg-muted)”}}>未配置</div>
+<div className=“py-1.5 border-r border-t border-[var(–border)] font-mono” style={{backgroundColor:“var(–bg-muted)”}}>{fmtHours(g.unplaced.week)}</div>
+<div className=“py-1.5 border-t border-[var(–border)] font-mono” style={{backgroundColor:“var(–bg-muted)”}}>{fmtHours(g.unplaced.month)}</div>
+</div>
+</div>
+))}
+</div>
+)}
+</div>
+<div className="p-3 border-t border-[var(--border)] flex-shrink-0">
+<button onClick={()=>{onAddEvent();onClose();}} className=“w-full py-3 rounded-xl text-white font-semibold text-sm” style={{backgroundColor:“var(–accent)”}}>＋ 予定を追加</button>
+</div>
+</div>
+</>
+);
+}
+
+// ── モバイル 未配置シート ────────────────────────────────────
+function MobileUnplacedSheet({events,onEventClick,startDrag,onRecallMonth,currentDate}){
+const[collapsed,setCollapsed]=useState(false);
+const unplaced=events.filter(e=>!e.placed);
+const y=currentDate.getFullYear(),mo=currentDate.getMonth();
+const ml=`${y}/${String(mo+1).padStart(2,"0")}`;
+return(
+<div className=“border-t border-[var(–border)] flex-shrink-0 flex flex-col” style={{backgroundColor:“var(–bg-panel)”}}>
+<div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border)]">
+<span className=“font-bold text-[11px] uppercase tracking-wider” style={{color:“var(–text-muted)”}}>未配置</span>
+<span className=“text-[11px] px-1.5 rounded-full” style={{backgroundColor:“var(–bg-muted)”,color:“var(–text-muted)”}}>{unplaced.length}</span>
+<button onClick={onRecallMonth} className=“text-[11px] px-2 py-0.5 rounded-lg border border-[var(–border)]” style={{color:“var(–text-muted)”}}>{ml}を回収</button>
+<div className="flex-1"/>
+<button onClick={()=>setCollapsed(v=>!v)} style={{color:“var(–text-muted)”,fontSize:“12px”}}>{collapsed?“▲”:“▼”}</button>
+</div>
+{!collapsed&&(
+<div data-unplaced=“true” className=“flex overflow-x-auto gap-2 px-3 py-2” style={{minHeight:“60px”}}>
+{unplaced.length===0
+?<div className=“text-[12px] italic self-center” style={{color:“var(–text-muted)”}}>すべて配置済みです 🎉</div>
+:unplaced.map(ev=>(
+<div key={ev.id} className=“flex-shrink-0” style={{minWidth:“100px”,maxWidth:“160px”}}>
+<TouchChip event={ev} onClick={onEventClick} startDrag={startDrag}/>
+</div>
+))
+}
+</div>
+)}
+</div>
+);
+}
+
+// ── EventPopup（PC・モバイル共通） ───────────────────────────
+function EventPopup({event,onClose,onSave,onDelete,isMobile}){
+const[title,setTitle]=useState(event?.title??””);
+const[memo,setMemo]=useState(event?.memo??””);
+const[color,setColor]=useState(event?.color??DEFAULT_COLORS[0]);
+const[startDate,setStartDate]=useState(event?.startDate??””);
+const[endDate,setEndDate]=useState(event?.endDate??””);
+const[allDay,setAllDay]=useState(event?.allDay??true);
+const[startTime,setStartTime]=useState(event?.startTime??“09:00”);
+const[endTime,setEndTime]=useState(event?.endTime??“18:00”);
+const[workHoursOverride,setWorkHoursOverride]=useState(event?.workHours!=null?String(event.workHours):””);
+const[customColors,setCustomColors]=useState(()=>loadCustomColors());
+const titleRef=useRef(null);
+useEffect(()=>{if(!isMobile)titleRef.current?.focus();},[]);
+useEffect(()=>{const h=e=>{if(e.key===“Escape”)onClose();};window.addEventListener(“keydown”,h);return()=>window.removeEventListener(“keydown”,h);},[onClose]);
+if(!event)return null;
+const st=allDay?null:startTime,et=allDay?null:endTime;
+const isOvernight=!allDay&&startTime&&endTime&&endTime<=startTime;
+const autoHours=calcWorkHours(startTime,endTime,allDay);
+const handleColorSelect=c=>{
+setColor(c);
+if(!DEFAULT_COLORS.includes(c)){const next=[c,…customColors.filter(x=>x!==c)].slice(0,8);setCustomColors(next);saveCustomColors(next);}
+};
+const handleSave=()=>{
+if(!title.trim())return;
+if(!DEFAULT_COLORS.includes(color)){const next=[color,…customColors.filter(x=>x!==color)].slice(0,8);saveCustomColors(next);}
+const resolvedEnd=resolveEndDate(startDate||null,endDate||null,allDay,st,et);
+const wh=workHoursOverride!==””?parseFloat(workHoursOverride):autoHours;
+onSave({…event,title:title.trim(),memo,color,startDate:startDate||null,endDate:resolvedEnd,placed:!!startDate,allDay,startTime:st,endTime:et,workHours:wh!=null?Math.round(wh*100)/100:null,_new:undefined});
+};
+const fs=isMobile?“14px”:“12px”;
+const inputCls=`text-xs rounded-lg px-2 border outline-none ${isMobile?"py-3 text-base":"py-1.5"}`;
+const inputStyle={backgroundColor:“var(–bg-muted)”,color:“var(–text)”,borderColor:“var(–border)”};
+const content=(
+<div style={{backgroundColor:“var(–bg)”,borderColor:“var(–border)”}}
+className={`border ${isMobile?"rounded-t-2xl w-full p-5":"rounded-2xl w-[320px] p-5 shadow-2xl"}`}
+style={{…(isMobile?{}:{boxShadow:`0 0 0 1px ${color}33,0 20px 60px rgba(0,0,0,0.2)`}),backgroundColor:“var(–bg)”}}
+onClick={e=>e.stopPropagation()}>
+{isMobile&&<div className=“w-10 h-1 rounded-full mx-auto mb-4” style={{backgroundColor:“var(–border)”}}/>}
+<div className="flex items-center gap-2 mb-3">
+<input type=“color” value={color} onChange={e=>handleColorSelect(e.target.value)} className=“rounded-full cursor-pointer” style={{width:“28px”,height:“28px”,padding:“1px”}}/>
+<input ref={titleRef} value={title} onChange={e=>setTitle(e.target.value)}
+onKeyDown={e=>e.key===“Enter”&&handleSave()} placeholder=“タイトル”
+className=“flex-1 bg-transparent outline-none border-b-2 pb-0.5”
+style={{fontSize:isMobile?“16px”:“14px”,fontWeight:700,color:“var(–text)”,borderColor:title?color:“var(–border)”}}/>
+</div>
+<div className="flex gap-1.5 mb-1.5">
+{DEFAULT_COLORS.map(c=><button key={c} onClick={()=>handleColorSelect(c)} className=“rounded-full transition-transform hover:scale-110” style={{width:isMobile?“24px”:“20px”,height:isMobile?“24px”:“20px”,backgroundColor:c,outline:color===c?`2px solid ${c}`:“none”,outlineOffset:“2px”}}/>)}
+</div>
+{customColors.length>0&&<div className="flex gap-1.5 mb-3 items-center">
+<span style={{fontSize:“9px”,color:“var(–text-muted)”}}>最近</span>
+{customColors.map(c=><button key={c} onClick={()=>handleColorSelect(c)} className=“rounded-full” style={{width:isMobile?“24px”:“20px”,height:isMobile?“24px”:“20px”,backgroundColor:c,outline:color===c?`2px solid ${c}`:“none”,outlineOffset:“2px”}}/>)}
+</div>}
+<div className="space-y-2 mb-3">
+<div className="flex items-center gap-2">
+<label style={{fontSize:“11px”,color:“var(–text-muted)”,width:“48px”,flexShrink:0}}>開始日</label>
+<input type=“date” value={startDate} onChange={e=>{setStartDate(e.target.value);if(!endDate||e.target.value>endDate)setEndDate(e.target.value);}} className={`flex-1 ${inputCls}`} style={inputStyle}/>
+</div>
+<div className="flex items-center gap-2">
+<label style={{fontSize:“11px”,color:“var(–text-muted)”,width:“48px”,flexShrink:0}}>終了日</label>
+<input type=“date” value={endDate} min={startDate} onChange={e=>setEndDate(e.target.value)} className={`flex-1 ${inputCls}`} style={inputStyle}/>
+</div>
+</div>
+<div className="mb-3">
+<div className="flex items-center gap-2 mb-2">
+<span style={{fontSize:“11px”,color:“var(–text-muted)”,width:“48px”,flexShrink:0}}>時間</span>
+<div className=“relative rounded-full cursor-pointer flex-shrink-0” style={{width:“32px”,height:“16px”,backgroundColor:allDay?“var(–border)”:“var(–accent)”}} onClick={()=>setAllDay(v=>!v)}>
+<div className=“absolute rounded-full bg-white shadow transition-all” style={{width:“12px”,height:“12px”,top:“2px”,left:allDay?“2px”:“calc(100% - 14px)”}}/>
+</div>
+<span style={{fontSize:“11px”,color:“var(–text-muted)”}}>{allDay?“終日”:“時間あり”}</span>
+</div>
+{!allDay&&<>
+<div className=“flex items-center gap-2 mb-2” style={{paddingLeft:“56px”}}>
+<select value={startTime} onChange={e=>setStartTime(e.target.value)} className={`flex-1 ${inputCls}`} style={inputStyle}>
+{TIME_OPTIONS.map(t=><option key={t} value={t}>{t}</option>)}
+</select>
+<span style={{fontSize:“11px”,color:“var(–text-muted)”}}>〜</span>
+<select value={endTime} onChange={e=>setEndTime(e.target.value)} className={`flex-1 ${inputCls}`} style={inputStyle}>
+{TIME_OPTIONS.filter(t=>t<=“23:30”).map(t=><option key={t} value={t}>{t}</option>)}
+</select>
+</div>
+{isOvernight&&<div style={{paddingLeft:“56px”}} className=“mb-2”><span style={{fontSize:“10px”,backgroundColor:”#6366f122”,color:”#6366f1”}} className=“px-1.5 py-0.5 rounded”>翌日またぎ → 終了日を自動で翌日にセット</span></div>}
+<div className=“flex items-center gap-2” style={{paddingLeft:“56px”}}>
+<span style={{fontSize:“11px”,color:“var(–text-muted)”,flexShrink:0}}>実労働</span>
+<input type=“number” step=“0.5” min=“0” max=“24” value={workHoursOverride} onChange={e=>setWorkHoursOverride(e.target.value)} placeholder={autoHours!=null?String(Math.round(autoHours*100)/100):””} className={`w-16 text-center ${inputCls}`} style={inputStyle}/>
+<span style={{fontSize:“11px”,color:“var(–text-muted)”}}>h</span>
+{workHoursOverride===””&&autoHours!=null&&<span style={{fontSize:“10px”,color:“var(–text-muted)”}}>自動:{fmtHours(autoHours)}</span>}
+{workHoursOverride!==””&&<button onClick={()=>setWorkHoursOverride(””)} style={{fontSize:“10px”,color:“var(–text-muted)”,backgroundColor:“var(–bg-muted)”}} className=“px-1.5 py-0.5 rounded”>リセット</button>}
+</div>
+</>}
+</div>
+<textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={2} placeholder=“メモ（任意）”
+className={`w-full rounded-lg px-2 py-1.5 border outline-none resize-none mb-4 ${isMobile?"text-base":"text-xs"}`}
+style={{backgroundColor:“var(–bg-muted)”,color:“var(–text)”,borderColor:“var(–border)”}}/>
+<div className="flex gap-2">
+{!event._new&&<button onClick={()=>onDelete(event.id)} className={`rounded-lg border transition-colors ${isMobile?"px-4 py-3 text-sm":"px-3 py-1.5 text-xs"}`} style={{borderColor:“var(–border)”,color:”#f87171”}}>削除</button>}
+<div className="flex-1"/>
+<button onClick={onClose} className={`rounded-lg border transition-colors ${isMobile?"px-4 py-3 text-sm":"px-3 py-1.5 text-xs"}`} style={{borderColor:“var(–border)”,color:“var(–text-muted)”}}>キャンセル</button>
+<button onClick={handleSave} disabled={!title.trim()} className={`rounded-lg text-white font-medium transition-all hover:opacity-90 disabled:opacity-40 ${isMobile?"px-6 py-3 text-sm":"px-4 py-1.5 text-xs"}`} style={{backgroundColor:color}}>{event._new?“追加”:“保存”}</button>
+</div>
+</div>
+);
+if(isMobile){
+return(<>
+<div className="fixed inset-0 z-50 bg-black/40" onClick={onClose}/>
+<div className="fixed bottom-0 left-0 right-0 z-50">{content}</div>
+</>);
+}
+return(<div className=“fixed inset-0 z-50 flex items-center justify-center” style={{background:“rgba(0,0,0,0.4)”,backdropFilter:“blur(2px)”}} onClick={onClose}>{content}</div>);
+}
+
+// ── App ──────────────────────────────────────────────────────
+function App(){
+const isMobile=useIsMobile();
+const settingsInit=loadSettings();
+const[events,setEvents]=useState(()=>loadEvents()??SAMPLE_EVENTS);
+const[view,setView]=useState(settingsInit.view??“week”);
+// モバイルでは月ビュー固定
+const effectiveView=isMobile?“month”:view;
+const[startMonday,setStartMonday]=useState(settingsInit.startMonday??false);
+const[currentDate,setCurrentDate]=useState(()=>new Date());
+const[sidebarCollapsed,setSidebarCollapsed]=useState(settingsInit.sidebarCollapsed??false);
+const[dragEventId,setDragEventId]=useState(null);
+const dragEventIdRef=useRef(null);
+const[selectedEvent,setSelectedEvent]=useState(null);
+const[dragOverDate,setDragOverDate]=useState(null);
+const[unplacedDragOverIdx,setUnplacedDragOverIdx]=useState(null);
+const[unplacedInternalDrag,setUnplacedInternalDrag]=useState(null);
+const[showListSheet,setShowListSheet]=useState(false);
+const[,forceUpdate]=useState(0);
+const isCtrlDrag=useRef(false);
+const dragDuration=useRef(0);
+const resizeRef=useRef(null);
+const[resizing,setResizing]=useState(false);
+const calendarRef=useRef(null);
+// モバイル3日ビューの開始日
+const[mobileDayStart,setMobileDayStart]=useState(()=>{const d=new Date();d.setHours(0,0,0,0);return d;});
+
+useEffect(()=>{saveEvents(events);},[events]);
+useEffect(()=>{saveSettings({view,startMonday,sidebarCollapsed});},[view,startMonday,sidebarCollapsed]);
+useEffect(()=>{
+const y=currentDate.getFullYear();
+Promise.all([y-1,y,y+1].map(fetchHolidaysForYear)).then(()=>forceUpdate(v=>v+1));
+},[currentDate]);
+
+const weekStart=useMemo(()=>{
+const d=new Date(currentDate);const day=d.getDay();
+const offset=startMonday?(day===0?-6:1-day):-day;
+d.setDate(d.getDate()+offset);d.setHours(0,0,0,0);return d;
+},[currentDate,startMonday]);
+
+const navigate=dir=>{
+setCurrentDate(prev=>{
+const d=new Date(prev);
+if(effectiveView===“week”)d.setDate(d.getDate()+dir*7);else d.setMonth(d.getMonth()+dir);
+return d;
+});
+};
+const goToday=()=>{setCurrentDate(new Date());setMobileDayStart(new Date());};
+
+const navLabel=useMemo(()=>{
+if(effectiveView===“week”){
+const end=addDays(weekStart,6);const sm=weekStart.getMonth()+1,em=end.getMonth()+1;
+return sm===em?`${weekStart.getFullYear()}年${sm}月${weekStart.getDate()}〜${end.getDate()}日`:`${sm}月${weekStart.getDate()}日〜${em}月${end.getDate()}日`;
+}
+return`${currentDate.getFullYear()}年${currentDate.getMonth()+1}月`;
+},[effectiveView,weekStart,currentDate]);
+
+// ── PC D&D ────────────────────────────────────────────────
+const handleDragStart=useCallback((e,event)=>{
+isCtrlDrag.current=e.ctrlKey||e.metaKey;
+dragDuration.current=(event.startDate&&event.endDate)?daysBetween(event.startDate,event.endDate):0;
+e.dataTransfer.effectAllowed=isCtrlDrag.current?“copy”:“move”;
+e.dataTransfer.setData(“text/plain”,event.id);
+requestAnimationFrame(()=>{setDragEventId(event.id);dragEventIdRef.current=event.id;});
+const onEnd=()=>{setDragEventId(null);dragEventIdRef.current=null;isCtrlDrag.current=false;};
+e.target.addEventListener(“dragend”,onEnd,{once:true});
+},[]);
+
+const handleDropOnCalendar=useCallback((e,dateStr)=>{
+e.preventDefault();
+const id=dragEventIdRef.current||e.dataTransfer.getData(“text/plain”);if(!id)return;
+const dur=dragDuration.current;
+if(isCtrlDrag.current){
+setEvents(prev=>{const orig=prev.find(ev=>ev.id===id);if(!orig)return prev;
+const baseEnd=dur>0?toDateStr(addDays(new Date(dateStr),dur)):dateStr;
+const endStr=resolveEndDate(dateStr,baseEnd,orig.allDay,orig.startTime,orig.endTime);
+return[…prev,{…orig,id:genId(),startDate:dateStr,endDate:endStr,placed:true}];});
+}else{
+setEvents(prev=>prev.map(ev=>{if(ev.id!==id)return ev;
+const baseEnd=dur>0?toDateStr(addDays(new Date(dateStr),dur)):dateStr;
+const endStr=resolveEndDate(dateStr,baseEnd,ev.allDay,ev.startTime,ev.endTime);
+return{…ev,startDate:dateStr,endDate:endStr,placed:true};}));
+}
+setDragEventId(null);dragEventIdRef.current=null;isCtrlDrag.current=false;
+},[]);
+
+const handleDropOnUnplaced=useCallback((e,insertIdx)=>{
+e.preventDefault();
+const id=dragEventIdRef.current||e.dataTransfer.getData(“text/plain”);if(!id)return;
+const ctrl=isCtrlDrag.current;
+setEvents(prev=>{
+const target=prev.find(ev=>ev.id===id);if(!target)return prev;
+if(ctrl){
+const copy={…target,id:genId(),startDate:null,endDate:null,placed:false};
+const unplaced=prev.filter(e=>!e.placed),placed=prev.filter(e=>e.placed);
+const idx=insertIdx!=null?Math.min(insertIdx,unplaced.length):unplaced.length;
+unplaced.splice(idx,0,copy);return[…placed,…unplaced];
+}else{
+const unplaced=prev.filter(e=>!e.placed&&e.id!==id),placed=prev.filter(e=>e.placed&&e.id!==id);
+const updated={…target,startDate:null,endDate:null,placed:false};
+const idx=insertIdx!=null?Math.min(insertIdx,unplaced.length):unplaced.length;
+unplaced.splice(idx,0,updated);return[…placed,…unplaced];
+}
+});
+dragEventIdRef.current=null;setDragEventId(null);setUnplacedDragOverIdx(null);isCtrlDrag.current=false;
+},[]);
+
+const handleUnplacedReorder=useCallback((fromIdx,toIdx)=>{
+setEvents(prev=>{
+const placed=prev.filter(e=>e.placed),unplaced=prev.filter(e=>!e.placed);
+const item=unplaced[fromIdx];if(!item)return prev;
+const next=unplaced.filter((_,i)=>i!==fromIdx);
+next.splice(Math.min(toIdx>fromIdx?toIdx-1:toIdx,next.length),0,item);
+return[…placed,…next];
+});
+},[]);
+
+// ── タッチD&D ─────────────────────────────────────────────
+const handleTouchDragStart=useCallback((ev)=>{
+dragEventIdRef.current=ev.id;setDragEventId(ev.id);
+},[]);
+const handleTouchDrop=useCallback((ev,dateStr)=>{
+const dur=(ev.startDate&&ev.endDate)?daysBetween(ev.startDate,ev.endDate):0;
+const baseEnd=dur>0?toDateStr(addDays(new Date(dateStr),dur)):dateStr;
+const endStr=resolveEndDate(dateStr,baseEnd,ev.allDay,ev.startTime,ev.endTime);
+setEvents(prev=>prev.map(e=>e.id===ev.id?{…e,startDate:dateStr,endDate:endStr,placed:true}:e));
+setDragEventId(null);dragEventIdRef.current=null;
+},[]);
+const handleTouchDropUnplaced=useCallback((ev)=>{
+setEvents(prev=>prev.map(e=>e.id===ev.id?{…e,startDate:null,endDate:null,placed:false}:e));
+setDragEventId(null);dragEventIdRef.current=null;
+},[]);
+
+const{startDrag}=useTouchDrag({onDrop:handleTouchDrop,onDropUnplaced:handleTouchDropUnplaced,onDragStart:handleTouchDragStart});
+
+const handleRecallMonth=useCallback(()=>{
+const y=currentDate.getFullYear(),mo=currentDate.getMonth();
+const ms=`${y}-${String(mo+1).padStart(2,"0")}-01`,me=toDateStr(new Date(y,mo+1,0));
+setEvents(prev=>prev.map(ev=>{
+if(!ev.placed||!ev.startDate)return ev;
+if(dateInRange(ev.startDate,ms,me))return{…ev,startDate:null,endDate:null,placed:false};
+return ev;
+}));
+},[currentDate]);
+
+// ── リサイズ ──────────────────────────────────────────────
+const handleResizeStart=useCallback((e,ev)=>{resizeRef.current={ev,startX:e.clientX,origEnd:ev.endDate||ev.startDate};setResizing(true);},[]);
+useEffect(()=>{
+if(!resizing)return;
+const onMove=e=>{
+const r=resizeRef.current;if(!r)return;
+const calEl=calendarRef.current;if(!calEl)return;
+const rect=calEl.getBoundingClientRect();const cellW=rect.width/7;
+const deltaDays=Math.round((e.clientX-r.startX)/cellW);if(deltaDays===0)return;
+const newEnd=toDateStr(addDays(new Date(r.origEnd),deltaDays));if(newEnd<r.ev.startDate)return;
+setEvents(prev=>prev.map(ev=>{if(ev.id!==r.ev.id)return ev;
+const endChanged=newEnd!==r.ev.endDate;
+return endChanged&&!ev.allDay?{…ev,endDate:newEnd,endTime:“23:30”}:{…ev,endDate:newEnd};
+}));
+resizeRef.current={…r,origEnd:newEnd,startX:e.clientX};
+};
+const onUp=()=>{setResizing(false);resizeRef.current=null;};
+window.addEventListener(“mousemove”,onMove);window.addEventListener(“mouseup”,onUp);
+return()=>{window.removeEventListener(“mousemove”,onMove);window.removeEventListener(“mouseup”,onUp);};
+},[resizing]);
+
+const handleCellClick=useCallback(dateStr=>{
+setSelectedEvent({id:genId(),title:””,memo:””,color:DEFAULT_COLORS[0],startDate:dateStr,endDate:dateStr,placed:true,allDay:true,startTime:“09:00”,endTime:“18:00”,workHours:null,_new:true});
+},[]);
+const handleSave=useCallback(updated=>{
+const clean={…updated};delete clean._new;
+if(updated._new)setEvents(prev=>[…prev,clean]);else setEvents(prev=>prev.map(ev=>ev.id===clean.id?clean:ev));
+setSelectedEvent(null);
+},[]);
+const handleDelete=useCallback(id=>{setEvents(prev=>prev.filter(ev=>ev.id!==id));setSelectedEvent(null);},[]);
+const newEvBase={title:””,memo:””,color:DEFAULT_COLORS[0],startDate:null,endDate:null,placed:false,allDay:true,startTime:“09:00”,endTime:“18:00”,workHours:null,_new:true};
+
+// ── モバイルUI ────────────────────────────────────────────
+if(isMobile){
+return(
+<div className=“flex flex-col” style={{height:“100dvh”,overflow:“hidden”,backgroundColor:“var(–bg)”,color:“var(–text)”}}>
+{/* モバイルトップバー */}
+<div className=“flex items-center gap-1 px-3 py-2 border-b border-[var(–border)] flex-shrink-0” style={{backgroundColor:“var(–bg-panel)”,paddingTop:`max(8px,env(safe-area-inset-top))`}}>
+<button onClick={goToday} className=“px-2.5 py-1.5 rounded-lg border border-[var(–border)] text-xs font-medium” style={{color:“var(–text-muted)”}}>今日</button>
+<button onClick={()=>navigate(-1)} className=“px-2 py-1.5 rounded-lg text-lg font-light” style={{color:“var(–text-muted)”}}>‹</button>
+<span className=“flex-1 text-center text-xs font-semibold” style={{color:“var(–text)”}}>{navLabel}</span>
+<button onClick={()=>navigate(1)} className=“px-2 py-1.5 rounded-lg text-lg font-light” style={{color:“var(–text-muted)”}}>›</button>
+{/* 週始まり設定は省略（モバイルは月ビュー固定） */}
+{/* リストボタン */}
+<button onClick={()=>setShowListSheet(true)} className=“px-2.5 py-1.5 rounded-lg border border-[var(–border)] text-xs font-medium” style={{color:“var(–text-muted)”}}>≡</button>
+</div>
+
+```
+    {/* カレンダー本体 */}
+    <div className="flex-1 overflow-hidden" ref={calendarRef}>
+      <MobileMonthView events={events} currentDate={currentDate} startMonday={startMonday}
+        onCellClick={handleCellClick} onEventClick={setSelectedEvent}
+        startDrag={startDrag} draggingId={dragEventId}/>
+    </div>
+
+    {/* 未配置エリア */}
+    <MobileUnplacedSheet events={events} onEventClick={setSelectedEvent}
+      startDrag={startDrag} onRecallMonth={handleRecallMonth} currentDate={currentDate}/>
+
+    {/* ＋ボタン */}
+    <button onClick={()=>setSelectedEvent({...newEvBase,id:genId()})}
+      className="fixed z-20 rounded-full shadow-lg flex items-center justify-center text-white text-2xl font-light"
+      style={{right:"16px",bottom:`calc(80px + env(safe-area-inset-bottom))`,width:"52px",height:"52px",backgroundColor:"var(--accent)"}}>＋</button>
+
+    {/* ボトムシート：予定リスト */}
+    <MobileListSheet events={events} open={showListSheet} onClose={()=>setShowListSheet(false)}
+      onEventClick={setSelectedEvent} onAddEvent={()=>setSelectedEvent({...newEvBase,id:genId()})}
+      currentDate={currentDate} weekStart={weekStart}/>
+
+    {/* ポップアップ */}
+    {selectedEvent&&<EventPopup event={selectedEvent} onClose={()=>setSelectedEvent(null)} onSave={handleSave} onDelete={handleDelete} isMobile={true}/>}
+  </div>
+);
+```
+
+}
+
+// ── PC UI ─────────────────────────────────────────────────
+return(
+<div className=“flex flex-col bg-[var(–bg)] text-[var(–text)]” style={{height:“100vh”,overflow:“hidden”,userSelect:resizing?“none”:“auto”,cursor:resizing?“col-resize”:“auto”}}>
+<div className=“flex items-center gap-2 px-3 py-2 border-b border-[var(–border)] flex-shrink-0” style={{backgroundColor:“var(–bg-panel)”}}>
+<span className="font-bold text-sm mr-1">シフト管理</span>
+<button onClick={goToday} className="text-[11px] px-2.5 py-1 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">今日</button>
+<button onClick={()=>navigate(-1)} className=“text-xs px-2 py-1 rounded hover:bg-[var(–hover)] text-[var(–text-muted)]”>‹</button>
+<span className="text-xs font-medium min-w-[180px] text-center">{navLabel}</span>
+<button onClick={()=>navigate(1)} className=“text-xs px-2 py-1 rounded hover:bg-[var(–hover)] text-[var(–text-muted)]”>›</button>
+<div className="flex-1"/>
+<div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-[11px]">
+{[[“week”,“週”],[“month”,“月”]].map(([v,l])=>(
+<button key={v} onClick={()=>setView(v)} className=“px-3 py-1 transition-colors” style={{backgroundColor:effectiveView===v?“var(–accent)”:“transparent”,color:effectiveView===v?“white”:“var(–text-muted)”}}>{l}</button>
+))}
+</div>
+<button onClick={()=>setStartMonday(v=>!v)} className=“text-[11px] px-2.5 py-1 rounded-lg border border-[var(–border)] text-[var(–text-muted)] hover:bg-[var(–hover)] transition-colors”>{startMonday?“月始まり”:“日始まり”}</button>
+<button onClick={()=>setSelectedEvent({…newEvBase,id:genId()})} className=“text-[11px] px-3 py-1 rounded-lg text-white hover:opacity-90” style={{backgroundColor:“var(–accent)”}}>＋ 追加</button>
+</div>
+<div className="flex flex-1 overflow-hidden">
+<Sidebar events={events} collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(v=>!v)}
+onEventClick={setSelectedEvent} onAddEvent={()=>setSelectedEvent({…newEvBase,id:genId()})}
+onDragStart={handleDragStart} currentDate={currentDate} weekStart={weekStart}/>
+<div className="flex flex-col flex-1 overflow-hidden">
+<div className="flex-1 overflow-hidden" ref={calendarRef}>
+{effectiveView===“week”
+?<WeekView events={events} weekStart={weekStart} startMonday={startMonday}
+onDrop={handleDropOnCalendar} onDragStart={handleDragStart}
+onCellClick={handleCellClick} onEventClick={setSelectedEvent}
+dragOverDate={dragOverDate} setDragOverDate={setDragOverDate}
+onResizeStart={handleResizeStart} draggingId={dragEventId}/>
+:<MonthView events={events} currentDate={currentDate} startMonday={startMonday}
+onDrop={handleDropOnCalendar} onDragStart={handleDragStart}
+onCellClick={handleCellClick} onEventClick={setSelectedEvent}
+dragOverDate={dragOverDate} setDragOverDate={setDragOverDate}
+onResizeStart={handleResizeStart} draggingId={dragEventId}/>
+}
+</div>
+<UnplacedArea events={events} onDragStart={handleDragStart} onDrop={handleDropOnUnplaced}
+onEventClick={setSelectedEvent} dragOverIdx={unplacedDragOverIdx} setDragOverIdx={setUnplacedDragOverIdx}
+unplacedInternalDrag={unplacedInternalDrag} setUnplacedInternalDrag={setUnplacedInternalDrag}
+onReorder={handleUnplacedReorder} onRecallMonth={handleRecallMonth} currentDate={currentDate}/>
+</div>
+</div>
+{selectedEvent&&<EventPopup event={selectedEvent} onClose={()=>setSelectedEvent(null)} onSave={handleSave} onDelete={handleDelete} isMobile={false}/>}
+</div>
+);
+}
+
+ReactDOM.createRoot(document.getElementById(“root”)).render(<App/>);
+</script>
+
+</body>
+</html>
