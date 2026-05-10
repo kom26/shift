@@ -70,8 +70,8 @@ var _React = React,
   useRef = _React.useRef,
   useMemo = _React.useMemo;
 
-var WEEK_DAYS_SUN = [“日”, “月”, “火”, “水”, “木”, “金”, “土”];
-var WEEK_DAYS_MON = [“月”, “火”, “水”, “木”, “金”, “土”, “日”];
+var WEEK_DAYS_SUN = [”\u65e5”, “\u6708”, “\u706b”, “\u6c34”, “\u6728”, “\u91d1”, “\u571f”];
+var WEEK_DAYS_MON = [”\u6708”, “\u706b”, “\u6c34”, “\u6728”, “\u91d1”, “\u571f”, “\u65e5”];
 var STORAGE_KEY = “shift-sched-events”;
 var SETTINGS_KEY = “shift-sched-settings”;
 var COLORS_KEY = “shift-sched-custom-colors”;
@@ -79,74 +79,74 @@ var HOLIDAYS_KEY = “shift-sched-holidays”;
 var DEFAULT_COLORS = [”#6366f1”, “#06b6d4”, “#f59e0b”, “#ec4899”, “#10b981”, “#f97316”, “#8b5cf6”, “#ef4444”];
 
 var BUILTIN_HOLIDAYS = {
-“2025-01-01”: “元日”,
-“2025-01-13”: “成人の日”,
-“2025-02-11”: “建国記念の日”,
-“2025-02-23”: “天皇誕生日”,
-“2025-02-24”: “振替休日”,
-“2025-03-20”: “春分の日”,
-“2025-04-29”: “昭和の日”,
-“2025-05-03”: “憲法記念日”,
-“2025-05-04”: “みどりの日”,
-“2025-05-05”: “こどもの日”,
-“2025-05-06”: “振替休日”,
-“2025-07-21”: “海の日”,
-“2025-08-11”: “山の日”,
-“2025-09-15”: “敬老の日”,
-“2025-09-23”: “秋分の日”,
-“2025-10-13”: “スポーツの日”,
-“2025-11-03”: “文化の日”,
-“2025-11-23”: “勤労感謝の日”,
-“2025-11-24”: “振替休日”,
-“2026-01-01”: “元日”,
-“2026-01-12”: “成人の日”,
-“2026-02-11”: “建国記念の日”,
-“2026-02-23”: “天皇誕生日”,
-“2026-03-20”: “春分の日”,
-“2026-04-29”: “昭和の日”,
-“2026-05-03”: “憲法記念日”,
-“2026-05-04”: “みどりの日”,
-“2026-05-05”: “こどもの日”,
-“2026-05-06”: “振替休日”,
-“2026-07-20”: “海の日”,
-“2026-08-11”: “山の日”,
-“2026-09-21”: “敬老の日”,
-“2026-09-23”: “秋分の日”,
-“2026-10-12”: “スポーツの日”,
-“2026-11-03”: “文化の日”,
-“2026-11-23”: “勤労感謝の日”,
-“2027-01-01”: “元日”,
-“2027-01-11”: “成人の日”,
-“2027-02-11”: “建国記念の日”,
-“2027-02-23”: “天皇誕生日”,
-“2027-03-21”: “春分の日”,
-“2027-04-29”: “昭和の日”,
-“2027-05-03”: “憲法記念日”,
-“2027-05-04”: “みどりの日”,
-“2027-05-05”: “こどもの日”,
-“2027-07-19”: “海の日”,
-“2027-08-11”: “山の日”,
-“2027-09-20”: “敬老の日”,
-“2027-09-23”: “秋分の日”,
-“2027-10-11”: “スポーツの日”,
-“2027-11-03”: “文化の日”,
-“2027-11-23”: “勤労感謝の日”,
-“2028-01-01”: “元日”,
-“2028-01-10”: “成人の日”,
-“2028-02-11”: “建国記念の日”,
-“2028-02-23”: “天皇誕生日”,
-“2028-03-20”: “春分の日”,
-“2028-04-29”: “昭和の日”,
-“2028-05-03”: “憲法記念日”,
-“2028-05-04”: “みどりの日”,
-“2028-05-05”: “こどもの日”,
-“2028-07-17”: “海の日”,
-“2028-08-11”: “山の日”,
-“2028-09-18”: “敬老の日”,
-“2028-09-22”: “秋分の日”,
-“2028-10-09”: “スポーツの日”,
-“2028-11-03”: “文化の日”,
-“2028-11-23”: “勤労感謝の日”
+“2025-01-01”: “\u5143\u65e5”,
+“2025-01-13”: “\u6210\u4eba\u306e\u65e5”,
+“2025-02-11”: “\u5efa\u56fd\u8a18\u5ff5\u306e\u65e5”,
+“2025-02-23”: “\u5929\u7687\u8a95\u751f\u65e5”,
+“2025-02-24”: “\u632f\u66ff\u4f11\u65e5”,
+“2025-03-20”: “\u6625\u5206\u306e\u65e5”,
+“2025-04-29”: “\u662d\u548c\u306e\u65e5”,
+“2025-05-03”: “\u61b2\u6cd5\u8a18\u5ff5\u65e5”,
+“2025-05-04”: “\u307f\u3069\u308a\u306e\u65e5”,
+“2025-05-05”: “\u3053\u3069\u3082\u306e\u65e5”,
+“2025-05-06”: “\u632f\u66ff\u4f11\u65e5”,
+“2025-07-21”: “\u6d77\u306e\u65e5”,
+“2025-08-11”: “\u5c71\u306e\u65e5”,
+“2025-09-15”: “\u656c\u8001\u306e\u65e5”,
+“2025-09-23”: “\u79cb\u5206\u306e\u65e5”,
+“2025-10-13”: “\u30b9\u30dd\u30fc\u30c4\u306e\u65e5”,
+“2025-11-03”: “\u6587\u5316\u306e\u65e5”,
+“2025-11-23”: “\u52e4\u52b4\u611f\u8b1d\u306e\u65e5”,
+“2025-11-24”: “\u632f\u66ff\u4f11\u65e5”,
+“2026-01-01”: “\u5143\u65e5”,
+“2026-01-12”: “\u6210\u4eba\u306e\u65e5”,
+“2026-02-11”: “\u5efa\u56fd\u8a18\u5ff5\u306e\u65e5”,
+“2026-02-23”: “\u5929\u7687\u8a95\u751f\u65e5”,
+“2026-03-20”: “\u6625\u5206\u306e\u65e5”,
+“2026-04-29”: “\u662d\u548c\u306e\u65e5”,
+“2026-05-03”: “\u61b2\u6cd5\u8a18\u5ff5\u65e5”,
+“2026-05-04”: “\u307f\u3069\u308a\u306e\u65e5”,
+“2026-05-05”: “\u3053\u3069\u3082\u306e\u65e5”,
+“2026-05-06”: “\u632f\u66ff\u4f11\u65e5”,
+“2026-07-20”: “\u6d77\u306e\u65e5”,
+“2026-08-11”: “\u5c71\u306e\u65e5”,
+“2026-09-21”: “\u656c\u8001\u306e\u65e5”,
+“2026-09-23”: “\u79cb\u5206\u306e\u65e5”,
+“2026-10-12”: “\u30b9\u30dd\u30fc\u30c4\u306e\u65e5”,
+“2026-11-03”: “\u6587\u5316\u306e\u65e5”,
+“2026-11-23”: “\u52e4\u52b4\u611f\u8b1d\u306e\u65e5”,
+“2027-01-01”: “\u5143\u65e5”,
+“2027-01-11”: “\u6210\u4eba\u306e\u65e5”,
+“2027-02-11”: “\u5efa\u56fd\u8a18\u5ff5\u306e\u65e5”,
+“2027-02-23”: “\u5929\u7687\u8a95\u751f\u65e5”,
+“2027-03-21”: “\u6625\u5206\u306e\u65e5”,
+“2027-04-29”: “\u662d\u548c\u306e\u65e5”,
+“2027-05-03”: “\u61b2\u6cd5\u8a18\u5ff5\u65e5”,
+“2027-05-04”: “\u307f\u3069\u308a\u306e\u65e5”,
+“2027-05-05”: “\u3053\u3069\u3082\u306e\u65e5”,
+“2027-07-19”: “\u6d77\u306e\u65e5”,
+“2027-08-11”: “\u5c71\u306e\u65e5”,
+“2027-09-20”: “\u656c\u8001\u306e\u65e5”,
+“2027-09-23”: “\u79cb\u5206\u306e\u65e5”,
+“2027-10-11”: “\u30b9\u30dd\u30fc\u30c4\u306e\u65e5”,
+“2027-11-03”: “\u6587\u5316\u306e\u65e5”,
+“2027-11-23”: “\u52e4\u52b4\u611f\u8b1d\u306e\u65e5”,
+“2028-01-01”: “\u5143\u65e5”,
+“2028-01-10”: “\u6210\u4eba\u306e\u65e5”,
+“2028-02-11”: “\u5efa\u56fd\u8a18\u5ff5\u306e\u65e5”,
+“2028-02-23”: “\u5929\u7687\u8a95\u751f\u65e5”,
+“2028-03-20”: “\u6625\u5206\u306e\u65e5”,
+“2028-04-29”: “\u662d\u548c\u306e\u65e5”,
+“2028-05-03”: “\u61b2\u6cd5\u8a18\u5ff5\u65e5”,
+“2028-05-04”: “\u307f\u3069\u308a\u306e\u65e5”,
+“2028-05-05”: “\u3053\u3069\u3082\u306e\u65e5”,
+“2028-07-17”: “\u6d77\u306e\u65e5”,
+“2028-08-11”: “\u5c71\u306e\u65e5”,
+“2028-09-18”: “\u656c\u8001\u306e\u65e5”,
+“2028-09-22”: “\u79cb\u5206\u306e\u65e5”,
+“2028-10-09”: “\u30b9\u30dd\u30fc\u30c4\u306e\u65e5”,
+“2028-11-03”: “\u6587\u5316\u306e\u65e5”,
+“2028-11-23”: “\u52e4\u52b4\u611f\u8b1d\u306e\u65e5”
 };
 var HOLIDAYS_CACHE = _objectSpread({}, BUILTIN_HOLIDAYS);
 try {
@@ -247,7 +247,7 @@ return “var(–text-muted)”;
 }
 function timeLabel(ev) {
 if (!ev) return “”;
-if (ev.allDay) return “終日”;
+if (ev.allDay) return “\u7d42\u65e5”;
 if (ev.startTime && ev.endTime) return “”.concat(ev.startTime, “\u301C”).concat(ev.endTime);
 if (ev.startTime) return “”.concat(ev.startTime, “\u301C”);
 return “”;
@@ -312,8 +312,8 @@ lsSet(SETTINGS_KEY, s);
 }
 var SAMPLE_EVENTS = [{
 id: “s1”,
-title: “夜勤バイト”,
-memo: “翌朝まで”,
+title: “\u591c\u52e4\u30d0\u30a4\u30c8”,
+memo: “\u7fcc\u671d\u307e\u3067”,
 color: “#6366f1”,
 startDate: null,
 endDate: null,
@@ -324,7 +324,7 @@ endTime: “06:00”,
 workHours: null
 }, {
 id: “s2”,
-title: “早番シフト”,
+title: “\u65e9\u756a\u30b7\u30d5\u30c8”,
 memo: “”,
 color: “#06b6d4”,
 startDate: null,
@@ -336,7 +336,7 @@ endTime: “15:00”,
 workHours: null
 }, {
 id: “s3”,
-title: “遅番シフト”,
+title: “\u9045\u756a\u30b7\u30d5\u30c8”,
 memo: “”,
 color: “#10b981”,
 startDate: null,
@@ -348,7 +348,7 @@ endTime: “23:00”,
 workHours: null
 }, {
 id: “s4”,
-title: “土日夜勤”,
+title: “\u571f\u65e5\u591c\u52e4”,
 memo: “”,
 color: “#ec4899”,
 startDate: null,
@@ -1378,7 +1378,7 @@ className: “flex-1 min-w-0”
 className: “text-[11px] font-semibold truncate text-[var(–text)]”
 }, ev.title), /*#**PURE***/React.createElement(“div”, {
 className: “text-[10px] text-[var(–text-muted)]”
-}, ev.placed && ev.startDate ? /*#**PURE***/React.createElement(React.Fragment, null, ev.startDate.slice(5).replace(”-”, “/”), ev.endDate && ev.endDate !== ev.startDate ? “ \u2192 “.concat(ev.endDate.slice(5).replace(”-”, “/”)) : “”, “ “, timeLabel(ev), ev.workHours != null ? “ “.concat(fmtHours(ev.workHours)) : “”) : “未配置”)));
+}, ev.placed && ev.startDate ? /*#**PURE***/React.createElement(React.Fragment, null, ev.startDate.slice(5).replace(”-”, “/”), ev.endDate && ev.endDate !== ev.startDate ? “ \u2192 “.concat(ev.endDate.slice(5).replace(”-”, “/”)) : “”, “ “, timeLabel(ev), ev.workHours != null ? “ “.concat(fmtHours(ev.workHours)) : “”) : “\u672a\u914d\u7f6e”)));
 })), /*#**PURE***/React.createElement(“div”, {
 className: “border-t border-[var(–border)] flex-shrink-0”
 }, /*#**PURE***/React.createElement(“button”, {
@@ -1771,7 +1771,7 @@ style: {
 fontSize: “12px”,
 color: “var(–text-muted)”
 }
-}, ev.placed && ev.startDate ? /*#**PURE***/React.createElement(React.Fragment, null, ev.startDate.slice(5).replace(”-”, “/”), ev.endDate && ev.endDate !== ev.startDate ? “ \u2192 “.concat(ev.endDate.slice(5).replace(”-”, “/”)) : “”, “ “, timeLabel(ev)) : “未配置”)));
+}, ev.placed && ev.startDate ? /*#**PURE***/React.createElement(React.Fragment, null, ev.startDate.slice(5).replace(”-”, “/”), ev.endDate && ev.endDate !== ev.startDate ? “ \u2192 “.concat(ev.endDate.slice(5).replace(”-”, “/”)) : “”, “ “, timeLabel(ev)) : “\u672a\u914d\u7f6e”)));
 }), groups.length > 0 && /*#**PURE***/React.createElement(“div”, {
 className: “mx-3 mt-3 pt-3 border-t border-[var(–border)]”
 }, /*#**PURE***/React.createElement(“div”, {
@@ -2195,7 +2195,7 @@ style: {
 fontSize: “11px”,
 color: “var(–text-muted)”
 }
-}, allDay ? “終日” : “時間あり”)), !allDay && /*#**PURE***/React.createElement(React.Fragment, null, /*#**PURE***/React.createElement(“div”, {
+}, allDay ? “\u7d42\u65e5” : “\u6642\u9593\u3042\u308a”)), !allDay && /*#**PURE***/React.createElement(React.Fragment, null, /*#**PURE***/React.createElement(“div”, {
 className: “flex items-center gap-2 mb-2”,
 style: {
 paddingLeft: “56px”
@@ -2326,7 +2326,7 @@ className: “rounded-lg text-white font-medium transition-all hover:opacity-90 
 style: {
 backgroundColor: color
 }
-}, event._new ? “追加” : “保存”)));
+}, event._new ? “\u8ffd\u52a0” : “\u4fdd\u5b58”)));
 if (isMobile) {
 return /*#**PURE***/React.createElement(React.Fragment, null, /*#**PURE***/React.createElement(“div”, {
 className: “fixed inset-0 z-50 bg-black/40”,
@@ -2886,7 +2886,7 @@ className: “text-xs px-2 py-1 rounded hover:bg-[var(–hover)] text-[var(–te
 className: “flex-1”
 }), /*#**PURE***/React.createElement(“div”, {
 className: “flex rounded-lg border border-[var(–border)] overflow-hidden text-[11px]”
-}, [[“week”, “週”], [“month”, “月”]].map(function (_ref17) {
+}, [[“week”, “\u9031”], [“month”, “\u6708”]].map(function (_ref17) {
 var _ref18 = _slicedToArray(_ref17, 2),
 v = _ref18[0],
 l = _ref18[1];
@@ -2908,7 +2908,7 @@ return !v;
 });
 },
 className: “text-[11px] px-2.5 py-1 rounded-lg border border-[var(–border)] text-[var(–text-muted)] hover:bg-[var(–hover)] transition-colors”
-}, startMonday ? “月始まり” : “日始まり”), /*#**PURE***/React.createElement(“button”, {
+}, startMonday ? “\u6708\u59cb\u307e\u308a” : “\u65e5\u59cb\u307e\u308a”), /*#**PURE***/React.createElement(“button”, {
 onClick: function onClick() {
 return setSelectedEvent(_objectSpread(_objectSpread({}, newEvBase), {}, {
 id: genId()
