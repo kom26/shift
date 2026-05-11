@@ -135,17 +135,30 @@ window._tdm=(()=>{
   window.addEventListener("touchend",e=>{
     const t=Array.from(e.changedTouches).find(t=>t.identifier===tid);
     clearTimeout(timer);timer=null;
+    console.log("[TouchDrag] touchend dragging:",dragging,"tid match:",!!t);
     if(!dragging||!t){cleanup();return;}
     if(ghost){ghost.remove();ghost=null;}
+
+    // data-dateはelement探索で判定（カレンダーセル）
     const el=document.elementFromPoint(t.clientX,t.clientY);
     const cell=el?.closest("[data-date]");
-    const unplaced=el?.closest("[data-unplaced]");
+
+    // data-unplacedはRect判定（どこにドロップしても拾える）
+    let unplacedHit=false;
+    const unplacedEls=document.querySelectorAll("[data-unplaced-zone]");
+    for(const zone of unplacedEls){
+      const r=zone.getBoundingClientRect();
+      if(t.clientX>=r.left&&t.clientX<=r.right&&t.clientY>=r.top&&t.clientY<=r.bottom){
+        unplacedHit=true;break;
+      }
+    }
+
     const _ev=ev;
-    console.log("[TouchDrag] drop",t.clientX,t.clientY,"cell:",cell?.dataset?.date,"unplaced:",!!unplaced,"ev:",_ev?.title);
+    console.log("[TouchDrag] drop",t.clientX,t.clientY,"cell:",cell?.dataset?.date,"unplaced:",unplacedHit,"ev:",_ev?.title);
     cleanup();
     cbEnd&&cbEnd();
     if(cell&&_ev){cbDrop&&cbDrop(_ev,cell.dataset.date);}
-    else if(unplaced&&_ev){cbUnplaced&&cbUnplaced(_ev);}
+    else if(unplacedHit&&_ev){cbUnplaced&&cbUnplaced(_ev);}
   });
 
   window.addEventListener("touchcancel",()=>cleanup());
@@ -157,7 +170,7 @@ window._tdm=(()=>{
       if(!e.touches||e.touches.length!==1)return;
       const t=e.touches[0];
       tid=t.identifier;sx=t.clientX;sy=t.clientY;ev=_ev;
-      console.log("[TouchDrag] register:",_ev?.title);
+    console.log("[TouchDrag] register:",_ev?.title,"dragging was:",dragging);
       clearTimeout(timer);
       timer=setTimeout(()=>{
         console.log("[TouchDrag] long press confirmed!");
@@ -745,7 +758,7 @@ function MobileUnplacedSheet({events,onEventClick,startDrag,onRecallMonth,curren
   const y=currentDate.getFullYear(),mo=currentDate.getMonth();
   const ml=`${y}/${String(mo+1).padStart(2,"0")}`;
   return(
-    <div className="border-t border-[var(--border)] flex-shrink-0 flex flex-col" style={{backgroundColor:"var(--bg-panel)"}}>
+    <div data-unplaced-zone="true" className="border-t border-[var(--border)] flex-shrink-0 flex flex-col" style={{backgroundColor:"var(--bg-panel)"}}>
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border)]">
         <span className="font-bold text-[11px] uppercase tracking-wider" style={{color:"var(--text-muted)"}}>未配置</span>
         <span className="text-[11px] px-1.5 rounded-full" style={{backgroundColor:"var(--bg-muted)",color:"var(--text-muted)"}}>{unplaced.length}</span>
@@ -754,7 +767,7 @@ function MobileUnplacedSheet({events,onEventClick,startDrag,onRecallMonth,curren
         <button onClick={()=>setCollapsed(v=>!v)} style={{color:"var(--text-muted)",fontSize:"12px"}}>{collapsed?"▲":"▼"}</button>
       </div>
       {!collapsed&&(
-        <div data-unplaced="true" className="flex overflow-x-auto gap-2 px-3 py-2" style={{minHeight:"60px"}}>
+        <div className="flex overflow-x-auto gap-2 px-3 py-2" style={{minHeight:"60px"}}>
           {unplaced.length===0
             ?<div className="text-[12px] italic self-center" style={{color:"var(--text-muted)"}}>すべて配置済みです 🎉</div>
             :unplaced.map(ev=>(
