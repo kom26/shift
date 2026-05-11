@@ -25,6 +25,7 @@ select{cursor:pointer;}
 </head>
 <body>
 <div id="root"></div>
+<div id="touch-debug" style="display:none;position:fixed;top:0;left:0;right:0;background:rgba(0,0,0,0.85);color:#0f0;padding:8px;font-size:11px;font-family:monospace;z-index:99999;line-height:1.6;" onclick="this.style.display='none'">タップで閉じる</div>
 <script type="text/babel">
 const{useState,useCallback,useEffect,useRef,useMemo}=React;
 
@@ -104,122 +105,88 @@ function useIsMobile(){
   return isMobile;
 }
 
-// ── タッチD&D hook（モバイル専用） ───────────────────────────
-function useTouchDrag({onDrop,onDropUnplaced,onDragStart}){
-  const ghostRef=useRef(null);
-  const draggingEv=useRef(null);
-  const touchId=useRef(null);
-  const longPressTimer=useRef(null);
-  const isDragging=useRef(false);
-  const startPos=useRef({x:0,y:0});
-  const pendingEv=useRef(null);   // touchstart前に登録されるev候補
-  const pendingLabel=useRef("");
-  const allowScroll=useRef(false);
+// ── タッチD&D（シングルトン・Reactの外で管理） ───────────────
+const _tdm=(()=>{
+  let ghost=null,ev=null,tid=null,timer=null,dragging=false;
+  let sx=0,sy=0;
+  let cbDrop=null,cbUnplaced=null,cbStart=null,cbEnd=null;
 
-  const cleanup=()=>{
-    ghostRef.current&&ghostRef.current.remove();
-    ghostRef.current=null;
-    draggingEv.current=null;
-    pendingEv.current=null;
-    touchId.current=null;
-    isDragging.current=false;
-    allowScroll.current=false;
-    clearTimeout(longPressTimer.current);
-    document.body.style.overflow="";
-    document.body.style.userSelect="";
-    document.body.style.webkitUserSelect="";
-  };
+  function cleanup(){
+    ghost&&ghost.remove();ghost=null;ev=null;tid=null;dragging=false;
+    clearTimeout(timer);timer=null;
+    document.body.style.cssText=document.body.style.cssText
+      .replace(/overflow:[^;]+;?/g,'').replace(/user-select:[^;]+;?/g,'')
+      .replace(/-webkit-user-select:[^;]+;?/g,'');
+  }
 
-  useEffect(()=>{
-    const onStart=e=>{
-      if(!pendingEv.current) return; // チップ以外のタッチは無視
-      if(e.touches.length!==1){cleanup();return;}
+  window.addEventListener("touchmove",e=>{
+    const t=Array.from(e.touches).find(t=>t.identifier===tid);
+    if(!t)return;
+    if(!dragging){
+      const d=Math.hypot(t.clientX-sx,t.clientY-sy);
+      if(d>10){clearTimeout(timer);timer=null;cleanup();return;}
+      e.preventDefault();return;
+    }
+    e.preventDefault();
+    if(ghost){ghost.style.left=`${t.clientX-60}px`;ghost.style.top=`${t.clientY-28}px`;}
+  },{passive:false});
+
+  window.addEventListener("touchend",e=>{
+    const t=Array.from(e.changedTouches).find(t=>t.identifier===tid);
+    clearTimeout(timer);timer=null;
+    if(!dragging||!t){cleanup();return;}
+    if(ghost){ghost.remove();ghost=null;}
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    const cell=el?.closest("[data-date]");
+    const unplaced=el?.closest("[data-unplaced]");
+    const _ev=ev;
+    console.log("[TouchDrag] drop at",t.clientX,t.clientY);
+    console.log("[TouchDrag] el:",el?.tagName,el?.className?.slice?.(0,60));
+    console.log("[TouchDrag] cell:",cell?.dataset?.date||"none");
+    console.log("[TouchDrag] unplaced:",unplaced?"YES":"none");
+    console.log("[TouchDrag] ev:",_ev?.title||"null");
+    cleanup();
+    cbEnd&&cbEnd();
+    if(cell&&_ev){console.log("[TouchDrag] → onDrop",cell.dataset.date);cbDrop&&cbDrop(_ev,cell.dataset.date);}
+    else if(unplaced&&_ev){console.log("[TouchDrag] → onDropUnplaced");cbUnplaced&&cbUnplaced(_ev);}
+    else console.log("[TouchDrag] → no target matched");
+  });
+
+  window.addEventListener("touchcancel",()=>cleanup());
+
+  return{
+    setCallbacks(cbs){cbDrop=cbs.onDrop;cbUnplaced=cbs.onDropUnplaced;cbStart=cbs.onDragStart;cbEnd=cbs.onDragEnd;},
+    register(e,_ev,label){
+      cleanup();
+      if(!e.touches||e.touches.length!==1)return;
       const t=e.touches[0];
-      touchId.current=t.identifier;
-      startPos.current={x:t.clientX,y:t.clientY};
-      allowScroll.current=false;
-      isDragging.current=false;
-      const ev=pendingEv.current;
-      const label=pendingLabel.current;
-      // 長押し中はスクロールを止める（passive:false で登録しているので有効）
-      e.preventDefault();
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current=setTimeout(()=>{
-        isDragging.current=true;
-        draggingEv.current=ev;
-        onDragStart(ev);
+      tid=t.identifier;sx=t.clientX;sy=t.clientY;ev=_ev;
+      clearTimeout(timer);
+      timer=setTimeout(()=>{
+        dragging=true;
+        cbStart&&cbStart(_ev);
         document.body.style.overflow="hidden";
         document.body.style.userSelect="none";
         document.body.style.webkitUserSelect="none";
-        const ghost=document.createElement("div");
+        ghost=document.createElement("div");
         ghost.className="drag-ghost";
-        ghost.style.cssText=`left:${startPos.current.x-60}px;top:${startPos.current.y-28}px;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;white-space:nowrap;border-left:3px solid ${ev.color};background:${ev.color}28;color:${ev.color};box-shadow:0 4px 16px rgba(0,0,0,0.18);`;
-        ghost.textContent=label||ev.title;
+        ghost.style.cssText=`left:${sx-60}px;top:${sy-28}px;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;white-space:nowrap;border-left:3px solid ${_ev.color};background:${_ev.color}28;color:${_ev.color};box-shadow:0 4px 16px rgba(0,0,0,0.18);`;
+        ghost.textContent=label||_ev.title;
         document.body.appendChild(ghost);
-        ghostRef.current=ghost;
         if(navigator.vibrate)navigator.vibrate(30);
       },380);
-    };
-    const onMove=e=>{
-      const t=Array.from(e.touches).find(t=>t.identifier===touchId.current);
-      if(!t||allowScroll.current)return;
-      const dx=t.clientX-startPos.current.x;
-      const dy=t.clientY-startPos.current.y;
-      if(!isDragging.current){
-        if(Math.sqrt(dx*dx+dy*dy)>10){
-          // 大きく動いたらキャンセル・スクロール解放
-          clearTimeout(longPressTimer.current);
-          allowScroll.current=true;
-          pendingEv.current=null;
-          cleanup();
-          return;
-        }
-        e.preventDefault(); // 長押し待ち中はスクロール禁止
-        return;
-      }
-      e.preventDefault();
-      if(ghostRef.current){
-        ghostRef.current.style.left=`${t.clientX-60}px`;
-        ghostRef.current.style.top=`${t.clientY-28}px`;
-      }
-    };
-    const onEnd=e=>{
-      clearTimeout(longPressTimer.current);
-      pendingEv.current=null;
-      if(!isDragging.current){cleanup();return;}
-      const t=Array.from(e.changedTouches).find(t=>t.identifier===touchId.current);
-      if(t){
-        if(ghostRef.current)ghostRef.current.style.display="none";
-        const el=document.elementFromPoint(t.clientX,t.clientY);
-        if(ghostRef.current)ghostRef.current.style.display="";
-        const cell=el?.closest("[data-date]");
-        const unplacedZone=el?.closest("[data-unplaced]");
-        const ev=draggingEv.current;
-        cleanup();
-        if(cell&&ev)onDrop(ev,cell.dataset.date);
-        else if(unplacedZone&&ev)onDropUnplaced(ev);
-      }else cleanup();
-    };
-    // passive:false で登録することで preventDefault() が効く
-    window.addEventListener("touchstart",onStart,{passive:false});
-    window.addEventListener("touchmove",onMove,{passive:false});
-    window.addEventListener("touchend",onEnd);
-    window.addEventListener("touchcancel",cleanup);
-    return()=>{
-      window.removeEventListener("touchstart",onStart);
-      window.removeEventListener("touchmove",onMove);
-      window.removeEventListener("touchend",onEnd);
-      window.removeEventListener("touchcancel",cleanup);
-    };
-  },[onDrop,onDropUnplaced,onDragStart]);
+    }
+  };
+})();
 
-  // startDrag: onTouchStart から呼ばれ「このevをドラッグ候補に登録」するだけ
-  // 実際の処理は window の touchstart リスナーが行う
-  const startDrag=useCallback((e,ev,labelText)=>{
-    pendingEv.current=ev;
-    pendingLabel.current=labelText||ev.title;
+function useTouchDrag({onDrop,onDropUnplaced,onDragStart,onDragEnd}){
+  // コールバックを毎回更新（リスナーは再登録しない）
+  useEffect(()=>{
+    _tdm.setCallbacks({onDrop,onDropUnplaced,onDragStart,onDragEnd});
+  });
+  const startDrag=useCallback((e,ev,label)=>{
+    _tdm.register(e,ev,label);
   },[]);
-
   return{startDrag};
 }
 
@@ -1046,7 +1013,7 @@ function App(){
     setDragEventId(null);dragEventIdRef.current=null;
   },[]);
 
-  const{startDrag}=useTouchDrag({onDrop:handleTouchDrop,onDropUnplaced:handleTouchDropUnplaced,onDragStart:handleTouchDragStart});
+  const{startDrag}=useTouchDrag({onDrop:handleTouchDrop,onDropUnplaced:handleTouchDropUnplaced,onDragStart:handleTouchDragStart,onDragEnd:()=>{setDragEventId(null);dragEventIdRef.current=null;}});
 
   const handleRecallMonth=useCallback(()=>{
     const y=currentDate.getFullYear(),mo=currentDate.getMonth();
