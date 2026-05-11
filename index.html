@@ -161,8 +161,10 @@ const _tdm=(()=>{
       if(!e.touches||e.touches.length!==1)return;
       const t=e.touches[0];
       tid=t.identifier;sx=t.clientX;sy=t.clientY;ev=_ev;
+      console.log("[TouchDrag] register:",_ev?.title,"tid:",tid);
       clearTimeout(timer);
       timer=setTimeout(()=>{
+        console.log("[TouchDrag] long press confirmed! dragging=true");
         dragging=true;
         cbStart&&cbStart(_ev);
         document.body.style.overflow="hidden";
