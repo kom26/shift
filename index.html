@@ -105,8 +105,9 @@ function useIsMobile(){
   return isMobile;
 }
 
-// ── タッチD&D（シングルトン・Reactの外で管理） ───────────────
-const _tdm=(()=>{
+// ── タッチD&D（シングルトン・windowに保存） ──────────────────
+if(!window._tdm){
+window._tdm=(()=>{
   let ghost=null,ev=null,tid=null,timer=null,dragging=false;
   let sx=0,sy=0;
   let cbDrop=null,cbUnplaced=null,cbStart=null,cbEnd=null;
@@ -114,9 +115,9 @@ const _tdm=(()=>{
   function cleanup(){
     ghost&&ghost.remove();ghost=null;ev=null;tid=null;dragging=false;
     clearTimeout(timer);timer=null;
-    document.body.style.cssText=document.body.style.cssText
-      .replace(/overflow:[^;]+;?/g,'').replace(/user-select:[^;]+;?/g,'')
-      .replace(/-webkit-user-select:[^;]+;?/g,'');
+    document.body.style.overflow="";
+    document.body.style.userSelect="";
+    document.body.style.webkitUserSelect="";
   }
 
   window.addEventListener("touchmove",e=>{
@@ -140,16 +141,11 @@ const _tdm=(()=>{
     const cell=el?.closest("[data-date]");
     const unplaced=el?.closest("[data-unplaced]");
     const _ev=ev;
-    console.log("[TouchDrag] drop at",t.clientX,t.clientY);
-    console.log("[TouchDrag] el:",el?.tagName,el?.className?.slice?.(0,60));
-    console.log("[TouchDrag] cell:",cell?.dataset?.date||"none");
-    console.log("[TouchDrag] unplaced:",unplaced?"YES":"none");
-    console.log("[TouchDrag] ev:",_ev?.title||"null");
+    console.log("[TouchDrag] drop",t.clientX,t.clientY,"cell:",cell?.dataset?.date,"unplaced:",!!unplaced,"ev:",_ev?.title);
     cleanup();
     cbEnd&&cbEnd();
-    if(cell&&_ev){console.log("[TouchDrag] → onDrop",cell.dataset.date);cbDrop&&cbDrop(_ev,cell.dataset.date);}
-    else if(unplaced&&_ev){console.log("[TouchDrag] → onDropUnplaced");cbUnplaced&&cbUnplaced(_ev);}
-    else console.log("[TouchDrag] → no target matched");
+    if(cell&&_ev){cbDrop&&cbDrop(_ev,cell.dataset.date);}
+    else if(unplaced&&_ev){cbUnplaced&&cbUnplaced(_ev);}
   });
 
   window.addEventListener("touchcancel",()=>cleanup());
@@ -161,10 +157,10 @@ const _tdm=(()=>{
       if(!e.touches||e.touches.length!==1)return;
       const t=e.touches[0];
       tid=t.identifier;sx=t.clientX;sy=t.clientY;ev=_ev;
-      console.log("[TouchDrag] register:",_ev?.title,"tid:",tid);
+      console.log("[TouchDrag] register:",_ev?.title);
       clearTimeout(timer);
       timer=setTimeout(()=>{
-        console.log("[TouchDrag] long press confirmed! dragging=true");
+        console.log("[TouchDrag] long press confirmed!");
         dragging=true;
         cbStart&&cbStart(_ev);
         document.body.style.overflow="hidden";
@@ -180,6 +176,8 @@ const _tdm=(()=>{
     }
   };
 })();
+}
+const _tdm=window._tdm;
 
 function useTouchDrag({onDrop,onDropUnplaced,onDragStart,onDragEnd}){
   // コールバックを毎回更新（リスナーは再登録しない）
@@ -1000,22 +998,39 @@ function App(){
   },[]);
 
   // ── タッチD&D ─────────────────────────────────────────────
+  // refで最新のコールバックを保持（useCallbackのstale closure問題を回避）
+  const touchDropRef=useRef(null);
+  const touchDropUnplacedRef=useRef(null);
+
   const handleTouchDragStart=useCallback((ev)=>{
     dragEventIdRef.current=ev.id;setDragEventId(ev.id);
   },[]);
-  const handleTouchDrop=useCallback((ev,dateStr)=>{
+
+  // refを最新のeventsに向け続ける
+  touchDropRef.current=(ev,dateStr)=>{
     const dur=(ev.startDate&&ev.endDate)?daysBetween(ev.startDate,ev.endDate):0;
     const baseEnd=dur>0?toDateStr(addDays(new Date(dateStr),dur)):dateStr;
     const endStr=resolveEndDate(dateStr,baseEnd,ev.allDay,ev.startTime,ev.endTime);
+    console.log("[App] handleTouchDrop",ev.title,"->",dateStr);
     setEvents(prev=>prev.map(e=>e.id===ev.id?{...e,startDate:dateStr,endDate:endStr,placed:true}:e));
     setDragEventId(null);dragEventIdRef.current=null;
-  },[]);
-  const handleTouchDropUnplaced=useCallback((ev)=>{
+  };
+  touchDropUnplacedRef.current=(ev)=>{
+    console.log("[App] handleTouchDropUnplaced",ev.title);
     setEvents(prev=>prev.map(e=>e.id===ev.id?{...e,startDate:null,endDate:null,placed:false}:e));
     setDragEventId(null);dragEventIdRef.current=null;
-  },[]);
+  };
 
-  const{startDrag}=useTouchDrag({onDrop:handleTouchDrop,onDropUnplaced:handleTouchDropUnplaced,onDragStart:handleTouchDragStart,onDragEnd:()=>{setDragEventId(null);dragEventIdRef.current=null;}});
+  // 安定したコールバック（refを経由するので常に最新関数を呼ぶ）
+  const handleTouchDrop=useCallback((ev,dateStr)=>touchDropRef.current(ev,dateStr),[]);
+  const handleTouchDropUnplaced=useCallback((ev)=>touchDropUnplacedRef.current(ev),[]);
+
+  const{startDrag}=useTouchDrag({
+    onDrop:handleTouchDrop,
+    onDropUnplaced:handleTouchDropUnplaced,
+    onDragStart:handleTouchDragStart,
+    onDragEnd:useCallback(()=>{setDragEventId(null);dragEventIdRef.current=null;},[])
+  });
 
   const handleRecallMonth=useCallback(()=>{
     const y=currentDate.getFullYear(),mo=currentDate.getMonth();
