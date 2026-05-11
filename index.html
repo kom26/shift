@@ -54,6 +54,8 @@ function genId(){return Math.random().toString(36).slice(2)+Date.now().toString(
 function daysBetween(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
 function resolveEndDate(sd,ed,allDay,st,et){
   if(!sd)return ed||null;if(allDay||!st||!et)return ed||sd;
+  // 24:00は翌日またぎではなく当日の終わり扱い
+  if(et==="24:00")return ed||sd;
   if(et<=st)return toDateStr(addDays(new Date(sd),1));
   if(!ed||ed<sd)return sd;return ed;
 }
@@ -68,12 +70,14 @@ function timeLabel(ev){
 }
 function calcWorkHours(st,et,allDay){
   if(allDay||!st||!et)return null;
-  const[sh,sm]=st.split(":").map(Number);const[eh,em]=et.split(":").map(Number);
+  const[sh,sm]=st.split(":").map(Number);
+  const eh=et==="24:00"?24:parseInt(et.split(":")[0]);
+  const em=et==="24:00"?0:parseInt(et.split(":")[1]);
   let mins=(eh*60+em)-(sh*60+sm);if(mins<=0)mins+=1440;
   let brk=mins>480?60:mins>360?45:0;return Math.round(mins-brk)/60;
 }
 function fmtHours(h){if(h==null||isNaN(h))return"-";const hh=Math.floor(h),mm=Math.round((h-hh)*60);return mm>0?`${hh}h${mm}m`:`${hh}h`;}
-const TIME_OPTIONS=Array.from({length:48},(_,i)=>`${String(Math.floor(i/2)).padStart(2,"0")}:${i%2===0?"00":"30"}`);
+const TIME_OPTIONS=Array.from({length:49},(_,i)=>`${String(Math.floor(i/2)).padStart(2,"0")}:${i%2===0?"00":"30"}`);
 
 const lsGet=(k,fb)=>{try{const r=localStorage.getItem(k);return r?JSON.parse(r):fb;}catch{return fb;}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
@@ -181,11 +185,11 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
   const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
   const getForDay=ds=>vis.filter(e=>e.placed&&e.startDate&&dateInRange(ds,e.startDate,e.endDate));
 
-  // 週の集計（色ごと）
+  // 週の集計：開始日がこの週に含まれる予定のみカウント（日またぎ二重カウント防止）
   const weekDayStrs=weekDays.map(d=>toDateStr(d));
   const colorTotals={};
   for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate&&ev2.workHours)){
-    if(weekDayStrs.some(ds=>dateInRange(ds,ev.startDate,ev.endDate||ev.startDate))){
+    if(weekDayStrs.includes(ev.startDate)){
       if(!colorTotals[ev.color])colorTotals[ev.color]={color:ev.color,title:ev.title,hours:0};
       colorTotals[ev.color].hours+=ev.workHours;
     }
@@ -289,11 +293,11 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           const rows=computeWeekSpans(vis,toCellDates(weekCells));
           const minH=Math.max(72,HEADER_H+rows.length*SPAN_H+6);
 
-          // この週の集計（週計モード）
+          // この週の集計（週計モード）：開始日がこの週に含まれる予定のみ
           const weekDayStrs=weekCells.map(c=>toDateStr(c.date));
           const wkTotals={};
           for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate&&ev2.workHours)){
-            if(weekDayStrs.some(ds=>dateInRange(ds,ev.startDate,ev.endDate||ev.startDate))){
+            if(weekDayStrs.includes(ev.startDate)){
               if(!wkTotals[ev.color])wkTotals[ev.color]={color:ev.color,title:ev.title,hours:0};
               wkTotals[ev.color].hours+=ev.workHours;
             }
@@ -581,7 +585,7 @@ function EventPopup({event,onClose,onSave,onDelete}){
     const resolvedEnd=resolveEndDate(startDate||null,endDate||null,allDay,st,et);
     // workHoursは実労働時間（総時間 - 休憩）
     const wh=autoHours!=null?Math.round(autoHours*100)/100:null;
-    onSave({...event,title:title.trim(),memo,color,startDate:startDate||null,endDate:resolvedEnd,placed:!!startDate,allDay,startTime:st,endTime:et,workHours:wh,_new:undefined});
+    onSave({...event,title:title.trim(),memo,color,startDate:startDate||null,endDate:resolvedEnd,placed:!!startDate,allDay,startTime:st,endTime:et,workHours:wh});
   };
   const inputCls="flex-1 text-xs rounded-lg px-2 py-1.5 border outline-none";
   const inputStyle={backgroundColor:"var(--bg-muted)",color:"var(--text)",borderColor:"var(--border)"};
@@ -628,7 +632,7 @@ function EventPopup({event,onClose,onSave,onDelete}){
               </select>
               <span className="text-[11px]" style={{color:"var(--text-muted)"}}>〜</span>
               <select value={endTime} onChange={e=>handleEndTimeChange(e.target.value)} className={inputCls} style={inputStyle}>
-                {TIME_OPTIONS.filter(t=>t<="23:30").map(t=><option key={t} value={t}>{t}</option>)}
+                {TIME_OPTIONS.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             {isOvernight&&<div style={{paddingLeft:"56px"}} className="mb-1.5"><span style={{fontSize:"10px",backgroundColor:"#6366f122",color:"#6366f1"}} className="px-1.5 py-0.5 rounded">翌日またぎ → 終了日を自動で翌日にセット</span></div>}
