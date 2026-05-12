@@ -88,6 +88,21 @@ function saveEvents(e){lsSet(STORAGE_KEY,e);}
 function loadSettings(){return lsGet(SETTINGS_KEY,{});}
 function saveSettings(s){lsSet(SETTINGS_KEY,s);}
 
+const CHECKED_COLORS_KEY="shift-sched-checked-colors";
+function loadCheckedColors(){return lsGet(CHECKED_COLORS_KEY,null);}
+function saveCheckedColors(c){lsSet(CHECKED_COLORS_KEY,c);}
+
+function sortUnplaced(evs){
+  return [...evs].sort((a,b)=>{
+    const at=a.allDay?"99:99":(a.startTime||"99:99");
+    const bt=b.allDay?"99:99":(b.startTime||"99:99");
+    if(at!==bt)return at.localeCompare(bt);
+    const aw=a.workHours??calcWorkHours(a.startTime,a.endTime,a.allDay)??999;
+    const bw=b.workHours??calcWorkHours(b.startTime,b.endTime,b.allDay)??999;
+    return aw-bw;
+  });
+}
+
 const SAMPLE_EVENTS=[
   {id:"s1",title:"夜勤バイト",memo:"翌朝まで",color:"#6366f1",startDate:null,endDate:null,placed:false,allDay:false,startTime:"22:00",endTime:"06:00",workHours:null},
   {id:"s2",title:"早番シフト",memo:"",color:"#06b6d4",startDate:null,endDate:null,placed:false,allDay:false,startTime:"07:00",endTime:"15:00",workHours:null},
@@ -177,7 +192,7 @@ function EventChip({event,onDragStart,onClick,colSpan=1,inCalendar=false,onResiz
   );
 }
 
-function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId,showSummary}){
+function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId,showSummary,checkedColors}){
   const weekDays=Array.from({length:7},(_,i)=>addDays(weekStart,i));
   const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
   const today=toDateStr(new Date());
@@ -185,16 +200,19 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
   const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
   const getForDay=ds=>vis.filter(e=>e.placed&&e.startDate&&dateInRange(ds,e.startDate,e.endDate));
 
-  // 週の集計：開始日がこの週に含まれる予定のみカウント（日またぎ二重カウント防止）
+  // 週の集計：開始日がこの週に含まれる予定のみカウント
   const weekDayStrs=weekDays.map(d=>toDateStr(d));
   const colorTotals={};
   for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate&&ev2.workHours)){
     if(weekDayStrs.includes(ev.startDate)){
-      if(!colorTotals[ev.color])colorTotals[ev.color]={color:ev.color,title:ev.title,hours:0};
+      if(!colorTotals[ev.color])colorTotals[ev.color]={color:ev.color,title:ev.title,hours:0,count:0};
       colorTotals[ev.color].hours+=ev.workHours;
+      colorTotals[ev.color].count+=1;
     }
   }
-  const summaries=Object.values(colorTotals);
+  // チェックされた色のみ
+  const summaries=Object.values(colorTotals).filter(s=>checkedColors.size===0||checkedColors.has(s.color));
+  const totalHours=summaries.reduce((a,s)=>a+s.hours,0);
   const COL_W=120;
 
   return(
@@ -245,13 +263,21 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
           <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
             {summaries.length===0
               ?<div className="text-[9px] text-center mt-4" style={{color:"var(--text-muted)"}}>データなし</div>
-              :summaries.map(s=>(
-                <div key={s.color} className="flex items-center gap-1.5 rounded px-2 py-1" style={{backgroundColor:s.color+"18"}}>
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:s.color}}/>
-                  <span className="text-[10px] truncate flex-1" style={{color:s.color}}>{s.title}</span>
-                  <span className="text-[11px] font-bold font-mono flex-shrink-0" style={{color:s.color}}>{fmtHours(s.hours)}</span>
-                </div>
-              ))
+              :<>
+                {summaries.map(s=>(
+                  <div key={s.color} className="flex items-center gap-1.5 rounded px-2 py-1" style={{backgroundColor:s.color+"18"}}>
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:s.color}}/>
+                    <span className="text-[10px] truncate flex-1" style={{color:s.color}}>{s.title}</span>
+                    <span className="text-[10px] font-bold font-mono flex-shrink-0" style={{color:s.color}}>{fmtHours(s.hours)}<span className="font-normal opacity-70">({s.count})</span></span>
+                  </div>
+                ))}
+                {summaries.length>0&&(
+                  <div className="flex items-center gap-1.5 rounded px-2 py-1 border-t border-[var(--border)] mt-1 pt-1.5">
+                    <span className="text-[10px] flex-1" style={{color:"var(--text-muted)"}}>合計</span>
+                    <span className="text-[11px] font-bold font-mono" style={{color:"var(--text)"}}>{fmtHours(totalHours)}</span>
+                  </div>
+                )}
+              </>
             }
           </div>
         </div>
@@ -260,7 +286,7 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
   );
 }
 
-function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId,showSummary}){
+function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId,showSummary,checkedColors}){
   const year=currentDate.getFullYear(),month=currentDate.getMonth();
   const firstDay=new Date(year,month,1);
   const offset=startMonday?(firstDay.getDay()+6)%7:firstDay.getDay();
@@ -298,11 +324,14 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           const wkTotals={};
           for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate&&ev2.workHours)){
             if(weekDayStrs.includes(ev.startDate)){
-              if(!wkTotals[ev.color])wkTotals[ev.color]={color:ev.color,title:ev.title,hours:0};
+              if(!wkTotals[ev.color])wkTotals[ev.color]={color:ev.color,title:ev.title,hours:0,count:0};
               wkTotals[ev.color].hours+=ev.workHours;
+              wkTotals[ev.color].count+=1;
             }
           }
-          const wkSummaries=Object.values(wkTotals);
+          const wkAll=Object.values(wkTotals);
+          const wkSummaries=wkAll.filter(s=>checkedColors.size===0||checkedColors.has(s.color));
+          const wkTotal=wkSummaries.reduce((a,s)=>a+s.hours,0);
 
           // 月計モード：最初の週(wi===0)だけ月全体の合計を表示
           const y2=currentDate.getFullYear(),mo2=currentDate.getMonth();
@@ -316,7 +345,8 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
               }
             }
           }
-          const moSummaries=Object.values(moTotals);
+          const moSummaries=Object.values(moTotals).filter(s=>checkedColors.size===0||checkedColors.has(s.color));
+          const moTotal=moSummaries.reduce((a,s)=>a+s.hours,0);
           const summariesToShow=showSummary===1?wkSummaries:showSummary===2&&wi===0?moSummaries:[];
 
           return(
@@ -365,13 +395,21 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                 <div className="flex-shrink-0 border-l p-1 flex flex-col justify-center gap-0.5" style={{width:`${COL_W}px`,backgroundColor:"var(--bg-panel)",borderColor:"var(--border)",minHeight:`${minH}px`}}>
                   {summariesToShow.length===0
                     ?<div className="text-[9px] text-center" style={{color:"var(--text-muted)"}}>{showSummary===2&&wi>0?"":"-"}</div>
-                    :summariesToShow.map(s=>(
-                      <div key={s.color} className="flex items-center gap-1.5 rounded px-1.5 py-0.5" style={{backgroundColor:s.color+"18"}}>
-                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:s.color}}/>
-                        <span className="text-[10px] truncate flex-1" style={{color:s.color}}>{s.title}</span>
-                        <span className="text-[11px] font-bold font-mono flex-shrink-0" style={{color:s.color}}>{fmtHours(s.hours)}</span>
-                      </div>
-                    ))
+                    :<>
+                      {summariesToShow.map(s=>(
+                        <div key={s.color} className="flex items-center gap-1 rounded px-1.5 py-0.5" style={{backgroundColor:s.color+"18"}}>
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{backgroundColor:s.color}}/>
+                          <span className="text-[9px] truncate flex-1" style={{color:s.color}}>{s.title}</span>
+                          <span className="text-[10px] font-bold font-mono flex-shrink-0" style={{color:s.color}}>{fmtHours(s.hours)}<span className="font-normal opacity-70 text-[9px]">({s.count||""})</span></span>
+                        </div>
+                      ))}
+                      {summariesToShow.length>1&&(
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 border-t border-[var(--border)] mt-0.5">
+                          <span className="text-[9px] flex-1" style={{color:"var(--text-muted)"}}>合計</span>
+                          <span className="text-[10px] font-bold font-mono" style={{color:"var(--text)"}}>{fmtHours(showSummary===1?wkTotal:moTotal)}</span>
+                        </div>
+                      )}
+                    </>
                   }
                 </div>
               )}
@@ -383,7 +421,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
   );
 }
 
-function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,currentDate,weekStart}){
+function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,currentDate,weekStart,checkedColors,onToggleColor,onBulkImport}){
   const[showSum,setShowSum]=useState(false);
   const sorted=[...events].sort((a,b)=>{
     if(a.placed&&a.startDate&&b.placed&&b.startDate)return a.startDate.localeCompare(b.startDate);
@@ -428,12 +466,16 @@ function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,
           <button onClick={()=>setShowSum(v=>!v)} className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--hover)]" style={{color:"var(--text-muted)"}}>
             <span>月集計 {monthLabel}</span><span>{showSum?"▲":"▼"}</span>
           </button>
-          {showSum&&<div className="px-2 pb-2 space-y-2">
+          {showSum&&<div className="px-2 pb-2 space-y-1.5">
             {groups.length===0?<p className="text-[10px] text-center py-2" style={{color:"var(--text-muted)"}}>データなし</p>:groups.map(g=>(
               <div key={g.color} className="rounded-md overflow-hidden border border-[var(--border)]">
                 <div className="flex items-center gap-1.5 px-2 py-1" style={{backgroundColor:g.color+"18"}}>
-                  <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor:g.color}}/>
-                  <span className="text-[11px] font-semibold truncate" style={{color:g.color}}>{g.title}</span>
+                  <input type="checkbox" checked={checkedColors.has(g.color)}
+                    onChange={()=>onToggleColor(g.color)}
+                    onClick={e=>e.stopPropagation()}
+                    className="w-3 h-3 flex-shrink-0 cursor-pointer" style={{accentColor:g.color}}/>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:g.color}}/>
+                  <span className="text-[11px] font-semibold truncate flex-1" style={{color:g.color}}>{g.title}</span>
                 </div>
                 <table className="w-full text-[10px]" style={{color:"var(--text-muted)"}}>
                   <thead><tr style={{backgroundColor:"var(--bg-muted)"}}><th className="text-left px-2 py-0.5 font-medium"></th><th className="text-right px-2 py-0.5 font-medium">配置済</th><th className="text-right px-2 py-0.5 font-medium">未配置</th></tr></thead>
@@ -445,8 +487,9 @@ function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,
             ))}
           </div>}
         </div>
-        <div className="p-2 border-t border-[var(--border)] flex-shrink-0">
+        <div className="p-2 border-t border-[var(--border)] flex-shrink-0 flex flex-col gap-1.5">
           <button onClick={onAddEvent} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">＋ 予定を追加</button>
+          <button onClick={onBulkImport} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">一括取り込み</button>
         </div>
       </>)}
     </div>
@@ -459,7 +502,7 @@ function DropGap({idx,active,onOver,onDrop}){
   </div>);
 }
 
-function UnplacedArea({events,onDragStart,onDrop,onEventClick,dragOverIdx,setDragOverIdx,unplacedInternalDrag,setUnplacedInternalDrag,onReorder,onRecallMonth,currentDate}){
+function UnplacedArea({events,onDragStart,onDrop,onEventClick,dragOverIdx,setDragOverIdx,unplacedInternalDrag,setUnplacedInternalDrag,onReorder,onRecallMonth,currentDate,onSort}){
   const[collapsed,setCollapsed]=useState(false);
   const[areaOver,setAreaOver]=useState(false);
   const[dzOver,setDzOver]=useState(false);
@@ -485,6 +528,7 @@ function UnplacedArea({events,onDragStart,onDrop,onEventClick,dragOverIdx,setDra
         <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">未配置</span>
         <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-muted)] px-1.5 rounded-full">{unplaced.length}</span>
         <button onClick={onRecallMonth} className="text-[10px] px-2 py-0.5 rounded border border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">{ml}を回収</button>
+        <button onClick={onSort} className="text-[10px] px-2 py-0.5 rounded border border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">並び替え</button>
         <div className="flex-1"/>
         <button onClick={()=>setCollapsed(v=>!v)} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text)] px-1">{collapsed?"▲":"▼"}</button>
       </div>
@@ -670,6 +714,81 @@ function EventPopup({event,onClose,onSave,onDelete}){
   );
 }
 
+// ── 一括取り込みモーダル ─────────────────────────────────────
+function BulkImportModal({onClose,onImport}){
+  const[text,setText]=useState("");
+  const[color,setColor]=useState(DEFAULT_COLORS[0]);
+
+  const parsed=text.trim().split("\n").map(line=>{
+    const cols=line.split("\t");
+    const title=(cols[0]||"").trim();
+    const memo=(cols[1]||"").trim();
+    return{title,memo};
+  }).filter(r=>r.title);
+
+  const handleImport=()=>{
+    if(parsed.length===0)return;
+    const newEvs=parsed.map(r=>({
+      id:genId(),title:r.title,memo:r.memo,color,
+      startDate:null,endDate:null,placed:false,
+      allDay:true,startTime:null,endTime:null,workHours:null,
+    }));
+    onImport(newEvs);
+    onClose();
+  };
+
+  return(
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,0.4)",backdropFilter:"blur(2px)"}} onClick={onClose}>
+      <div className="rounded-2xl shadow-2xl p-5 w-[480px] border border-[var(--border)]"
+        style={{backgroundColor:"var(--bg)"}} onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="font-bold text-sm" style={{color:"var(--text)"}}>一括取り込み</span>
+          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text)] text-lg leading-none">✕</button>
+        </div>
+        <p className="text-[11px] mb-2" style={{color:"var(--text-muted)"}}>エクセル・スプシから予定名・メモをコピーして貼り付け（タブ区切り2列、1行1予定）</p>
+        <textarea value={text} onChange={e=>setText(e.target.value)}
+          rows={8} placeholder={"早番シフト\t7:00から15:00まで\n夜勤バイト\t22:00から翌朝\n遅番シフト\t"}
+          className="w-full text-xs rounded-lg px-3 py-2 border outline-none resize-none mb-3 font-mono"
+          style={{backgroundColor:"var(--bg-muted)",color:"var(--text)",borderColor:"var(--border)"}}/>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[11px] flex-shrink-0" style={{color:"var(--text-muted)"}}>色（全件共通）</span>
+          <div className="flex gap-1.5 flex-wrap">
+            {DEFAULT_COLORS.map(c=>(
+              <button key={c} onClick={()=>setColor(c)}
+                className="w-5 h-5 rounded-full transition-transform hover:scale-110"
+                style={{backgroundColor:c,outline:color===c?`2px solid ${c}`:"none",outlineOffset:"2px"}}/>
+            ))}
+          </div>
+        </div>
+        {parsed.length>0&&(
+          <div className="mb-3 rounded-lg overflow-hidden border border-[var(--border)]">
+            <div className="px-3 py-1.5 text-[10px] font-bold" style={{backgroundColor:"var(--bg-muted)",color:"var(--text-muted)"}}>
+              プレビュー（{parsed.length}件）
+            </div>
+            <div className="max-h-32 overflow-y-auto">
+              {parsed.slice(0,10).map((r,i)=>(
+                <div key={i} className="flex items-center gap-2 px-3 py-1 border-b border-[var(--border)]" style={{borderLeftWidth:"3px",borderLeftColor:color,borderLeftStyle:"solid"}}>
+                  <span className="text-[11px] font-semibold truncate flex-1" style={{color}}>{r.title}</span>
+                  {r.memo&&<span className="text-[10px] truncate" style={{color:"var(--text-muted)"}}>{r.memo}</span>}
+                </div>
+              ))}
+              {parsed.length>10&&<div className="px-3 py-1 text-[10px]" style={{color:"var(--text-muted)"}}>他 {parsed.length-10} 件...</div>}
+            </div>
+          </div>
+        )}
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg border" style={{borderColor:"var(--border)",color:"var(--text-muted)"}}>キャンセル</button>
+          <button onClick={handleImport} disabled={parsed.length===0}
+            className="text-xs px-4 py-1.5 rounded-lg text-white font-medium disabled:opacity-40"
+            style={{backgroundColor:"var(--accent)"}}>
+            {parsed.length}件取り込む
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App(){
   const settingsInit=loadSettings();
   const[events,setEvents]=useState(()=>loadEvents()??SAMPLE_EVENTS);
@@ -678,6 +797,11 @@ function App(){
   const[currentDate,setCurrentDate]=useState(()=>new Date());
   const[sidebarCollapsed,setSidebarCollapsed]=useState(settingsInit.sidebarCollapsed??false);
   const[showSummary,setShowSummary]=useState(settingsInit.showSummary??0);
+  const[checkedColors,setCheckedColors]=useState(()=>{
+    const saved=loadCheckedColors();
+    return saved?new Set(saved):new Set();
+  });
+  const[showBulkImport,setShowBulkImport]=useState(false);
   const[dragEventId,setDragEventId]=useState(null);
   const dragEventIdRef=useRef(null);
   const[selectedEvent,setSelectedEvent]=useState(null);
@@ -780,16 +904,47 @@ function App(){
     });
   },[]);
 
+  const handleToggleColor=useCallback(color=>{
+    setCheckedColors(prev=>{
+      const next=new Set(prev);
+      if(next.has(color))next.delete(color);else next.add(color);
+      saveCheckedColors([...next]);
+      return next;
+    });
+  },[]);
+
+  const handleBulkImport=useCallback(newEvs=>{
+    setEvents(prev=>{
+      const placed=prev.filter(e=>e.placed);
+      const unplaced=prev.filter(e=>!e.placed);
+      return[...placed,...unplaced,...newEvs];
+    });
+  },[]);
+
+  const handleSortUnplaced=useCallback(()=>{
+    setEvents(prev=>{
+      const placed=prev.filter(e=>e.placed);
+      const unplaced=sortUnplaced(prev.filter(e=>!e.placed));
+      return[...placed,...unplaced];
+    });
+  },[]);
+
   const handleRecallMonth=useCallback(()=>{
     const y=currentDate.getFullYear(),mo=currentDate.getMonth();
     const label=`${y}年${mo+1}月`;
     if(!window.confirm(`${label}の配置済み予定をすべて未配置に戻しますか？`))return;
     const ms=`${y}-${String(mo+1).padStart(2,"0")}-01`,me=toDateStr(new Date(y,mo+1,0));
-    setEvents(prev=>prev.map(ev=>{
-      if(!ev.placed||!ev.startDate)return ev;
-      if(dateInRange(ev.startDate,ms,me))return{...ev,startDate:null,endDate:null,placed:false};
-      return ev;
-    }));
+    setEvents(prev=>{
+      const recalled=[];
+      const rest=prev.map(ev=>{
+        if(!ev.placed||!ev.startDate)return ev;
+        if(dateInRange(ev.startDate,ms,me)){recalled.push({...ev,startDate:null,endDate:null,placed:false});return null;}
+        return ev;
+      }).filter(Boolean);
+      const placed=rest.filter(e=>e.placed);
+      const unplaced=sortUnplaced([...rest.filter(e=>!e.placed),...recalled]);
+      return[...placed,...unplaced];
+    });
   },[currentDate]);
 
   const handleResizeStart=useCallback((e,ev)=>{resizeRef.current={ev,startX:e.clientX,origEnd:ev.endDate||ev.startDate};setResizing(true);},[]);
@@ -852,7 +1007,9 @@ function App(){
       <div className="flex flex-1 overflow-hidden">
         <Sidebar events={events} collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(v=>!v)}
           onEventClick={setSelectedEvent} onAddEvent={()=>setSelectedEvent({...newEvBase,id:genId()})}
-          onDragStart={handleDragStart} currentDate={currentDate} weekStart={weekStart}/>
+          onDragStart={handleDragStart} currentDate={currentDate} weekStart={weekStart}
+          checkedColors={checkedColors} onToggleColor={handleToggleColor}
+          onBulkImport={()=>setShowBulkImport(true)}/>
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-hidden" ref={calendarRef}>
             {view==="week"
@@ -861,22 +1018,24 @@ function App(){
                   onCellClick={handleCellClick} onEventClick={setSelectedEvent}
                   dragOverDate={dragOverDate} setDragOverDate={setDragOverDate}
                   onResizeStart={handleResizeStart} draggingId={dragEventId}
-                  showSummary={showSummary}/>
+                  showSummary={showSummary} checkedColors={checkedColors}/>
               :<MonthView events={events} currentDate={currentDate} startMonday={startMonday}
                   onDrop={handleDropOnCalendar} onDragStart={handleDragStart}
                   onCellClick={handleCellClick} onEventClick={setSelectedEvent}
                   dragOverDate={dragOverDate} setDragOverDate={setDragOverDate}
                   onResizeStart={handleResizeStart} draggingId={dragEventId}
-                  showSummary={showSummary}/>
+                  showSummary={showSummary} checkedColors={checkedColors}/>
             }
           </div>
           <UnplacedArea events={events} onDragStart={handleDragStart} onDrop={handleDropOnUnplaced}
             onEventClick={setSelectedEvent} dragOverIdx={unplacedDragOverIdx} setDragOverIdx={setUnplacedDragOverIdx}
             unplacedInternalDrag={unplacedInternalDrag} setUnplacedInternalDrag={setUnplacedInternalDrag}
-            onReorder={handleUnplacedReorder} onRecallMonth={handleRecallMonth} currentDate={currentDate}/>
+            onReorder={handleUnplacedReorder} onRecallMonth={handleRecallMonth} currentDate={currentDate}
+            onSort={handleSortUnplaced}/>
         </div>
       </div>
       {selectedEvent&&<EventPopup event={selectedEvent} onClose={()=>setSelectedEvent(null)} onSave={handleSave} onDelete={handleDelete}/>}
+      {showBulkImport&&<BulkImportModal onClose={()=>setShowBulkImport(false)} onImport={handleBulkImport}/>}
     </div>
   );
 }
