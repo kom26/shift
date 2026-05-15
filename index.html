@@ -340,8 +340,9 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           if(showSummary===2&&wi===0){
             for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate&&ev2.workHours)){
               if(dateInRange(ev.startDate,ms2,me2)){
-                if(!moTotals[ev.color])moTotals[ev.color]={color:ev.color,title:ev.title,hours:0};
+                if(!moTotals[ev.color])moTotals[ev.color]={color:ev.color,title:ev.title,hours:0,count:0};
                 moTotals[ev.color].hours+=ev.workHours;
+                moTotals[ev.color].count+=1;
               }
             }
           }
@@ -948,6 +949,37 @@ function App(){
   },[currentDate]);
 
   const handleResizeStart=useCallback((e,ev)=>{resizeRef.current={ev,startX:e.clientX,origEnd:ev.endDate||ev.startDate};setResizing(true);},[]);
+
+  const handleExportCSV=useCallback(()=>{
+    const y=currentDate.getFullYear(),mo=currentDate.getMonth();
+    const ms=`${y}-${String(mo+1).padStart(2,"0")}-01`;
+    const me=toDateStr(new Date(y,mo+1,0));
+    const placed=events
+      .filter(ev=>ev.placed&&ev.startDate&&dateInRange(ev.startDate,ms,me))
+      .sort((a,b)=>a.startDate.localeCompare(b.startDate));
+    const unplaced=events.filter(ev=>!ev.placed);
+    const rows=[["状態","日付","開始","終了","実労働時間","メモ"]];
+    for(const ev of placed){
+      rows.push(["配置済",ev.startDate?.replace(/-/g,"/")??""
+        ,ev.startTime??"",ev.endTime??""
+        ,ev.workHours!=null?fmtHours(ev.workHours):""
+        ,ev.memo??""]);
+    }
+    for(const ev of unplaced){
+      rows.push(["未配置",""
+        ,ev.startTime??"",ev.endTime??""
+        ,ev.workHours!=null?fmtHours(ev.workHours):""
+        ,ev.memo??""]);
+    }
+    const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\r\n");
+    const bom="\uFEFF";
+    const blob=new Blob([bom+csv],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    const label=`${y}${String(mo+1).padStart(2,"0")}`;
+    a.href=url;a.download=`shifts_${label}.csv`;a.click();
+    URL.revokeObjectURL(url);
+  },[events,currentDate]);
   useEffect(()=>{
     if(!resizing)return;
     const onMove=e=>{
@@ -1001,6 +1033,10 @@ function App(){
             backgroundColor:showSummary>0?"var(--accent-soft)":"transparent"
           }}>
           {showSummary===0?"集計":showSummary===1?"週計":"月計"}
+        </button>
+        <button onClick={handleExportCSV}
+          className="text-[11px] px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">
+          CSV
         </button>
         <button onClick={()=>setSelectedEvent({...newEvBase,id:genId()})} className="text-[11px] px-3 py-1 rounded-lg text-white hover:opacity-90" style={{backgroundColor:"var(--accent)"}}>＋ 追加</button>
       </div>
