@@ -220,7 +220,7 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
   const summaries=Object.values(colorTotals).filter(s=>checkedColors.size===0||checkedColors.has(s.color));
   const totalHours=summaries.reduce((a,s)=>a+s.hours,0);
   const COL_W=120;
-  const effectiveSummary=isMobile?0:showSummary;
+  const effectiveSummary=showSummary;
 
   return(
     <div className="flex h-full select-none">
@@ -229,6 +229,23 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
         <div className="grid grid-cols-7 border-b border-[var(--border)] flex-shrink-0">
           {weekDays.map((day,i)=><DayHeader key={i} dateStr={toDateStr(day)} label={labels[i]} isToday={toDateStr(day)===today}/>)}
         </div>
+        {/* モバイル集計ストリップ */}
+        {isMobile&&effectiveSummary===1&&summaries.length>0&&(
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[var(--border)] overflow-x-auto flex-shrink-0" style={{backgroundColor:"var(--bg-panel)"}}>
+            <span className="text-[9px] font-bold uppercase tracking-wider flex-shrink-0" style={{color:"var(--text-muted)"}}>週計</span>
+            {summaries.map(s=>(
+              <div key={s.color} className="flex items-center gap-1 rounded px-1.5 py-0.5 flex-shrink-0" style={{backgroundColor:s.color+"18"}}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:s.color}}/>
+                <span className="text-[10px] font-semibold" style={{color:s.color}}>{s.title}</span>
+                <span className="text-[10px] font-bold font-mono" style={{color:s.color}}>{fmtHours(s.hours)}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-1 flex-shrink-0 ml-1 pl-1.5 border-l border-[var(--border)]">
+              <span className="text-[9px]" style={{color:"var(--text-muted)"}}>合計</span>
+              <span className="text-[10px] font-bold font-mono" style={{color:"var(--text)"}}>{fmtHours(totalHours)}</span>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-7 flex-1 divide-x divide-[var(--border)] overflow-y-auto">
           {weekDays.map((day,i)=>{
             const ds=toDateStr(day),isDO=dragOverDate===ds;
@@ -261,8 +278,8 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
           })}
         </div>
       </div>
-      {/* 集計列 */}
-      {effectiveSummary===1&&(
+      {/* 集計列（PCのみ） */}
+      {effectiveSummary===1&&!isMobile&&(
         <div className="flex-shrink-0 border-l border-[var(--border)] flex flex-col" style={{width:`${COL_W}px`,backgroundColor:"var(--bg-panel)"}}>
           <div className="border-b border-[var(--border)] py-1.5 px-2 flex-shrink-0">
             <span className="text-[9px] font-bold uppercase tracking-wider" style={{color:"var(--text-muted)"}}>週計</span>
@@ -306,7 +323,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
   const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
   const today=toDateStr(new Date());
   const SPAN_H=isMobile?16:20,HEADER_H=isMobile?18:22,COL_W=120;
-  const effectiveSummary=isMobile?0:showSummary;
+  const effectiveSummary=showSummary;
   const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
   const toCellDates=wc=>wc.map(c=>c.date);
   return(
@@ -317,7 +334,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           <div className="grid grid-cols-7 flex-1">
             {labels.map((l,i)=>{const dow=startMonday?(i+1)%7:i;const tc=dow===0?"#ef4444":dow===6?"#3b82f6":"var(--text-muted)";return<div key={l} className="text-center py-1.5 text-[10px] font-medium" style={{color:tc}}>{l}</div>;})}
           </div>
-          {effectiveSummary>0&&(
+          {effectiveSummary>0&&!isMobile&&(
             <div className="flex-shrink-0 border-l border-[var(--border)] text-center py-1.5" style={{width:`${COL_W}px`}}>
               <span className="text-[9px] font-bold uppercase tracking-wider" style={{color:"var(--text-muted)"}}>{effectiveSummary===1?"週計":"月計"}</span>
             </div>
@@ -399,8 +416,8 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                   );
                 }))}
               </div>
-              {/* 集計列 */}
-              {effectiveSummary>0&&(
+              {/* 集計列（PCのみ） */}
+              {effectiveSummary>0&&!isMobile&&(
                 <div className="flex-shrink-0 border-l p-1 flex flex-col justify-center gap-0.5" style={{width:`${COL_W}px`,backgroundColor:"var(--bg-panel)",borderColor:"var(--border)",minHeight:`${minH}px`}}>
                   {summariesToShow.length===0
                     ?<div className="text-[9px] text-center" style={{color:"var(--text-muted)"}}>{effectiveSummary===2&&wi>0?"":"-"}</div>
@@ -420,6 +437,18 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                       )}
                     </>
                   }
+                </div>
+              )}
+              {/* モバイル集計ストリップ */}
+              {isMobile&&summariesToShow.length>0&&(
+                <div className="flex items-center gap-1.5 px-2 py-1 border-t border-[var(--border)] overflow-x-auto flex-shrink-0 w-full" style={{backgroundColor:"var(--bg-panel)"}}>
+                  {summariesToShow.map(s=>(
+                    <div key={s.color} className="flex items-center gap-1 rounded px-1.5 py-0.5 flex-shrink-0" style={{backgroundColor:s.color+"18"}}>
+                      <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:s.color}}/>
+                      <span className="text-[10px] font-semibold" style={{color:s.color}}>{s.title}</span>
+                      <span className="text-[10px] font-bold font-mono" style={{color:s.color}}>{fmtHours(s.hours)}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
