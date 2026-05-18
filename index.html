@@ -328,6 +328,20 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
   const effectiveSummary=showSummary;
   const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
   const toCellDates=wc=>wc.map(c=>c.date);
+  // 月計（モバイル用、全週の下に1行表示）
+  const y2=currentDate.getFullYear(),mo2=currentDate.getMonth();
+  const ms2=`${y2}-${String(mo2+1).padStart(2,"0")}-01`,me2=toDateStr(new Date(y2,mo2+1,0));
+  const moTotals2={};
+  for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate)){
+    const wh=ev.workHours??calcWorkHours(ev.startTime,ev.endTime,ev.allDay);
+    if(!wh)continue;
+    if(dateInRange(ev.startDate,ms2,me2)){
+      if(!moTotals2[ev.color])moTotals2[ev.color]={color:ev.color,title:ev.title,hours:0,count:0};
+      moTotals2[ev.color].hours+=wh;moTotals2[ev.color].count+=1;
+    }
+  }
+  const moSummaries2=Object.values(moTotals2).filter(s=>checkedColors.size===0||checkedColors.has(s.color));
+  const moTotal2=moSummaries2.reduce((a,s)=>a+s.hours,0);
   return(
     <div className="flex flex-col h-full select-none">
       <div className="flex-1 overflow-y-auto flex flex-col">
@@ -382,7 +396,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           const summariesToShow=effectiveSummary===1?wkSummaries:effectiveSummary===2&&wi===0?moSummaries:[];
 
           return(
-            <div key={wi} className="flex flex-shrink-0 border-b border-[var(--border)]" style={{minHeight:`${minH}px`}}>
+            <div key={wi} className={`flex-shrink-0 border-b border-[var(--border)] ${isMobile?"flex flex-col":"flex"}`} style={{minHeight:`${minH}px`}}>
               {/* 7列 */}
               <div className="grid grid-cols-7 flex-1 relative" style={{minHeight:`${minH}px`}}>
                 {weekCells.map(({date,ghost},di)=>{
@@ -402,7 +416,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                       {isDO&&<div className="absolute inset-0 border-2 border-dashed border-[var(--accent)] rounded pointer-events-none opacity-60 z-10"/>}
                       <div className="flex items-center gap-1 p-1 pb-0 flex-wrap">
                         <span style={{color:tc,opacity:ghost?0.45:1}} className="text-[11px] font-semibold">{date.getDate()}</span>
-                        {holiday&&!ghost&&<span style={{color:"#ef4444"}} className="text-[9px]">{holiday}</span>}
+                        {holiday&&!ghost&&<span style={{color:"#ef4444"}} className="hidden sm:inline text-[9px]">{holiday}</span>}
                       </div>
                     </div>
                   );
@@ -446,9 +460,9 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                   }
                 </div>
               )}
-              {/* モバイル集計ストリップ */}
-              {isMobile&&summariesToShow.length>0&&(
-                <div className="flex items-center gap-1.5 px-2 py-1 border-t border-[var(--border)] overflow-x-auto flex-shrink-0 w-full" style={{backgroundColor:"var(--bg-panel)"}}>
+              {/* モバイル週計ストリップ */}
+              {isMobile&&effectiveSummary===1&&summariesToShow.length>0&&(
+                <div className="flex items-center gap-1.5 px-2 py-1 border-t border-[var(--border)] overflow-x-auto flex-shrink-0" style={{backgroundColor:"var(--bg-panel)"}}>
                   {summariesToShow.map(s=>(
                     <div key={s.color} className="flex items-center gap-1 rounded px-1.5 py-0.5 flex-shrink-0" style={{backgroundColor:s.color+"18"}}>
                       <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:s.color}}/>
@@ -456,11 +470,36 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                       <span className="text-[10px] font-bold font-mono" style={{color:s.color}}>{fmtHours(s.hours)}</span>
                     </div>
                   ))}
+                  {summariesToShow.length>0&&<div className="flex items-center gap-1 flex-shrink-0 ml-1 pl-1.5 border-l border-[var(--border)]"><span className="text-[9px]" style={{color:"var(--text-muted)"}}>合計</span><span className="text-[10px] font-bold font-mono" style={{color:"var(--text)"}}>{fmtHours(wkTotal)}</span></div>}
                 </div>
               )}
             </div>
           );
         })}
+        {/* 月計ストリップ（モバイル、全週の下） */}
+        {isMobile&&effectiveSummary===2&&(
+          <div className="flex items-center gap-1.5 px-2 py-2 border-t border-[var(--border)] overflow-x-auto flex-shrink-0" style={{backgroundColor:"var(--bg-panel)"}}>
+            <span className="text-[9px] font-bold uppercase tracking-wider flex-shrink-0" style={{color:"var(--text-muted)"}}>月計</span>
+            {moSummaries2.length===0
+              ?<span className="text-[9px]" style={{color:"var(--text-muted)"}}>データなし</span>
+              :<>
+                {moSummaries2.map(s=>(
+                  <div key={s.color} className="flex items-center gap-1 rounded px-1.5 py-0.5 flex-shrink-0" style={{backgroundColor:s.color+"18"}}>
+                    <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:s.color}}/>
+                    <span className="text-[10px] font-semibold" style={{color:s.color}}>{s.title}</span>
+                    <span className="text-[10px] font-bold font-mono" style={{color:s.color}}>{fmtHours(s.hours)}</span>
+                  </div>
+                ))}
+                {moSummaries2.length>0&&(
+                  <div className="flex items-center gap-1 flex-shrink-0 ml-1 pl-1.5 border-l border-[var(--border)]">
+                    <span className="text-[9px]" style={{color:"var(--text-muted)"}}>合計</span>
+                    <span className="text-[10px] font-bold font-mono" style={{color:"var(--text)"}}>{fmtHours(moTotal2)}</span>
+                  </div>
+                )}
+              </>
+            }
+          </div>
+        )}
       </div>
     </div>
   );
