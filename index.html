@@ -92,6 +92,12 @@ const CHECKED_COLORS_KEY="shift-sched-checked-colors";
 function loadCheckedColors(){return lsGet(CHECKED_COLORS_KEY,null);}
 function saveCheckedColors(c){lsSet(CHECKED_COLORS_KEY,c);}
 
+function useMobile(){
+  const[m,setM]=useState(()=>window.innerWidth<640);
+  useEffect(()=>{const h=()=>setM(window.innerWidth<640);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
+  return m;
+}
+
 function sortUnplaced(evs){
   return [...evs].sort((a,b)=>{
     const at=a.allDay?"99:99":(a.startTime||"99:99");
@@ -182,7 +188,7 @@ function EventChip({event,onDragStart,onClick,colSpan=1,inCalendar=false,onResiz
         {tl&&<span style={{color:event.color+"bb"}} className="text-[9px] leading-tight truncate">{tl}</span>}
       </div>
       {onResizeStart&&inCalendar&&(
-        <div className="flex-shrink-0 w-3 flex items-center justify-center cursor-col-resize"
+        <div className="hidden sm:flex flex-shrink-0 w-3 items-center justify-center cursor-col-resize"
           onMouseDown={e=>{e.stopPropagation();e.preventDefault();onResizeStart(e,event);}}
           onClick={e=>e.stopPropagation()}>
           <div className="w-0.5 h-4 rounded-full opacity-30 hover:opacity-80" style={{backgroundColor:event.color}}/>
@@ -192,7 +198,7 @@ function EventChip({event,onDragStart,onClick,colSpan=1,inCalendar=false,onResiz
   );
 }
 
-function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId,showSummary,checkedColors}){
+function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId,showSummary,checkedColors,isMobile}){
   const weekDays=Array.from({length:7},(_,i)=>addDays(weekStart,i));
   const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
   const today=toDateStr(new Date());
@@ -214,6 +220,7 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
   const summaries=Object.values(colorTotals).filter(s=>checkedColors.size===0||checkedColors.has(s.color));
   const totalHours=summaries.reduce((a,s)=>a+s.hours,0);
   const COL_W=120;
+  const effectiveSummary=isMobile?0:showSummary;
 
   return(
     <div className="flex h-full select-none">
@@ -232,7 +239,7 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
             const cont=dayEvs.filter(ev=>ev.startDate!==ds);
             return(
               <div key={i} data-date={ds}
-                className={`relative p-1 min-h-[120px] cursor-pointer transition-colors duration-100 ${isDO?"bg-[var(--accent-soft)]":"hover:bg-[var(--hover)]"}`}
+                className={`relative p-1 min-h-[80px] sm:min-h-[120px] cursor-pointer transition-colors duration-100 ${isDO?"bg-[var(--accent-soft)]":"hover:bg-[var(--hover)]"}`}
                 onDragOver={e=>{e.preventDefault();setDragOverDate(ds);}}
                 onDragLeave={()=>setDragOverDate(null)}
                 onDrop={e=>{onDrop(e,ds);setDragOverDate(null);}}
@@ -255,7 +262,7 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
         </div>
       </div>
       {/* 集計列 */}
-      {showSummary===1&&(
+      {effectiveSummary===1&&(
         <div className="flex-shrink-0 border-l border-[var(--border)] flex flex-col" style={{width:`${COL_W}px`,backgroundColor:"var(--bg-panel)"}}>
           <div className="border-b border-[var(--border)] py-1.5 px-2 flex-shrink-0">
             <span className="text-[9px] font-bold uppercase tracking-wider" style={{color:"var(--text-muted)"}}>週計</span>
@@ -286,7 +293,7 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
   );
 }
 
-function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId,showSummary,checkedColors}){
+function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClick,onEventClick,dragOverDate,setDragOverDate,onResizeStart,draggingId,showSummary,checkedColors,isMobile}){
   const year=currentDate.getFullYear(),month=currentDate.getMonth();
   const firstDay=new Date(year,month,1);
   const offset=startMonday?(firstDay.getDay()+6)%7:firstDay.getDay();
@@ -298,7 +305,8 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
   const weeks=Array.from({length:cells.length/7},(_,w)=>cells.slice(w*7,w*7+7));
   const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
   const today=toDateStr(new Date());
-  const SPAN_H=20,HEADER_H=22,COL_W=120;
+  const SPAN_H=isMobile?16:20,HEADER_H=isMobile?18:22,COL_W=120;
+  const effectiveSummary=isMobile?0:showSummary;
   const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
   const toCellDates=wc=>wc.map(c=>c.date);
   return(
@@ -309,9 +317,9 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           <div className="grid grid-cols-7 flex-1">
             {labels.map((l,i)=>{const dow=startMonday?(i+1)%7:i;const tc=dow===0?"#ef4444":dow===6?"#3b82f6":"var(--text-muted)";return<div key={l} className="text-center py-1.5 text-[10px] font-medium" style={{color:tc}}>{l}</div>;})}
           </div>
-          {showSummary>0&&(
+          {effectiveSummary>0&&(
             <div className="flex-shrink-0 border-l border-[var(--border)] text-center py-1.5" style={{width:`${COL_W}px`}}>
-              <span className="text-[9px] font-bold uppercase tracking-wider" style={{color:"var(--text-muted)"}}>{showSummary===1?"週計":"月計"}</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider" style={{color:"var(--text-muted)"}}>{effectiveSummary===1?"週計":"月計"}</span>
             </div>
           )}
         </div>
@@ -337,7 +345,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           const y2=currentDate.getFullYear(),mo2=currentDate.getMonth();
           const ms2=`${y2}-${String(mo2+1).padStart(2,"0")}-01`,me2=toDateStr(new Date(y2,mo2+1,0));
           const moTotals={};
-          if(showSummary===2&&wi===0){
+          if(effectiveSummary===2&&wi===0){
             for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate&&ev2.workHours)){
               if(dateInRange(ev.startDate,ms2,me2)){
                 if(!moTotals[ev.color])moTotals[ev.color]={color:ev.color,title:ev.title,hours:0,count:0};
@@ -348,7 +356,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           }
           const moSummaries=Object.values(moTotals).filter(s=>checkedColors.size===0||checkedColors.has(s.color));
           const moTotal=moSummaries.reduce((a,s)=>a+s.hours,0);
-          const summariesToShow=showSummary===1?wkSummaries:showSummary===2&&wi===0?moSummaries:[];
+          const summariesToShow=effectiveSummary===1?wkSummaries:effectiveSummary===2&&wi===0?moSummaries:[];
 
           return(
             <div key={wi} className="flex flex-shrink-0 border-b border-[var(--border)]" style={{minHeight:`${minH}px`}}>
@@ -386,16 +394,16 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                       <div className="flex-1 px-1.5 min-w-0">
                         {isStart?<><span style={{color:ev.color}} className="text-[11px] font-semibold truncate leading-none block">{ev.title}</span>{timeLabel(ev)&&<span style={{color:ev.color+"99"}} className="text-[9px] leading-none block truncate">{timeLabel(ev)}</span>}</>:<span style={{color:ev.color+"88"}} className="text-[10px] leading-none">...</span>}
                       </div>
-                      {isEnd&&<div className="flex-shrink-0 w-3 h-full flex items-center justify-center cursor-col-resize" onMouseDown={e=>{e.stopPropagation();e.preventDefault();onResizeStart(e,ev);}} onClick={e=>e.stopPropagation()}><div className="w-0.5 h-3 rounded-full opacity-30 hover:opacity-80" style={{backgroundColor:ev.color}}/></div>}
+                      {isEnd&&<div className="hidden sm:flex flex-shrink-0 w-3 h-full items-center justify-center cursor-col-resize" onMouseDown={e=>{e.stopPropagation();e.preventDefault();onResizeStart(e,ev);}} onClick={e=>e.stopPropagation()}><div className="w-0.5 h-3 rounded-full opacity-30 hover:opacity-80" style={{backgroundColor:ev.color}}/></div>}
                     </div>
                   );
                 }))}
               </div>
               {/* 集計列 */}
-              {showSummary>0&&(
+              {effectiveSummary>0&&(
                 <div className="flex-shrink-0 border-l p-1 flex flex-col justify-center gap-0.5" style={{width:`${COL_W}px`,backgroundColor:"var(--bg-panel)",borderColor:"var(--border)",minHeight:`${minH}px`}}>
                   {summariesToShow.length===0
-                    ?<div className="text-[9px] text-center" style={{color:"var(--text-muted)"}}>{showSummary===2&&wi>0?"":"-"}</div>
+                    ?<div className="text-[9px] text-center" style={{color:"var(--text-muted)"}}>{effectiveSummary===2&&wi>0?"":"-"}</div>
                     :<>
                       {summariesToShow.map(s=>(
                         <div key={s.color} className="flex items-center gap-1 rounded px-1.5 py-0.5" style={{backgroundColor:s.color+"18"}}>
@@ -407,7 +415,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                       {summariesToShow.length>1&&(
                         <div className="flex items-center gap-1 px-1.5 py-0.5 border-t border-[var(--border)] mt-0.5">
                           <span className="text-[9px] flex-1" style={{color:"var(--text-muted)"}}>合計</span>
-                          <span className="text-[10px] font-bold font-mono" style={{color:"var(--text)"}}>{fmtHours(showSummary===1?wkTotal:moTotal)}</span>
+                          <span className="text-[10px] font-bold font-mono" style={{color:"var(--text)"}}>{fmtHours(effectiveSummary===1?wkTotal:moTotal)}</span>
                         </div>
                       )}
                     </>
@@ -422,7 +430,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
   );
 }
 
-function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,currentDate,weekStart,checkedColors,onToggleColor,onBulkImport}){
+function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,currentDate,weekStart,checkedColors,onToggleColor,onBulkImport,isMobile,isOpen,onClose}){
   const[showSum,setShowSum]=useState(false);
   const sorted=[...events].sort((a,b)=>{
     if(a.placed&&a.startDate&&b.placed&&b.startDate)return a.startDate.localeCompare(b.startDate);
@@ -441,58 +449,81 @@ function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,
   }
   const groups=Object.values(cg).filter(g=>g.placed||g.unplaced);
   const monthLabel=`${y}/${String(mo+1).padStart(2,"0")}`;
+
+  const sidebarContent=(
+    <>
+      <div className="flex-1 overflow-y-auto py-1">
+        {sorted.map(ev=>(
+          <div key={ev.id} draggable onDragStart={e=>onDragStart(e,ev)} onClick={()=>onEventClick(ev)}
+            style={{borderLeft:`3px solid ${ev.color}`}}
+            className="flex items-start gap-2 mx-1 px-2 py-1.5 mb-0.5 rounded-r-md cursor-pointer hover:bg-[var(--hover)] transition-colors select-none">
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] font-semibold truncate text-[var(--text)]">{ev.title}</div>
+              <div className="text-[10px] text-[var(--text-muted)]">
+                {ev.placed&&ev.startDate?<>{ev.startDate.slice(5).replace("-","/")}
+                  {ev.endDate&&ev.endDate!==ev.startDate?` → ${ev.endDate.slice(5).replace("-","/")}`:""}{" "}{timeLabel(ev)}{ev.workHours!=null?` ${fmtHours(ev.workHours)}`:""}</>:"未配置"}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-[var(--border)] flex-shrink-0">
+        <button onClick={()=>setShowSum(v=>!v)} className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--hover)]" style={{color:"var(--text-muted)"}}>
+          <span>月集計 {monthLabel}</span><span>{showSum?"▲":"▼"}</span>
+        </button>
+        {showSum&&<div className="px-2 pb-2 space-y-1.5">
+          {groups.length===0?<p className="text-[10px] text-center py-2" style={{color:"var(--text-muted)"}}>データなし</p>:groups.map(g=>(
+            <div key={g.color} className="rounded-md overflow-hidden border border-[var(--border)]">
+              <div className="flex items-center gap-1.5 px-2 py-1" style={{backgroundColor:g.color+"18"}}>
+                <input type="checkbox" checked={checkedColors.has(g.color)}
+                  onChange={()=>onToggleColor(g.color)}
+                  onClick={e=>e.stopPropagation()}
+                  className="w-3 h-3 flex-shrink-0 cursor-pointer" style={{accentColor:g.color}}/>
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:g.color}}/>
+                <span className="text-[11px] font-semibold truncate flex-1" style={{color:g.color}}>{g.title}</span>
+              </div>
+              <table className="w-full text-[10px]" style={{color:"var(--text-muted)"}}>
+                <thead><tr style={{backgroundColor:"var(--bg-muted)"}}><th className="text-left px-2 py-0.5 font-medium"></th><th className="text-right px-2 py-0.5 font-medium">配置済</th><th className="text-right px-2 py-0.5 font-medium">未配置</th></tr></thead>
+                <tbody>
+                  <tr><td className="px-2 py-0.5">実労働</td><td className="text-right px-2 py-0.5 font-mono">{fmtHours(g.placed)}</td><td className="text-right px-2 py-0.5 font-mono">{fmtHours(g.unplaced)}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>}
+      </div>
+      <div className="p-2 border-t border-[var(--border)] flex-shrink-0 flex flex-col gap-1.5">
+        <button onClick={onAddEvent} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">＋ 予定を追加</button>
+        <button onClick={onBulkImport} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">一括取り込み</button>
+      </div>
+    </>
+  );
+
+  if(isMobile){
+    return(
+      <>
+        {isOpen&&(
+          <div className="fixed inset-0 z-40 flex" style={{background:"rgba(0,0,0,0.35)"}} onClick={onClose}>
+            <div className="flex flex-col border-r border-[var(--border)] bg-[var(--bg-panel)] overflow-hidden flex-shrink-0" style={{width:"280px"}} onClick={e=>e.stopPropagation()}>
+              <div className="flex items-center px-3 py-3 border-b border-[var(--border)] flex-shrink-0">
+                <span className="text-sm font-bold text-[var(--text)] flex-1">予定リスト</span>
+                <button onClick={onClose} className="text-lg min-h-[36px] min-w-[36px] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)]">✕</button>
+              </div>
+              {sidebarContent}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return(
     <div className="flex flex-col border-r border-[var(--border)] bg-[var(--bg-panel)] transition-all duration-300 overflow-hidden flex-shrink-0" style={{width:collapsed?"38px":"210px"}}>
       <div className="flex items-center px-2 py-2.5 border-b border-[var(--border)] flex-shrink-0">
         {!collapsed&&<span className="text-xs font-bold text-[var(--text)] flex-1 truncate">予定リスト</span>}
         <button onClick={onToggle} className="text-[var(--text-muted)] hover:text-[var(--text)] text-xs">{collapsed?"▶":"◀"}</button>
       </div>
-      {!collapsed&&(<>
-        <div className="flex-1 overflow-y-auto py-1">
-          {sorted.map(ev=>(
-            <div key={ev.id} draggable onDragStart={e=>onDragStart(e,ev)} onClick={()=>onEventClick(ev)}
-              style={{borderLeft:`3px solid ${ev.color}`}}
-              className="flex items-start gap-2 mx-1 px-2 py-1.5 mb-0.5 rounded-r-md cursor-pointer hover:bg-[var(--hover)] transition-colors select-none">
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-semibold truncate text-[var(--text)]">{ev.title}</div>
-                <div className="text-[10px] text-[var(--text-muted)]">
-                  {ev.placed&&ev.startDate?<>{ev.startDate.slice(5).replace("-","/")}
-                    {ev.endDate&&ev.endDate!==ev.startDate?` → ${ev.endDate.slice(5).replace("-","/")}`:""}{" "}{timeLabel(ev)}{ev.workHours!=null?` ${fmtHours(ev.workHours)}`:""}</>:"未配置"}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="border-t border-[var(--border)] flex-shrink-0">
-          <button onClick={()=>setShowSum(v=>!v)} className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-[var(--hover)]" style={{color:"var(--text-muted)"}}>
-            <span>月集計 {monthLabel}</span><span>{showSum?"▲":"▼"}</span>
-          </button>
-          {showSum&&<div className="px-2 pb-2 space-y-1.5">
-            {groups.length===0?<p className="text-[10px] text-center py-2" style={{color:"var(--text-muted)"}}>データなし</p>:groups.map(g=>(
-              <div key={g.color} className="rounded-md overflow-hidden border border-[var(--border)]">
-                <div className="flex items-center gap-1.5 px-2 py-1" style={{backgroundColor:g.color+"18"}}>
-                  <input type="checkbox" checked={checkedColors.has(g.color)}
-                    onChange={()=>onToggleColor(g.color)}
-                    onClick={e=>e.stopPropagation()}
-                    className="w-3 h-3 flex-shrink-0 cursor-pointer" style={{accentColor:g.color}}/>
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:g.color}}/>
-                  <span className="text-[11px] font-semibold truncate flex-1" style={{color:g.color}}>{g.title}</span>
-                </div>
-                <table className="w-full text-[10px]" style={{color:"var(--text-muted)"}}>
-                  <thead><tr style={{backgroundColor:"var(--bg-muted)"}}><th className="text-left px-2 py-0.5 font-medium"></th><th className="text-right px-2 py-0.5 font-medium">配置済</th><th className="text-right px-2 py-0.5 font-medium">未配置</th></tr></thead>
-                  <tbody>
-                    <tr><td className="px-2 py-0.5">実労働</td><td className="text-right px-2 py-0.5 font-mono">{fmtHours(g.placed)}</td><td className="text-right px-2 py-0.5 font-mono">{fmtHours(g.unplaced)}</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>}
-        </div>
-        <div className="p-2 border-t border-[var(--border)] flex-shrink-0 flex flex-col gap-1.5">
-          <button onClick={onAddEvent} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">＋ 予定を追加</button>
-          <button onClick={onBulkImport} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">一括取り込み</button>
-        </div>
-      </>)}
+      {!collapsed&&sidebarContent}
     </div>
   );
 }
@@ -635,8 +666,8 @@ function EventPopup({event,onClose,onSave,onDelete}){
   const inputCls="flex-1 text-xs rounded-lg px-2 py-1.5 border outline-none";
   const inputStyle={backgroundColor:"var(--bg-muted)",color:"var(--text)",borderColor:"var(--border)"};
   return(
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,0.4)",backdropFilter:"blur(2px)"}} onClick={onClose}>
-      <div className="rounded-2xl shadow-2xl p-5 w-[320px] border border-[var(--border)]"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{background:"rgba(0,0,0,0.4)",backdropFilter:"blur(2px)"}} onClick={onClose}>
+      <div className="rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 w-full sm:w-[320px] max-w-[480px] sm:max-w-none max-h-[92vh] overflow-y-auto mb-0 border border-[var(--border)]"
         style={{backgroundColor:"var(--bg)",boxShadow:`0 0 0 1px ${color}33,0 20px 60px rgba(0,0,0,0.2)`}}
         onClick={e=>e.stopPropagation()}>
         <div className="flex items-center gap-2 mb-3">
@@ -739,8 +770,8 @@ function BulkImportModal({onClose,onImport}){
   };
 
   return(
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,0.4)",backdropFilter:"blur(2px)"}} onClick={onClose}>
-      <div className="rounded-2xl shadow-2xl p-5 w-[480px] border border-[var(--border)]"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{background:"rgba(0,0,0,0.4)",backdropFilter:"blur(2px)"}} onClick={onClose}>
+      <div className="rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 w-full sm:w-[480px] max-h-[92vh] overflow-y-auto border border-[var(--border)]"
         style={{backgroundColor:"var(--bg)"}} onClick={e=>e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <span className="font-bold text-sm" style={{color:"var(--text)"}}>一括取り込み</span>
@@ -792,11 +823,13 @@ function BulkImportModal({onClose,onImport}){
 
 function App(){
   const settingsInit=loadSettings();
+  const isMobile=useMobile();
   const[events,setEvents]=useState(()=>loadEvents()??SAMPLE_EVENTS);
   const[view,setView]=useState(settingsInit.view??"week");
   const[startMonday,setStartMonday]=useState(settingsInit.startMonday??false);
   const[currentDate,setCurrentDate]=useState(()=>new Date());
-  const[sidebarCollapsed,setSidebarCollapsed]=useState(settingsInit.sidebarCollapsed??false);
+  const[sidebarCollapsed,setSidebarCollapsed]=useState(()=>settingsInit.sidebarCollapsed!==undefined?settingsInit.sidebarCollapsed:false);
+  const[sidebarOpen,setSidebarOpen]=useState(false);
   const[showSummary,setShowSummary]=useState(settingsInit.showSummary??0);
   const[checkedColors,setCheckedColors]=useState(()=>{
     const saved=loadCheckedColors();
@@ -1012,40 +1045,56 @@ function App(){
 
   return(
     <div className="flex flex-col bg-[var(--bg)] text-[var(--text)]" style={{height:"100vh",overflow:"hidden",userSelect:resizing?"none":"auto",cursor:resizing?"col-resize":"auto"}}>
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] flex-shrink-0" style={{backgroundColor:"var(--bg-panel)"}}>
-        <span className="font-bold text-sm mr-1">シフト管理</span>
-        <button onClick={goToday} className="text-[11px] px-2.5 py-1 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">今日</button>
-        <button onClick={()=>navigate(-1)} className="text-xs px-2 py-1 rounded hover:bg-[var(--hover)] text-[var(--text-muted)]">‹</button>
-        <span className="text-xs font-medium min-w-[180px] text-center">{navLabel}</span>
-        <button onClick={()=>navigate(1)} className="text-xs px-2 py-1 rounded hover:bg-[var(--hover)] text-[var(--text-muted)]">›</button>
-        <div className="flex-1"/>
-        <div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-[11px]">
-          {[["week","週"],["month","月"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setView(v)} className="px-3 py-1 transition-colors" style={{backgroundColor:view===v?"var(--accent)":"transparent",color:view===v?"white":"var(--text-muted)"}}>{l}</button>
-          ))}
+      {/* ヘッダー：PCは1行、スマホは2行 */}
+      <div className="flex-shrink-0 border-b border-[var(--border)]" style={{backgroundColor:"var(--bg-panel)"}}>
+        {/* 1行目 */}
+        <div className="flex items-center gap-1 sm:gap-2 px-3 py-2">
+          {/* ≡ ハンバーガー（スマホのみ） */}
+          <button onClick={()=>setSidebarOpen(v=>!v)} className="sm:hidden text-xl min-h-[36px] min-w-[36px] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)]">☰</button>
+          {/* タイトル（PCのみ） */}
+          <span className="hidden sm:inline font-bold text-sm mr-1">シフト管理</span>
+          {/* 今日（PCのみ、スマホは2行目） */}
+          <button onClick={goToday} className="hidden sm:block text-[11px] px-2.5 py-1 rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">今日</button>
+          <button onClick={()=>navigate(-1)} className="text-base sm:text-xs min-h-[36px] sm:min-h-0 min-w-[36px] sm:min-w-0 sm:px-2 sm:py-1 flex items-center justify-center rounded hover:bg-[var(--hover)] text-[var(--text-muted)]">‹</button>
+          <span className="flex-1 text-xs font-medium sm:min-w-[180px] sm:flex-none text-center">{navLabel}</span>
+          <button onClick={()=>navigate(1)} className="text-base sm:text-xs min-h-[36px] sm:min-h-0 min-w-[36px] sm:min-w-0 sm:px-2 sm:py-1 flex items-center justify-center rounded hover:bg-[var(--hover)] text-[var(--text-muted)]">›</button>
+          <div className="hidden sm:block flex-1"/>
+          {/* 週/月トグル */}
+          <div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-[11px]">
+            {[["week","週"],["month","月"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setView(v)} className="px-3 py-1 transition-colors" style={{backgroundColor:view===v?"var(--accent)":"transparent",color:view===v?"white":"var(--text-muted)"}}>{l}</button>
+            ))}
+          </div>
+          {/* PCのみ表示ボタン群 */}
+          <button onClick={()=>setStartMonday(v=>!v)} className="hidden sm:block text-[11px] px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">{startMonday?"月始まり":"日始まり"}</button>
+          <button onClick={()=>setShowSummary(v=>(v+1)%3)}
+            className="hidden sm:block text-[11px] px-2.5 py-1 rounded-lg border transition-colors"
+            style={{borderColor:showSummary>0?"var(--accent)":"var(--border)",color:showSummary>0?"var(--accent)":"var(--text-muted)",backgroundColor:showSummary>0?"var(--accent-soft)":"transparent"}}>
+            {showSummary===0?"集計":showSummary===1?"週計":"月計"}
+          </button>
+          <button onClick={handleExportCSV} className="hidden sm:block text-[11px] px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">CSV</button>
+          <button onClick={()=>setSelectedEvent({...newEvBase,id:genId()})} className="text-[11px] px-3 py-1 rounded-lg text-white hover:opacity-90" style={{backgroundColor:"var(--accent)"}}>＋ 追加</button>
         </div>
-        <button onClick={()=>setStartMonday(v=>!v)} className="text-[11px] px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">{startMonday?"月始まり":"日始まり"}</button>
-        <button onClick={()=>setShowSummary(v=>(v+1)%3)}
-          className="text-[11px] px-2.5 py-1 rounded-lg border transition-colors"
-          style={{
-            borderColor:showSummary>0?"var(--accent)":"var(--border)",
-            color:showSummary>0?"var(--accent)":"var(--text-muted)",
-            backgroundColor:showSummary>0?"var(--accent-soft)":"transparent"
-          }}>
-          {showSummary===0?"集計":showSummary===1?"週計":"月計"}
-        </button>
-        <button onClick={handleExportCSV}
-          className="text-[11px] px-2.5 py-1 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">
-          CSV
-        </button>
-        <button onClick={()=>setSelectedEvent({...newEvBase,id:genId()})} className="text-[11px] px-3 py-1 rounded-lg text-white hover:opacity-90" style={{backgroundColor:"var(--accent)"}}>＋ 追加</button>
+        {/* 2行目：スマホのみ */}
+        <div className="flex sm:hidden items-center gap-1.5 px-3 py-1.5 border-t border-[var(--border)]">
+          <button onClick={goToday} className="text-[11px] px-2.5 min-h-[34px] flex items-center rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">今日</button>
+          <button onClick={()=>setStartMonday(v=>!v)} className="text-[11px] px-2 min-h-[34px] flex items-center rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">{startMonday?"月始":"日始"}</button>
+          <button onClick={()=>setShowSummary(v=>(v+1)%3)}
+            className="text-[11px] px-2 min-h-[34px] flex items-center rounded-lg border transition-colors"
+            style={{borderColor:showSummary>0?"var(--accent)":"var(--border)",color:showSummary>0?"var(--accent)":"var(--text-muted)",backgroundColor:showSummary>0?"var(--accent-soft)":"transparent"}}>
+            {showSummary===0?"集計":showSummary===1?"週計":"月計"}
+          </button>
+          <button onClick={handleExportCSV} className="text-[11px] px-2 min-h-[34px] flex items-center rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--hover)] transition-colors">CSV</button>
+        </div>
       </div>
       <div className="flex flex-1 overflow-hidden">
         <Sidebar events={events} collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(v=>!v)}
-          onEventClick={setSelectedEvent} onAddEvent={()=>setSelectedEvent({...newEvBase,id:genId()})}
+          onEventClick={ev=>{setSelectedEvent(ev);if(isMobile)setSidebarOpen(false);}}
+          onAddEvent={()=>{setSelectedEvent({...newEvBase,id:genId()});if(isMobile)setSidebarOpen(false);}}
           onDragStart={handleDragStart} currentDate={currentDate} weekStart={weekStart}
           checkedColors={checkedColors} onToggleColor={handleToggleColor}
-          onBulkImport={()=>setShowBulkImport(true)}/>
+          onBulkImport={()=>{setShowBulkImport(true);if(isMobile)setSidebarOpen(false);}}
+          isMobile={isMobile} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)}/>
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-hidden" ref={calendarRef}>
             {view==="week"
@@ -1054,13 +1103,13 @@ function App(){
                   onCellClick={handleCellClick} onEventClick={setSelectedEvent}
                   dragOverDate={dragOverDate} setDragOverDate={setDragOverDate}
                   onResizeStart={handleResizeStart} draggingId={dragEventId}
-                  showSummary={showSummary} checkedColors={checkedColors}/>
+                  showSummary={showSummary} checkedColors={checkedColors} isMobile={isMobile}/>
               :<MonthView events={events} currentDate={currentDate} startMonday={startMonday}
                   onDrop={handleDropOnCalendar} onDragStart={handleDragStart}
                   onCellClick={handleCellClick} onEventClick={setSelectedEvent}
                   dragOverDate={dragOverDate} setDragOverDate={setDragOverDate}
                   onResizeStart={handleResizeStart} draggingId={dragEventId}
-                  showSummary={showSummary} checkedColors={checkedColors}/>
+                  showSummary={showSummary} checkedColors={checkedColors} isMobile={isMobile}/>
             }
           </div>
           <UnplacedArea events={events} onDragStart={handleDragStart} onDrop={handleDropOnUnplaced}
