@@ -209,10 +209,12 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
   // 週の集計：開始日がこの週に含まれる予定のみカウント
   const weekDayStrs=weekDays.map(d=>toDateStr(d));
   const colorTotals={};
-  for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate&&ev2.workHours)){
+  for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate)){
+    const wh=ev.workHours??calcWorkHours(ev.startTime,ev.endTime,ev.allDay);
+    if(!wh)continue;
     if(weekDayStrs.includes(ev.startDate)){
       if(!colorTotals[ev.color])colorTotals[ev.color]={color:ev.color,title:ev.title,hours:0,count:0};
-      colorTotals[ev.color].hours+=ev.workHours;
+      colorTotals[ev.color].hours+=wh;
       colorTotals[ev.color].count+=1;
     }
   }
@@ -347,10 +349,12 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           // この週の集計（週計モード）：開始日がこの週に含まれる予定のみ
           const weekDayStrs=weekCells.map(c=>toDateStr(c.date));
           const wkTotals={};
-          for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate&&ev2.workHours)){
+          for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate)){
+            const wh=ev.workHours??calcWorkHours(ev.startTime,ev.endTime,ev.allDay);
+            if(!wh)continue;
             if(weekDayStrs.includes(ev.startDate)){
               if(!wkTotals[ev.color])wkTotals[ev.color]={color:ev.color,title:ev.title,hours:0,count:0};
-              wkTotals[ev.color].hours+=ev.workHours;
+              wkTotals[ev.color].hours+=wh;
               wkTotals[ev.color].count+=1;
             }
           }
@@ -363,10 +367,12 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
           const ms2=`${y2}-${String(mo2+1).padStart(2,"0")}-01`,me2=toDateStr(new Date(y2,mo2+1,0));
           const moTotals={};
           if(effectiveSummary===2&&wi===0){
-            for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate&&ev2.workHours)){
+            for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate)){
+              const wh=ev.workHours??calcWorkHours(ev.startTime,ev.endTime,ev.allDay);
+              if(!wh)continue;
               if(dateInRange(ev.startDate,ms2,me2)){
                 if(!moTotals[ev.color])moTotals[ev.color]={color:ev.color,title:ev.title,hours:0,count:0};
-                moTotals[ev.color].hours+=ev.workHours;
+                moTotals[ev.color].hours+=wh;
                 moTotals[ev.color].count+=1;
               }
             }
@@ -381,13 +387,14 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
               <div className="grid grid-cols-7 flex-1 relative" style={{minHeight:`${minH}px`}}>
                 {weekCells.map(({date,ghost},di)=>{
                   const ds=toDateStr(date),isDO=dragOverDate===ds;
+                  const isToday=ds===today&&!ghost;
                   const dow=date.getDay(),type=getDayType(ds,dow);
-                  const tc=type==="saturday"?"#3b82f6":type==="sunday"||type==="holiday"?"#ef4444":"var(--text-muted)";
+                  const tc=dayTextColor(type,isToday);
                   const holiday=getHoliday(ds);
                   return(
                     <div key={di} data-date={ds}
-                      className={`border-r border-[var(--border)] cursor-pointer transition-colors duration-100 relative ${isDO?"bg-[var(--accent-soft)]":"hover:bg-[var(--hover)]"}`}
-                      style={{backgroundColor:ghost&&!isDO?"var(--bg-muted)":undefined}}
+                      className={`border-r border-[var(--border)] cursor-pointer transition-colors duration-100 relative ${isDO?"bg-[var(--accent-soft)]":isToday?"bg-[var(--accent-soft)]":"hover:bg-[var(--hover)]"}`}
+                      style={{backgroundColor:ghost&&!isDO&&!isToday?"var(--bg-muted)":undefined}}
                       onDragOver={e=>{e.preventDefault();setDragOverDate(ds);}}
                       onDragLeave={()=>setDragOverDate(null)}
                       onDrop={e=>{onDrop(e,ds);setDragOverDate(null);}}
