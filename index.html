@@ -187,7 +187,7 @@ function EventChip({event,onDragStart,onClick,colSpan=1,inCalendar=false,onResiz
       className="rounded-r-md cursor-grab active:cursor-grabbing select-none hover:brightness-95 transition-all duration-100 overflow-hidden flex items-stretch">
       <div className="flex-1 px-1.5 py-0.5 min-w-0 flex flex-col justify-center">
         {isMobile
-          ?<span style={{color:event.color+"bb"}} className="text-[10px] leading-tight truncate">{tl||event.title}</span>
+          ?<span style={{color:event.color+"bb"}} className="text-[10px] leading-tight truncate">{event.allDay?event.title:(tl||event.title)}</span>
           :<><span style={{color:event.color}} className="text-[11px] font-semibold truncate leading-tight">{event.title}</span>{tl&&<span style={{color:event.color+"bb"}} className="text-[9px] leading-tight truncate">{tl}</span>}</>
         }
       </div>
@@ -436,7 +436,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                       <div className="flex-1 px-1.5 min-w-0">
                         {isStart
                           ?isMobile
-                            ?<span style={{color:ev.color+"bb"}} className="text-[10px] leading-none truncate block">{timeLabel(ev)||ev.title}</span>
+                            ?<span style={{color:ev.color+"bb"}} className="text-[10px] leading-none truncate block">{ev.allDay?ev.title:(timeLabel(ev)||ev.title)}</span>
                             :<><span style={{color:ev.color}} className="text-[11px] font-semibold truncate leading-none block">{ev.title}</span>{timeLabel(ev)&&<span style={{color:ev.color+"99"}} className="text-[9px] leading-none block truncate">{timeLabel(ev)}</span>}</>
                           :<span style={{color:ev.color+"88"}} className="text-[10px] leading-none">...</span>}
                       </div>
