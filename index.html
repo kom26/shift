@@ -687,7 +687,7 @@ function UnplacedArea({events,onDragStart,onDrop,onEventClick,dragOverIdx,setDra
   );
 }
 
-function EventPopup({event,onClose,onSave,onDelete}){
+function EventPopup({event,onClose,onSave,onDelete,onDuplicate}){
   const[title,setTitle]=useState(event?.title??"");
   const[memo,setMemo]=useState(event?.memo??"");
   const[color,setColor]=useState(event?.color??DEFAULT_COLORS[0]);
@@ -738,13 +738,20 @@ function EventPopup({event,onClose,onSave,onDelete}){
       setCustomColors(next);saveCustomColors(next);
     }
   };
+  const buildUpdated=()=>{
+    const resolvedEnd=resolveEndDate(startDate||null,endDate||null,allDay,st,et);
+    const wh=autoHours!=null?Math.round(autoHours*100)/100:null;
+    return{...event,title:title.trim(),memo,color,startDate:startDate||null,endDate:resolvedEnd,placed:!!startDate,allDay,startTime:st,endTime:et,workHours:wh};
+  };
   const handleSave=()=>{
     if(!title.trim())return;
     if(!DEFAULT_COLORS.includes(color)){const next=[color,...customColors.filter(x=>x!==color)].slice(0,8);saveCustomColors(next);}
-    const resolvedEnd=resolveEndDate(startDate||null,endDate||null,allDay,st,et);
-    // workHoursは実労働時間（総時間 - 休憩）
-    const wh=autoHours!=null?Math.round(autoHours*100)/100:null;
-    onSave({...event,title:title.trim(),memo,color,startDate:startDate||null,endDate:resolvedEnd,placed:!!startDate,allDay,startTime:st,endTime:et,workHours:wh});
+    onSave(buildUpdated());
+  };
+  const handleDuplicate=()=>{
+    if(!title.trim())return;
+    if(!DEFAULT_COLORS.includes(color)){const next=[color,...customColors.filter(x=>x!==color)].slice(0,8);saveCustomColors(next);}
+    onDuplicate(buildUpdated());
   };
   const inputCls="flex-1 text-xs rounded-lg px-2 py-1.5 border outline-none";
   const inputStyle={backgroundColor:"var(--bg-muted)",color:"var(--text)",borderColor:"var(--border)"};
@@ -818,10 +825,11 @@ function EventPopup({event,onClose,onSave,onDelete}){
         <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={2} placeholder="メモ（任意）"
           className="w-full text-xs rounded-lg px-2 py-1.5 border outline-none resize-none mb-4"
           style={{backgroundColor:"var(--bg-muted)",color:"var(--text)",borderColor:"var(--border)"}}/>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {!event._new&&<button onClick={()=>onDelete(event.id)} className="text-xs px-3 py-1.5 rounded-lg border" style={{borderColor:"var(--border)",color:"#f87171"}}>削除</button>}
           <div className="flex-1"/>
           <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg border" style={{borderColor:"var(--border)",color:"var(--text-muted)"}}>キャンセル</button>
+          <button onClick={handleDuplicate} disabled={!title.trim()} className="text-xs px-3 py-1.5 rounded-lg border font-medium disabled:opacity-40" style={{borderColor:color,color:color}}>複製保存</button>
           <button onClick={handleSave} disabled={!title.trim()} className="text-xs px-4 py-1.5 rounded-lg text-white font-medium disabled:opacity-40" style={{backgroundColor:color}}>{event._new?"追加":"保存"}</button>
         </div>
       </div>
@@ -1123,6 +1131,17 @@ function App(){
     if(updated._new)setEvents(prev=>[...prev,clean]);else setEvents(prev=>prev.map(ev=>ev.id===clean.id?clean:ev));
     setSelectedEvent(null);
   },[]);
+  const handleDuplicate=useCallback(updated=>{
+    const clean={...updated};delete clean._new;
+    const copy={...clean,id:genId()};
+    setEvents(prev=>{
+      const base=updated._new?[...prev,clean]:prev.map(ev=>ev.id===clean.id?clean:ev);
+      if(copy.placed){return[...base,copy];}
+      const placed=base.filter(e=>e.placed),unplaced=base.filter(e=>!e.placed);
+      return[...placed,...unplaced,copy];
+    });
+    setSelectedEvent(null);
+  },[]);
   const handleDelete=useCallback(id=>{setEvents(prev=>prev.filter(ev=>ev.id!==id));setSelectedEvent(null);},[]);
   const newEvBase={title:"",memo:"",color:DEFAULT_COLORS[0],startDate:null,endDate:null,placed:false,allDay:true,startTime:"09:00",endTime:"18:00",workHours:null,_new:true};
 
@@ -1202,7 +1221,7 @@ function App(){
             onSort={handleSortUnplaced}/>
         </div>
       </div>
-      {selectedEvent&&<EventPopup event={selectedEvent} onClose={()=>setSelectedEvent(null)} onSave={handleSave} onDelete={handleDelete}/>}
+      {selectedEvent&&<EventPopup event={selectedEvent} onClose={()=>setSelectedEvent(null)} onSave={handleSave} onDelete={handleDelete} onDuplicate={handleDuplicate}/>}
       {showBulkImport&&<BulkImportModal onClose={()=>setShowBulkImport(false)} onImport={handleBulkImport}/>}
     </div>
   );
