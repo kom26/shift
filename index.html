@@ -416,7 +416,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                       {isDO&&<div className="absolute inset-0 border-2 border-dashed border-[var(--accent)] rounded pointer-events-none opacity-60 z-10"/>}
                       <div className="flex items-center gap-1 p-1 pb-0 flex-wrap">
                         <span style={{color:tc,opacity:ghost?0.45:1}} className="text-[11px] font-semibold">{date.getDate()}</span>
-                        {holiday&&!ghost&&<span style={{color:"#ef4444"}} className="hidden sm:inline text-[9px]">{holiday}</span>}
+                        {holiday&&!ghost&&!isMobile&&<span style={{color:"#ef4444"}} className="text-[9px]">{holiday}</span>}
                       </div>
                     </div>
                   );
@@ -476,31 +476,31 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
             </div>
           );
         })}
-        {/* 月計ストリップ（モバイル、全週の下） */}
-        {isMobile&&effectiveSummary===2&&(
-          <div className="flex items-center gap-1.5 px-2 py-2 border-t border-[var(--border)] overflow-x-auto flex-shrink-0" style={{backgroundColor:"var(--bg-panel)"}}>
-            <span className="text-[9px] font-bold uppercase tracking-wider flex-shrink-0" style={{color:"var(--text-muted)"}}>月計</span>
-            {moSummaries2.length===0
-              ?<span className="text-[9px]" style={{color:"var(--text-muted)"}}>データなし</span>
-              :<>
-                {moSummaries2.map(s=>(
-                  <div key={s.color} className="flex items-center gap-1 rounded px-1.5 py-0.5 flex-shrink-0" style={{backgroundColor:s.color+"18"}}>
-                    <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:s.color}}/>
-                    <span className="text-[10px] font-semibold" style={{color:s.color}}>{s.title}</span>
-                    <span className="text-[10px] font-bold font-mono" style={{color:s.color}}>{fmtHours(s.hours)}</span>
-                  </div>
-                ))}
-                {moSummaries2.length>0&&(
-                  <div className="flex items-center gap-1 flex-shrink-0 ml-1 pl-1.5 border-l border-[var(--border)]">
-                    <span className="text-[9px]" style={{color:"var(--text-muted)"}}>合計</span>
-                    <span className="text-[10px] font-bold font-mono" style={{color:"var(--text)"}}>{fmtHours(moTotal2)}</span>
-                  </div>
-                )}
-              </>
-            }
-          </div>
-        )}
       </div>
+      {/* 月計ストリップ（モバイル、スクロール外・常に画面下部に表示） */}
+      {isMobile&&effectiveSummary===2&&(
+        <div className="flex items-center gap-1.5 px-2 py-2 border-t border-[var(--border)] overflow-x-auto flex-shrink-0" style={{backgroundColor:"var(--bg-panel)"}}>
+          <span className="text-[9px] font-bold uppercase tracking-wider flex-shrink-0" style={{color:"var(--text-muted)"}}>月計</span>
+          {moSummaries2.length===0
+            ?<span className="text-[9px]" style={{color:"var(--text-muted)"}}>データなし</span>
+            :<>
+              {moSummaries2.map(s=>(
+                <div key={s.color} className="flex items-center gap-1 rounded px-1.5 py-0.5 flex-shrink-0" style={{backgroundColor:s.color+"18"}}>
+                  <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:s.color}}/>
+                  <span className="text-[10px] font-semibold" style={{color:s.color}}>{s.title}</span>
+                  <span className="text-[10px] font-bold font-mono" style={{color:s.color}}>{fmtHours(s.hours)}</span>
+                </div>
+              ))}
+              {moSummaries2.length>0&&(
+                <div className="flex items-center gap-1 flex-shrink-0 ml-1 pl-1.5 border-l border-[var(--border)]">
+                  <span className="text-[9px]" style={{color:"var(--text-muted)"}}>合計</span>
+                  <span className="text-[10px] font-bold font-mono" style={{color:"var(--text)"}}>{fmtHours(moTotal2)}</span>
+                </div>
+              )}
+            </>
+          }
+        </div>
+      )}
     </div>
   );
 }
