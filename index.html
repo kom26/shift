@@ -170,6 +170,7 @@ function computeWeekSpans(events,weekCells){
 
 function EventChip({event,onDragStart,onClick,colSpan=1,inCalendar=false,onResizeStart=null}){
   const[copying,setCopying]=useState(false);
+  const isMobile=useMobile();
   useEffect(()=>{
     const h=e=>setCopying(e.ctrlKey||e.metaKey);
     const hu=()=>setCopying(false);
@@ -184,8 +185,10 @@ function EventChip({event,onDragStart,onClick,colSpan=1,inCalendar=false,onResiz
         ...(inCalendar&&colSpan>1?{position:"absolute",left:0,width:`calc(${colSpan*100}% - 4px)`,zIndex:2}:{})}}
       className="rounded-r-md cursor-grab active:cursor-grabbing select-none hover:brightness-95 transition-all duration-100 overflow-hidden flex items-stretch">
       <div className="flex-1 px-1.5 py-0.5 min-w-0 flex flex-col justify-center">
-        <span style={{color:event.color}} className="text-[11px] font-semibold truncate leading-tight">{event.title}</span>
-        {tl&&<span style={{color:event.color+"bb"}} className="text-[9px] leading-tight truncate">{tl}</span>}
+        {isMobile
+          ?<span style={{color:event.color+"bb"}} className="text-[10px] leading-tight truncate">{tl||event.title}</span>
+          :<><span style={{color:event.color}} className="text-[11px] font-semibold truncate leading-tight">{event.title}</span>{tl&&<span style={{color:event.color+"bb"}} className="text-[9px] leading-tight truncate">{tl}</span>}</>
+        }
       </div>
       {onResizeStart&&inCalendar&&(
         <div className="hidden sm:flex flex-shrink-0 w-3 items-center justify-center cursor-col-resize"
@@ -430,7 +433,11 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
                       style={{position:"absolute",left:`calc(${col/7*100}% + 2px)`,width:`calc(${span/7*100}% - 4px)`,top:`${top}px`,height:`${SPAN_H-2}px`,backgroundColor:ev.color+"28",borderLeft:isStart?`3px solid ${ev.color}`:"none",zIndex:3}}
                       className="flex items-center overflow-hidden cursor-grab select-none hover:brightness-95 transition-all rounded-r-md">
                       <div className="flex-1 px-1.5 min-w-0">
-                        {isStart?<><span style={{color:ev.color}} className="text-[11px] font-semibold truncate leading-none block">{ev.title}</span>{timeLabel(ev)&&<span style={{color:ev.color+"99"}} className="text-[9px] leading-none block truncate">{timeLabel(ev)}</span>}</>:<span style={{color:ev.color+"88"}} className="text-[10px] leading-none">...</span>}
+                        {isStart
+                          ?isMobile
+                            ?<span style={{color:ev.color+"bb"}} className="text-[10px] leading-none truncate block">{timeLabel(ev)||ev.title}</span>
+                            :<><span style={{color:ev.color}} className="text-[11px] font-semibold truncate leading-none block">{ev.title}</span>{timeLabel(ev)&&<span style={{color:ev.color+"99"}} className="text-[9px] leading-none block truncate">{timeLabel(ev)}</span>}</>
+                          :<span style={{color:ev.color+"88"}} className="text-[10px] leading-none">...</span>}
                       </div>
                       {isEnd&&<div className="hidden sm:flex flex-shrink-0 w-3 h-full items-center justify-center cursor-col-resize" onMouseDown={e=>{e.stopPropagation();e.preventDefault();onResizeStart(e,ev);}} onClick={e=>e.stopPropagation()}><div className="w-0.5 h-3 rounded-full opacity-30 hover:opacity-80" style={{backgroundColor:ev.color}}/></div>}
                     </div>
@@ -1170,8 +1177,8 @@ function App(){
           checkedColors={checkedColors} onToggleColor={handleToggleColor}
           onBulkImport={()=>{setShowBulkImport(true);if(isMobile)setSidebarOpen(false);}}
           isMobile={isMobile} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)}/>
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <div className={`flex-1 ${isMobile?"overflow-y-auto":"overflow-hidden"}`} ref={calendarRef}>
+        <div className={`flex flex-col flex-1 ${isMobile?"overflow-y-auto":"overflow-hidden"}`}>
+          <div className={isMobile?"flex-shrink-0":"flex-1 overflow-hidden"} ref={calendarRef}>
             {view==="week"
               ?<WeekView events={events} weekStart={weekStart} startMonday={startMonday}
                   onDrop={handleDropOnCalendar} onDragStart={handleDragStart}
