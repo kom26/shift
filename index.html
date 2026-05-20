@@ -710,7 +710,6 @@ function EventPopup({event,onClose,onSave,onDelete,onDuplicate}){
   });
   const[customColors,setCustomColors]=useState(()=>loadCustomColors());
   const titleRef=useRef(null);
-  useEffect(()=>{titleRef.current?.focus();},[]);
   useEffect(()=>{const h=e=>{if(e.key==="Escape")onClose();};window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h);},[onClose]);
   if(!event)return null;
   const st=allDay?null:startTime,et=allDay?null:endTime;
