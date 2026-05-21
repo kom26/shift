@@ -207,15 +207,13 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
   const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
   const today=toDateStr(new Date());
   const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
-  const HOUR_H=60;
   const TIME_W=36;
   const COL_W=120;
-  const gridRef=useRef(null);
-
-  useEffect(()=>{if(gridRef.current)gridRef.current.scrollTop=(7*60+30)*HOUR_H/60;},[]);
 
   const [nowMins,setNowMins]=useState(()=>new Date().getHours()*60+new Date().getMinutes());
   useEffect(()=>{const t=setInterval(()=>setNowMins(new Date().getHours()*60+new Date().getMinutes()),60000);return()=>clearInterval(t);},[]);
+
+  const pct=mins=>`${mins/1440*100}%`;
 
   // 週の集計
   const weekDayStrs=weekDays.map(d=>toDateStr(d));
@@ -240,13 +238,13 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
     const startMins=toMins(ev.startTime||"00:00"),endMins=toMins(ev.endTime||"24:00");
     if(isStart&&isEnd){
       let end=endMins;if(end<=startMins)end=1440;
-      return{top:startMins*HOUR_H/60,height:Math.max(20,(end-startMins)*HOUR_H/60),isStart,isEnd};
+      return{top:pct(startMins),height:pct(Math.max(30,end-startMins)),isStart,isEnd};
     }else if(isStart){
-      return{top:startMins*HOUR_H/60,height:(1440-startMins)*HOUR_H/60,isStart,isEnd};
+      return{top:pct(startMins),height:pct(1440-startMins),isStart,isEnd};
     }else if(isEnd){
-      return{top:0,height:Math.max(20,endMins*HOUR_H/60),isStart,isEnd};
+      return{top:"0%",height:pct(Math.max(30,endMins)),isStart,isEnd};
     }
-    return{top:0,height:1440*HOUR_H/60,isStart:false,isEnd:false};
+    return{top:"0%",height:"100%",isStart:false,isEnd:false};
   };
 
   const getAllDayForDay=ds=>vis.filter(e=>e.placed&&e.startDate&&e.allDay&&dateInRange(ds,e.startDate,e.endDate));
@@ -286,15 +284,15 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
             })}
           </div>
         )}
-        {/* 時間グリッド */}
-        <div ref={gridRef} className="flex-1 overflow-y-auto">
-          <div className="flex" style={{height:`${HOUR_H*24}px`}}>
+        {/* 時間グリッド（スクロールなし・全体表示） */}
+        <div className="flex-1 overflow-hidden">
+          <div className="flex h-full">
             {/* 時間ラベル列 */}
             <div className="flex-shrink-0 relative border-r border-[var(--border)]" style={{width:`${TIME_W}px`}}>
-              {Array.from({length:24},(_,h)=>(
+              {Array.from({length:25},(_,h)=>(
                 <div key={h} className="absolute w-full text-right pr-1 text-[9px]"
-                     style={{top:`${h*HOUR_H}px`,color:"var(--text-muted)",transform:"translateY(-50%)",paddingTop:h===0?"8px":"0"}}>
-                  {h===0?"":String(h).padStart(2,"0")+":00"}
+                     style={{top:pct(h*60),color:"var(--text-muted)",transform:"translateY(-50%)"}}>
+                  {h===0||h===24?"":String(h).padStart(2,"0")+":00"}
                 </div>
               ))}
             </div>
@@ -304,7 +302,7 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
                 const ds=toDateStr(day),isDO=dragOverDate===ds,isToday=ds===today;
                 const timedEvs=getTimedForDay(ds);
                 return(
-                  <div key={i} className={`relative flex-1 border-l border-[var(--border)] cursor-pointer ${isDO?"bg-[var(--accent-soft)]":""}`}
+                  <div key={i} className={`relative flex-1 h-full border-l border-[var(--border)] cursor-pointer ${isDO?"bg-[var(--accent-soft)]":""}`}
                        data-date={ds}
                        onDragOver={e=>{e.preventDefault();setDragOverDate(ds);}}
                        onDragLeave={()=>setDragOverDate(null)}
@@ -313,14 +311,14 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
                     {/* グリッド線 */}
                     {Array.from({length:24},(_,h)=>(
                       <React.Fragment key={h}>
-                        <div className="absolute left-0 right-0 border-t border-[var(--border)]" style={{top:`${h*HOUR_H}px`,opacity:0.5}}/>
-                        <div className="absolute left-0 right-0 border-t border-[var(--border)]" style={{top:`${h*HOUR_H+HOUR_H/2}px`,opacity:0.2}}/>
+                        <div className="absolute left-0 right-0 border-t border-[var(--border)]" style={{top:pct(h*60),opacity:0.5}}/>
+                        <div className="absolute left-0 right-0 border-t border-[var(--border)]" style={{top:pct(h*60+30),opacity:0.2}}/>
                       </React.Fragment>
                     ))}
                     {/* 現在時刻 */}
                     {isToday&&(
                       <div className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
-                           style={{top:`${nowMins*HOUR_H/60}px`}}>
+                           style={{top:pct(nowMins)}}>
                         <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" style={{marginLeft:"-4px"}}/>
                         <div className="flex-1 h-[2px] bg-red-500"/>
                       </div>
@@ -333,7 +331,7 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
                       return(
                         <div key={ev.id}
                              className="absolute left-0.5 right-0.5 rounded overflow-hidden cursor-pointer z-10 flex flex-col px-1 py-0.5"
-                             style={{top:`${pos.top}px`,height:`${pos.height}px`,backgroundColor:ev.color+"cc",border:`1px solid ${ev.color}`,minHeight:"20px"}}
+                             style={{top:pos.top,height:pos.height,backgroundColor:ev.color+"cc",border:`1px solid ${ev.color}`}}
                              draggable
                              onDragStart={e=>{e.stopPropagation();onDragStart(e,ev.id);}}
                              onClick={e=>{e.stopPropagation();onEventClick(ev);}}>
