@@ -206,11 +206,18 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
   const weekDays=Array.from({length:7},(_,i)=>addDays(weekStart,i));
   const labels=startMonday?WEEK_DAYS_MON:WEEK_DAYS_SUN;
   const today=toDateStr(new Date());
-  const SPAN_H=26;
   const vis=draggingId?events.filter(e=>e.id!==draggingId):events;
-  const getForDay=ds=>vis.filter(e=>e.placed&&e.startDate&&dateInRange(ds,e.startDate,e.endDate));
+  const HOUR_H=60;
+  const TIME_W=36;
+  const COL_W=120;
+  const gridRef=useRef(null);
 
-  // 週の集計：開始日がこの週に含まれる予定のみカウント
+  useEffect(()=>{if(gridRef.current)gridRef.current.scrollTop=(7*60+30)*HOUR_H/60;},[]);
+
+  const [nowMins,setNowMins]=useState(()=>new Date().getHours()*60+new Date().getMinutes());
+  useEffect(()=>{const t=setInterval(()=>setNowMins(new Date().getHours()*60+new Date().getMinutes()),60000);return()=>clearInterval(t);},[]);
+
+  // 週の集計
   const weekDayStrs=weekDays.map(d=>toDateStr(d));
   const colorTotals={};
   for(const ev of events.filter(ev2=>ev2.placed&&ev2.startDate)){
@@ -218,26 +225,134 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
     if(!wh)continue;
     if(weekDayStrs.includes(ev.startDate)){
       if(!colorTotals[ev.color])colorTotals[ev.color]={color:ev.color,title:ev.title,hours:0,count:0};
-      colorTotals[ev.color].hours+=wh;
-      colorTotals[ev.color].count+=1;
+      colorTotals[ev.color].hours+=wh;colorTotals[ev.color].count+=1;
     }
   }
-  // チェックされた色のみ
   const summaries=Object.values(colorTotals).filter(s=>checkedColors.size===0||checkedColors.has(s.color));
   const totalHours=summaries.reduce((a,s)=>a+s.hours,0);
-  const COL_W=120;
   const effectiveSummary=showSummary;
+
+  const toMins=t=>{if(!t)return 0;const[h,m]=t.split(':').map(Number);return h*60+(m||0);};
+
+  const getEventPos=(ev,ds)=>{
+    if(ev.allDay)return null;
+    const isStart=ev.startDate===ds,isEnd=(ev.endDate||ev.startDate)===ds;
+    const startMins=toMins(ev.startTime||"00:00"),endMins=toMins(ev.endTime||"24:00");
+    if(isStart&&isEnd){
+      let end=endMins;if(end<=startMins)end=1440;
+      return{top:startMins*HOUR_H/60,height:Math.max(20,(end-startMins)*HOUR_H/60),isStart,isEnd};
+    }else if(isStart){
+      return{top:startMins*HOUR_H/60,height:(1440-startMins)*HOUR_H/60,isStart,isEnd};
+    }else if(isEnd){
+      return{top:0,height:Math.max(20,endMins*HOUR_H/60),isStart,isEnd};
+    }
+    return{top:0,height:1440*HOUR_H/60,isStart:false,isEnd:false};
+  };
+
+  const getAllDayForDay=ds=>vis.filter(e=>e.placed&&e.startDate&&e.allDay&&dateInRange(ds,e.startDate,e.endDate));
+  const getTimedForDay=ds=>vis.filter(e=>e.placed&&e.startDate&&!e.allDay&&dateInRange(ds,e.startDate,e.endDate));
+  const hasAllDay=weekDays.some(d=>getAllDayForDay(toDateStr(d)).length>0);
 
   return(
     <div className="flex h-full select-none">
-      {/* カレンダー本体 */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="grid grid-cols-7 border-b border-[var(--border)] flex-shrink-0">
-          {weekDays.map((day,i)=><DayHeader key={i} dateStr={toDateStr(day)} label={labels[i]} isToday={toDateStr(day)===today}/>)}
+        {/* 日付ヘッダー */}
+        <div className="flex border-b border-[var(--border)] flex-shrink-0" style={{paddingLeft:`${TIME_W}px`}}>
+          {weekDays.map((day,i)=>(
+            <div key={i} className="flex-1 border-l border-[var(--border)]" style={{borderLeftColor:i===0?"transparent":""}}>
+              <DayHeader dateStr={toDateStr(day)} label={labels[i]} isToday={toDateStr(day)===today}/>
+            </div>
+          ))}
         </div>
-        {/* モバイル集計ストリップ */}
+        {/* 終日予定行 */}
+        {hasAllDay&&(
+          <div className="flex border-b border-[var(--border)] flex-shrink-0" style={{paddingLeft:`${TIME_W}px`}}>
+            {weekDays.map((day,i)=>{
+              const ds=toDateStr(day);
+              const allDayEvs=getAllDayForDay(ds).filter(ev=>ev.startDate===ds);
+              return(
+                <div key={i} className="flex-1 border-l border-[var(--border)] p-0.5 min-h-[24px]"
+                     style={{borderLeftColor:i===0?"transparent":""}}
+                     onClick={()=>onCellClick(ds)}>
+                  {allDayEvs.map(ev=>{
+                    const ec=weekDays.findIndex(d=>toDateStr(d)===(ev.endDate||ev.startDate));
+                    const span=ec===-1?weekDays.length-i:ec-i+1;
+                    return(<div key={ev.id} style={{height:"22px",marginBottom:"2px"}}>
+                      <EventChip event={ev} onDragStart={onDragStart} onClick={onEventClick} colSpan={span} inCalendar={true} onResizeStart={onResizeStart}/>
+                    </div>);
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {/* 時間グリッド */}
+        <div ref={gridRef} className="flex-1 overflow-y-auto">
+          <div className="flex" style={{height:`${HOUR_H*24}px`}}>
+            {/* 時間ラベル列 */}
+            <div className="flex-shrink-0 relative border-r border-[var(--border)]" style={{width:`${TIME_W}px`}}>
+              {Array.from({length:24},(_,h)=>(
+                <div key={h} className="absolute w-full text-right pr-1 text-[9px]"
+                     style={{top:`${h*HOUR_H}px`,color:"var(--text-muted)",transform:"translateY(-50%)",paddingTop:h===0?"8px":"0"}}>
+                  {h===0?"":String(h).padStart(2,"0")+":00"}
+                </div>
+              ))}
+            </div>
+            {/* 7日カラム */}
+            <div className="flex flex-1" style={{minWidth:0}}>
+              {weekDays.map((day,i)=>{
+                const ds=toDateStr(day),isDO=dragOverDate===ds,isToday=ds===today;
+                const timedEvs=getTimedForDay(ds);
+                return(
+                  <div key={i} className={`relative flex-1 border-l border-[var(--border)] cursor-pointer ${isDO?"bg-[var(--accent-soft)]":""}`}
+                       data-date={ds}
+                       onDragOver={e=>{e.preventDefault();setDragOverDate(ds);}}
+                       onDragLeave={()=>setDragOverDate(null)}
+                       onDrop={e=>{onDrop(e,ds);setDragOverDate(null);}}
+                       onClick={()=>onCellClick(ds)}>
+                    {/* グリッド線 */}
+                    {Array.from({length:24},(_,h)=>(
+                      <React.Fragment key={h}>
+                        <div className="absolute left-0 right-0 border-t border-[var(--border)]" style={{top:`${h*HOUR_H}px`,opacity:0.5}}/>
+                        <div className="absolute left-0 right-0 border-t border-[var(--border)]" style={{top:`${h*HOUR_H+HOUR_H/2}px`,opacity:0.2}}/>
+                      </React.Fragment>
+                    ))}
+                    {/* 現在時刻 */}
+                    {isToday&&(
+                      <div className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+                           style={{top:`${nowMins*HOUR_H/60}px`}}>
+                        <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" style={{marginLeft:"-4px"}}/>
+                        <div className="flex-1 h-[2px] bg-red-500"/>
+                      </div>
+                    )}
+                    {/* イベント */}
+                    {timedEvs.map(ev=>{
+                      const pos=getEventPos(ev,ds);
+                      if(!pos)return null;
+                      const tl=timeLabel(ev);
+                      return(
+                        <div key={ev.id}
+                             className="absolute left-0.5 right-0.5 rounded overflow-hidden cursor-pointer z-10 flex flex-col px-1 py-0.5"
+                             style={{top:`${pos.top}px`,height:`${pos.height}px`,backgroundColor:ev.color+"cc",border:`1px solid ${ev.color}`,minHeight:"20px"}}
+                             draggable
+                             onDragStart={e=>{e.stopPropagation();onDragStart(e,ev.id);}}
+                             onClick={e=>{e.stopPropagation();onEventClick(ev);}}>
+                          <div className="text-[10px] font-semibold leading-tight truncate" style={{color:"white",textShadow:"0 1px 2px rgba(0,0,0,0.5)"}}>
+                            {isMobile?(tl||ev.title):ev.title}
+                          </div>
+                          {!isMobile&&tl&&<div className="text-[9px] leading-tight truncate" style={{color:"white",opacity:0.9}}>{tl}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        {/* モバイル週計ストリップ */}
         {isMobile&&effectiveSummary===1&&summaries.length>0&&(
-          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[var(--border)] overflow-x-auto flex-shrink-0" style={{backgroundColor:"var(--bg-panel)"}}>
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-[var(--border)] overflow-x-auto flex-shrink-0" style={{backgroundColor:"var(--bg-panel)"}}>
             <span className="text-[9px] font-bold uppercase tracking-wider flex-shrink-0" style={{color:"var(--text-muted)"}}>週計</span>
             {summaries.map(s=>(
               <div key={s.color} className="flex items-center gap-1 rounded px-1.5 py-0.5 flex-shrink-0" style={{backgroundColor:s.color+"18"}}>
@@ -252,37 +367,6 @@ function WeekView({events,weekStart,startMonday,onDrop,onDragStart,onCellClick,o
             </div>
           </div>
         )}
-        <div className="grid grid-cols-7 flex-1 divide-x divide-[var(--border)] overflow-y-auto">
-          {weekDays.map((day,i)=>{
-            const ds=toDateStr(day),isDO=dragOverDate===ds;
-            const dayEvs=getForDay(ds);
-            const starting=dayEvs.filter(ev=>ev.startDate===ds);
-            const singles=starting.filter(ev=>(ev.endDate||ev.startDate)===ds);
-            const multi=starting.filter(ev=>(ev.endDate||ev.startDate)>ds);
-            const cont=dayEvs.filter(ev=>ev.startDate!==ds);
-            return(
-              <div key={i} data-date={ds}
-                className={`relative p-1 min-h-[80px] sm:min-h-[120px] cursor-pointer transition-colors duration-100 ${isDO?"bg-[var(--accent-soft)]":"hover:bg-[var(--hover)]"}`}
-                onDragOver={e=>{e.preventDefault();setDragOverDate(ds);}}
-                onDragLeave={()=>setDragOverDate(null)}
-                onDrop={e=>{onDrop(e,ds);setDragOverDate(null);}}
-                onClick={()=>onCellClick(ds)}>
-                {isDO&&<div className="absolute inset-0 border-2 border-dashed border-[var(--accent)] rounded pointer-events-none opacity-60 z-10"/>}
-                <div className="space-y-0.5">
-                  {multi.map(ev=>{
-                    const ec=weekDays.findIndex(d=>toDateStr(d)===(ev.endDate||ev.startDate));
-                    const span=ec===-1?weekDays.length-i:ec-i+1;
-                    return(<div key={ev.id} className="relative" style={{height:`${SPAN_H}px`,marginBottom:"2px"}}>
-                      <EventChip event={ev} onDragStart={onDragStart} onClick={onEventClick} colSpan={span} inCalendar={true} onResizeStart={onResizeStart}/>
-                    </div>);
-                  })}
-                  {cont.length>0&&<div style={{height:`${SPAN_H}px`,marginBottom:"2px"}}/>}
-                  {singles.map(ev=><EventChip key={ev.id} event={ev} onDragStart={onDragStart} onClick={onEventClick}/>)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
       {/* 集計列（PCのみ） */}
       {effectiveSummary===1&&!isMobile&&(
@@ -1197,7 +1281,7 @@ function App(){
           onBulkImport={()=>{setShowBulkImport(true);if(isMobile)setSidebarOpen(false);}}
           isMobile={isMobile} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)}/>
         <div className={`flex flex-col flex-1 ${isMobile?"overflow-y-auto":"overflow-hidden"}`}>
-          <div className={isMobile?"flex-shrink-0":"flex-1 overflow-hidden"} ref={calendarRef}>
+          <div className={isMobile&&view==="month"?"flex-shrink-0":"flex-1 overflow-hidden"} ref={calendarRef}>
             {view==="week"
               ?<WeekView events={events} weekStart={weekStart} startMonday={startMonday}
                   onDrop={handleDropOnCalendar} onDragStart={handleDragStart}
