@@ -41,12 +41,19 @@ workflows:
       app_store_connect: codemagic-admin
     environment:
       xcode: latest
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.kom26.shift
+      groups:
+        - shift_signing   # CERTIFICATE_PRIVATE_KEY(secure)を入れたグループ
+      vars:
+        BUNDLE_ID: com.kom26.shift
     scripts:
       - name: Install xcodegen
         script: brew install xcodegen
+      - name: Set up keychain
+        script: keychain initialize
+      - name: Fetch or create signing files
+        script: app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+      - name: Add certificates to keychain
+        script: keychain add-certificates
       - name: Set build number
         script: |
           sed -i '' "s/CURRENT_PROJECT_VERSION: \".*\"/CURRENT_PROJECT_VERSION: \"$BUILD_NUMBER\"/" ios/project.yml
