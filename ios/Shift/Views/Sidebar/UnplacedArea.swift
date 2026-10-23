@@ -39,6 +39,7 @@ struct UnplacedArea: View {
                     withAnimation(.snappy) { collapsed.toggle() }
                 } label: {
                     Image(systemName: collapsed ? "chevron.up" : "chevron.down").font(.caption)
+                        .padding(4).contentShape(Rectangle())
                 }
             }
             .padding(.horizontal, 12)
@@ -71,7 +72,7 @@ struct UnplacedArea: View {
         .confirmationDialog("\(monthLabel)の配置済み予定をすべて未配置に戻しますか?",
                             isPresented: $confirmRecall, titleVisibility: .visible) {
             Button("未配置に戻す", role: .destructive) {
-                withAnimation(.snappy) { store.recallMonth(of: anchor) }
+                withAnimation(.snappy) { _ = store.recallMonth(of: anchor) }
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
         }
@@ -81,7 +82,7 @@ struct UnplacedArea: View {
         let color = Color(hex: ev.color)
         let time = Rules.timeLabel(ev)
         return HStack(spacing: 4) {
-            Text(ev.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(color)
+            Text(ev.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(color).lineLimit(1)
             if !time.isEmpty {
                 Text(time).font(.system(size: 9)).foregroundStyle(color.opacity(0.7))
             }

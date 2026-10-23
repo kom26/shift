@@ -17,6 +17,7 @@ struct EventEditor: View {
     @State private var startTime: String
     @State private var endTime: String
     @State private var breakText: String
+    @State private var hasDate: Bool
     @State private var confirmDelete = false
 
     init(original: ShiftEvent, isNew: Bool) {
@@ -27,6 +28,7 @@ struct EventEditor: View {
         _color = State(initialValue: original.color)
         _start = State(initialValue: Rules.parse(original.startDate ?? "") ?? Date())
         _end = State(initialValue: Rules.parse(original.endDate ?? original.startDate ?? "") ?? Date())
+        _hasDate = State(initialValue: original.startDate != nil)
         _allDay = State(initialValue: original.allDay)
         _startTime = State(initialValue: original.startTime ?? "09:00")
         _endTime = State(initialValue: original.endTime ?? "18:00")
@@ -48,8 +50,11 @@ struct EventEditor: View {
                     ColorRow(color: $color, recent: store.customColors)
                 }
                 Section {
-                    DatePicker("開始日", selection: $start, displayedComponents: .date)
-                    DatePicker("終了日", selection: $end, in: start..., displayedComponents: .date)
+                    Toggle("日付を指定", isOn: $hasDate)
+                    if hasDate {
+                        DatePicker("開始日", selection: $start, displayedComponents: .date)
+                        DatePicker("終了日", selection: $end, in: start..., displayedComponents: .date)
+                    }
                     Toggle("終日", isOn: $allDay)
                     if !allDay { timeRows }
                 }
@@ -120,9 +125,15 @@ struct EventEditor: View {
         e.title = title.trimmingCharacters(in: .whitespaces)
         e.memo = memo
         e.color = color
-        e.startDate = sd
-        e.endDate = Rules.resolveEndDate(start: sd, end: Rules.format(end), allDay: allDay, startTime: st, endTime: et)
-        e.placed = true
+        if hasDate {
+            e.startDate = sd
+            e.endDate = Rules.resolveEndDate(start: sd, end: Rules.format(end), allDay: allDay, startTime: st, endTime: et)
+            e.placed = true
+        } else {
+            e.startDate = nil
+            e.endDate = nil
+            e.placed = false
+        }
         e.allDay = allDay
         e.startTime = st
         e.endTime = et

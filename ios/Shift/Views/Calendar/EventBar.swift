@@ -40,6 +40,7 @@ struct SpanBars: View {
                         .frame(width: max(0, colW * CGFloat(s.span) - 2), height: barH)
                         .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + 2))
                         .onTapGesture { onSelect(s.event) }
+                        .draggable(s.event.id)
                 }
             }
         }

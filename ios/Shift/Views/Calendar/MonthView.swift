@@ -7,6 +7,7 @@ struct MonthView: View {
     let startMonday: Bool
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
+    let onDropEvent: (String, String) -> Void
 
     private let numH: CGFloat = 22
     private let barH: CGFloat = 14
@@ -49,6 +50,13 @@ struct MonthView: View {
                 }
                 SpanBars(rows: rows, colW: w, barH: barH, leading: 0, onSelect: onSelectEvent)
                     .offset(y: numH)
+            }
+            .dropDestination(for: String.self) { ids, location in
+                guard let id = ids.first else { return false }
+                let col = min(6, max(0, Int(location.x / w)))
+                guard let ds = cells[col] else { return false }
+                onDropEvent(id, ds)
+                return true
             }
         }
         .clipped()

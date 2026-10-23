@@ -28,9 +28,9 @@ struct RootView: View {
             Group {
                 switch mode {
                 case .month:
-                    MonthView(anchor: anchor, startMonday: startMonday, onSelectDay: addEvent, onSelectEvent: edit)
+                    MonthView(anchor: anchor, startMonday: startMonday, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
                 case .week:
-                    WeekView(anchor: anchor, startMonday: startMonday, onSelectDay: addEvent, onSelectEvent: edit)
+                    WeekView(anchor: anchor, startMonday: startMonday, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
                 }
             }
             .id(mode)
@@ -40,6 +40,7 @@ struct RootView: View {
             if showSummary > 0 {
                 SummaryBar(label: summary.label, totals: summary.totals)
             }
+            UnplacedArea(anchor: anchor, onSelectEvent: edit)
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
         .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew) }
@@ -124,5 +125,10 @@ struct RootView: View {
 
     private func edit(_ event: ShiftEvent) {
         editing = EditorTarget(event: event, isNew: false)
+    }
+
+    private func drop(id: String, on date: String) {
+        withAnimation(.snappy) { store.place(id: id, on: date) }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 }

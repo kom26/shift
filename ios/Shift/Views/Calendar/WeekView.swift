@@ -7,6 +7,7 @@ struct WeekView: View {
     let startMonday: Bool
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
+    let onDropEvent: (String, String) -> Void
 
     private let timeW: CGFloat = 26
     private let barH: CGFloat = 14
@@ -71,6 +72,11 @@ struct WeekView: View {
                 ForEach(0..<7, id: \.self) { i in
                     column(days[i], colW: colW, H: H)
                         .frame(width: colW, height: H, alignment: .topLeading)
+                        .dropDestination(for: String.self) { ids, _ in
+                            guard let id = ids.first else { return false }
+                            onDropEvent(id, days[i])
+                            return true
+                        }
                         .overlay(alignment: .leading) {
                             Rectangle().fill(Color(.separator).opacity(0.5)).frame(width: 0.5)
                         }
@@ -90,6 +96,7 @@ struct WeekView: View {
                         .frame(width: max(0, colW - 2), height: h)
                         .offset(x: 1, y: H * CGFloat(seg.top))
                         .onTapGesture { onSelectEvent(ev) }
+                        .draggable(ev.id)
                 }
             }
         }
