@@ -85,10 +85,10 @@ struct WeekView: View {
             Color.clear.contentShape(Rectangle()).onTapGesture { onSelectDay(ds) }
             ForEach(store.visibleEvents.filter { !$0.allDay }) { ev in
                 if let seg = Rules.timedSegment(ev, on: ds) {
-                    let h = max(14, H * seg.height)
+                    let h = max(14, H * CGFloat(seg.height))
                     block(ev, h: h)
                         .frame(width: colW - 2, height: h)
-                        .offset(x: 1, y: H * seg.top)
+                        .offset(x: 1, y: H * CGFloat(seg.top))
                         .onTapGesture { onSelectEvent(ev) }
                 }
             }
