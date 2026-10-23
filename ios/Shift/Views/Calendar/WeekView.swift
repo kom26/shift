@@ -87,7 +87,7 @@ struct WeekView: View {
                 if let seg = Rules.timedSegment(ev, on: ds) {
                     let h = max(14, H * CGFloat(seg.height))
                     block(ev, h: h)
-                        .frame(width: colW - 2, height: h)
+                        .frame(width: max(0, colW - 2), height: h)
                         .offset(x: 1, y: H * CGFloat(seg.top))
                         .onTapGesture { onSelectEvent(ev) }
                 }

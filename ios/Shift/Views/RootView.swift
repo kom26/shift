@@ -33,6 +33,7 @@ struct RootView: View {
                     WeekView(anchor: anchor, startMonday: startMonday, onSelectDay: addEvent, onSelectEvent: edit)
                 }
             }
+            .id(mode)
             .transition(.opacity)
             .contentShape(Rectangle())
             .simultaneousGesture(swipe)

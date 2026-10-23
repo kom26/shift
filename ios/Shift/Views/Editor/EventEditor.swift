@@ -63,6 +63,7 @@ struct EventEditor: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(isNew ? "予定を追加" : "予定を編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

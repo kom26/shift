@@ -22,7 +22,7 @@ final class Holidays {
     func name(on ds: String) -> String? { table[ds] }
 
     /// 前年・当年・翌年を未取得なら holidays-jp から取得する。失敗しても内蔵テーブルで動く
-    func load(around year: Int) async {
+    @MainActor func load(around year: Int) async {
         for y in [year - 1, year, year + 1] {
             let k = String(y)
             guard !fetched.contains(k) else { continue }

@@ -37,6 +37,12 @@ final class Store {
         if let data = try? Data(contentsOf: fileURL),
            let list = try? JSONDecoder().decode([ShiftEvent].self, from: data) {
             events = list
+        } else if FileManager.default.fileExists(atPath: fileURL.path) {
+            // 読めないファイルは退避し、次の persist() で上書きされないようにする
+            let base = fileURL.deletingPathExtension().lastPathComponent
+            let dest = fileURL.deletingLastPathComponent()
+                .appending(path: "\(base).corrupt-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.moveItem(at: fileURL, to: dest)
         }
     }
 

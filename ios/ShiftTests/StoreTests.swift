@@ -124,4 +124,16 @@ struct StoreTests {
         #expect(throws: (any Error).self) { try store.importJSON(Data("not json".utf8)) }
         #expect(store.events.map(\.id) == ["a"])
     }
+
+    @Test func corruptFileIsPreservedAndStoreStartsEmpty() throws {
+        let name = UUID().uuidString
+        let url = FileManager.default.temporaryDirectory.appending(path: "\(name).json")
+        try Data("not json".utf8).write(to: url)
+        let store = Store(fileURL: url, defaults: UserDefaults(suiteName: name)!)
+        #expect(store.events.isEmpty)
+        store.save(ev("a", "2026-10-20"))
+        let dir = url.deletingLastPathComponent().path
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
+        #expect(names.contains { $0.hasPrefix("\(url.deletingPathExtension().lastPathComponent).corrupt-") })
+    }
 }

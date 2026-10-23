@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Shift
 
@@ -143,7 +144,7 @@ struct RulesTests {
     }
 
     @Test func eventDecodesWebJSONWithMissingFields() throws {
-        let json = #"{"id":"s1","title":"夜勤","color":"#6366f1","startDate":null,"endDate":null,"placed":false,"allDay":false,"startTime":"22:00","endTime":"06:00","workHours":null,"_new":null}"#
+        let json = ##"{"id":"s1","title":"夜勤","color":"#6366f1","startDate":null,"endDate":null,"placed":false,"allDay":false,"startTime":"22:00","endTime":"06:00","workHours":null,"_new":null}"##
         let e = try JSONDecoder().decode(ShiftEvent.self, from: Data(json.utf8))
         #expect(e.id == "s1")
         #expect(e.memo == "")
