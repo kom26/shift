@@ -40,11 +40,17 @@ workflows:
     artifacts:
       - ios/build/test.log
 
-  # TestFlight 配信用。手動実行のみ(triggering なし)
+  # TestFlight 配信用。`testflight-*` タグの push、または Codemagic での手動実行で動く
   ios-release:
     name: Shift iOS TestFlight
     instance_type: mac_mini_m2
     max_build_duration: 60
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'testflight-*'
+          include: true
     integrations:
       app_store_connect: codemagic-admin
     environment:
