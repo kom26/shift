@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct EventEditor: View {
     @Environment(Store.self) private var store
