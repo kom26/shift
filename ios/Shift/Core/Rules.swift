@@ -61,6 +61,19 @@ enum Rules {
         return stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<$0 + 7]) }
     }
 
+    /// 隣接月の日付も含む月グリッド(各週7日)。行数は monthWeeks と同じ
+    static func monthGrid(year: Int, month: Int, startMonday: Bool) -> [[String]] {
+        let first = String(format: "%04d-%02d-01", year, month)
+        let start = weekStart(of: first, startMonday: startMonday)
+        let rows = monthWeeks(year: year, month: month, startMonday: startMonday).count
+        return (0..<rows).map { r in (0..<7).map { c in addDays(start, r * 7 + c) } }
+    }
+
+    static func isSameMonth(_ ds: String, as anchor: String) -> Bool {
+        let a = ymd(ds), b = ymd(anchor)
+        return a.year == b.year && a.month == b.month
+    }
+
     static func monthBounds(of s: String) -> (first: String, last: String) {
         let (y, m, _) = ymd(s)
         let first = String(format: "%04d-%02d-01", y, m)
