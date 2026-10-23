@@ -18,7 +18,12 @@ extension Color {
 }
 
 enum Theme {
-    static let accent = Color(hex: "#4f46e5")
+    static let accent = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark ? UIColor(Color(hex: "#818cf8")) : UIColor(Color(hex: "#4f46e5"))
+    })
+    static let accentSoft = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark ? UIColor(Color(hex: "#1e1d3a")) : UIColor(Color(hex: "#eef2ff"))
+    })
     static let saturday = Color(hex: "#3b82f6")
     static let sunday = Color(hex: "#ef4444")
 }

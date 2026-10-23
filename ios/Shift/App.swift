@@ -8,6 +8,7 @@ struct ShiftApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environment(\.locale, Locale(identifier: "ja_JP"))
                 .environment(store)
                 .environment(holidays)
                 .tint(Theme.accent)

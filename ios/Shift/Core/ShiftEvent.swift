@@ -23,6 +23,12 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
                    startTime: nil, endTime: nil, workHours: nil)
     }
 
+    static func newUnplaced() -> ShiftEvent {
+        ShiftEvent(id: UUID().uuidString, title: "", memo: "", color: "#6366f1",
+                   startDate: nil, endDate: nil, placed: false, allDay: true,
+                   startTime: nil, endTime: nil, workHours: nil)
+    }
+
     var effectiveHours: Double? {
         workHours ?? Rules.workHours(start: startTime, end: endTime, allDay: allDay)
     }

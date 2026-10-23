@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct UnplacedArea: View {
     @Environment(Store.self) private var store
@@ -13,6 +14,21 @@ struct UnplacedArea: View {
     private var monthLabel: String {
         let p = Rules.ymd(anchor)
         return String(format: "%04d/%02d", p.year, p.month)
+    }
+
+    private var anchorMonthText: String {
+        let p = Rules.ymd(anchor)
+        return "\(p.year)年\(p.month)月"
+    }
+
+    private var unplaceDelegate: EventDropDelegate {
+        EventDropDelegate(
+            resolve: { _ in "unplace" },
+            target: Binding(get: { backTargeted ? "unplace" : nil }, set: { backTargeted = ($0 != nil) }),
+            onDrop: { id, _ in
+                withAnimation(.snappy) { store.unplace(id: id) }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            })
     }
 
     var body: some View {
@@ -50,7 +66,7 @@ struct UnplacedArea: View {
                 HStack(spacing: 0) {
                     ScrollView {
                         if items.isEmpty {
-                            Text("すべて配置済みです")
+                            Text("すべて配置済みです 🎉")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity)
@@ -63,13 +79,14 @@ struct UnplacedArea: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
+                    .onDrop(of: [.plainText], delegate: unplaceDelegate)
                     backZone
                 }
                 .frame(height: 120)
             }
         }
-        .background(Color(.secondarySystemBackground))
-        .confirmationDialog("\(monthLabel)の配置済み予定をすべて未配置に戻しますか?",
+        .background(Color(.secondarySystemBackground).ignoresSafeArea(edges: .bottom))
+        .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置に戻しますか?",
                             isPresented: $confirmRecall, titleVisibility: .visible) {
             Button("未配置に戻す", role: .destructive) {
                 withAnimation(.snappy) { _ = store.recallMonth(of: anchor) }
@@ -105,11 +122,6 @@ struct UnplacedArea: View {
         .frame(width: 72)
         .frame(maxHeight: .infinity)
         .background(backTargeted ? Theme.accent.opacity(0.12) : Color(.tertiarySystemFill))
-        .dropDestination(for: String.self) { ids, _ in
-            guard let id = ids.first else { return false }
-            withAnimation(.snappy) { store.unplace(id: id) }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            return true
-        } isTargeted: { backTargeted = $0 }
+        .onDrop(of: [.plainText], delegate: unplaceDelegate)
     }
 }
