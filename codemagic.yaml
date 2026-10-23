@@ -31,3 +31,36 @@ workflows:
             2>&1 | tee build/test.log
     artifacts:
       - ios/build/test.log
+
+  # TestFlight 配信用。手動実行のみ(triggering なし)
+  ios-release:
+    name: Shift iOS TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: codemagic-admin
+    environment:
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.kom26.shift
+    scripts:
+      - name: Install xcodegen
+        script: brew install xcodegen
+      - name: Set build number
+        script: |
+          sed -i '' "s/CURRENT_PROJECT_VERSION: \".*\"/CURRENT_PROJECT_VERSION: \"$BUILD_NUMBER\"/" ios/project.yml
+          grep CURRENT_PROJECT_VERSION ios/project.yml
+      - name: Generate Xcode project
+        script: cd ios && xcodegen generate
+      - name: Apply provisioning profiles
+        script: cd ios && xcode-project use-profiles
+      - name: Build ipa
+        script: cd ios && xcode-project build-ipa --project Shift.xcodeproj --scheme Shift
+    artifacts:
+      - ios/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
