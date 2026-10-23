@@ -1,20 +1,27 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MonthView: View {
     @Environment(Store.self) private var store
     @Environment(Holidays.self) private var holidays
     let anchor: String
     let startMonday: Bool
+    let summaryMode: Int   // 0 なし / 1 週計 / 2 月計
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
     let onDropEvent: (String, String) -> Void
 
+    @State private var dropTarget: String?
+
     private let numH: CGFloat = 22
-    private let barH: CGFloat = 14
+    private let barH: CGFloat = 20
+    private let barGap: CGFloat = 2
+    private let bottomPad: CGFloat = 6
+    private let stripH: CGFloat = 24
 
     var body: some View {
         let ym = Rules.ymd(anchor)
-        let weeks = Rules.monthWeeks(year: ym.year, month: ym.month, startMonday: startMonday)
+        let weeks = Rules.monthGrid(year: ym.year, month: ym.month, startMonday: startMonday)
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(Array(Rules.weekdayLabels(startMonday: startMonday).enumerated()), id: \.offset) { i, label in
@@ -27,15 +34,29 @@ struct MonthView: View {
                 }
             }
             Divider()
-            ForEach(weeks.indices, id: \.self) { i in
-                weekRow(weeks[i]).frame(maxHeight: .infinity)
+            GeometryReader { geo in
+                let minRow = geo.size.height / CGFloat(max(1, weeks.count))
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        ForEach(weeks.indices, id: \.self) { i in
+                            weekRow(weeks[i], minRow: minRow)
+                            Divider()
+                        }
+                    }
+                }
+            }
+            if summaryMode == 2 {
+                let b = Rules.monthBounds(of: anchor)
                 Divider()
+                SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last), emptyText: "データなし")
             }
         }
     }
 
-    private func weekRow(_ cells: [String?]) -> some View {
-        let rows = SpanLayout.rows(events: store.visibleEvents, weekCells: cells)
+    private func weekRow(_ cells: [String], minRow: CGFloat) -> some View {
+        let rows = SpanLayout.rows(events: store.visibleEvents, weekCells: cells.map { Optional($0) })
+        let barsH = CGFloat(rows.count) * (barH + barGap)
+        let rowH = max(minRow, numH + barsH + bottomPad + (summaryMode == 1 ? stripH : 0))
         return GeometryReader { geo in
             let w = geo.size.width / 7
             ZStack(alignment: .topLeading) {
@@ -50,45 +71,53 @@ struct MonthView: View {
                 }
                 SpanBars(rows: rows, colW: w, barH: barH, leading: 0, onSelect: onSelectEvent)
                     .offset(y: numH)
+                if summaryMode == 1 {
+                    VStack {
+                        Spacer(minLength: 0)
+                        SummaryStrip(label: nil,
+                                     totals: store.totals(from: cells[0], to: cells[6]),
+                                     emptyText: "-")
+                            .frame(height: stripH)
+                    }
+                }
             }
-            .dropDestination(for: String.self) { ids, location in
-                guard let id = ids.first else { return false }
-                guard w > 0 else { return false }
-                let col = min(6, max(0, Int(location.x / w)))
-                guard let ds = cells[col] else { return false }
-                onDropEvent(id, ds)
-                return true
-            }
+            .onDrop(of: [.plainText], delegate: EventDropDelegate(
+                resolve: { p in
+                    guard w > 0 else { return nil }
+                    return cells[min(6, max(0, Int(p.x / w)))]
+                },
+                target: $dropTarget,
+                onDrop: onDropEvent))
         }
+        .frame(height: rowH)
         .clipped()
     }
 
-    @ViewBuilder
-    private func dayCell(_ ds: String?) -> some View {
-        if let ds {
-            let holiday = holidays.name(on: ds)
-            let type = Rules.dayType(ds, isHoliday: holiday != nil)
-            let isToday = ds == Rules.today()
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 2) {
-                    Text("\(Rules.ymd(ds).day)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(isToday ? Color.white : type.color)
-                        .frame(minWidth: 18, minHeight: 18)
-                        .background(isToday ? Theme.accent : Color.clear, in: Circle())
-                    if let holiday {
-                        Text(holiday).font(.system(size: 7)).foregroundStyle(Theme.sunday).lineLimit(1)
-                    }
-                }
+    private func dayCell(_ ds: String) -> some View {
+        let inMonth = Rules.isSameMonth(ds, as: anchor)
+        let holiday = holidays.name(on: ds)
+        let type = Rules.dayType(ds, isHoliday: holiday != nil)
+        let isToday = inMonth && ds == Rules.today()
+        let isDrop = dropTarget == ds
+        let bg: Color = isDrop || isToday ? Theme.accentSoft : (inMonth ? Color.clear : Color(.tertiarySystemFill))
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("\(Rules.ymd(ds).day)")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(isToday ? Theme.accent : type.color)
+                .opacity(inMonth ? 1 : 0.45)
                 .frame(height: numH, alignment: .leading)
-                Spacer(minLength: 0)
-            }
-            .padding(.leading, 2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture { onSelectDay(ds) }
-        } else {
-            Color.clear
+            Spacer(minLength: 0)
         }
+        .padding(.leading, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(bg)
+        .overlay {
+            if isDrop {
+                Rectangle()
+                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onSelectDay(ds) }
     }
 }

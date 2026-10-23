@@ -28,7 +28,7 @@ struct RootView: View {
             Group {
                 switch mode {
                 case .month:
-                    MonthView(anchor: anchor, startMonday: startMonday, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
+                    MonthView(anchor: anchor, startMonday: startMonday, summaryMode: showSummary, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
                 case .week:
                     WeekView(anchor: anchor, startMonday: startMonday, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
                 }
@@ -37,7 +37,7 @@ struct RootView: View {
             .transition(.opacity)
             .contentShape(Rectangle())
             .simultaneousGesture(swipe)
-            if showSummary > 0 {
+            if showSummary > 0 && mode == .week {
                 SummaryBar(label: summary.label, totals: summary.totals)
             }
             UnplacedArea(anchor: anchor, onSelectEvent: edit)
