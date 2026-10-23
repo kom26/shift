@@ -595,7 +595,7 @@ function MonthView({events,currentDate,startMonday,onDrop,onDragStart,onCellClic
   );
 }
 
-function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,currentDate,weekStart,checkedColors,onToggleColor,onBulkImport,isMobile,isOpen,onClose}){
+function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,currentDate,weekStart,checkedColors,onToggleColor,onBulkImport,onCopyForIOS,isMobile,isOpen,onClose}){
   const[showSum,setShowSum]=useState(false);
   const sorted=[...events].sort((a,b)=>{
     if(a.placed&&a.startDate&&b.placed&&b.startDate)return a.startDate.localeCompare(b.startDate);
@@ -660,6 +660,7 @@ function Sidebar({events,collapsed,onToggle,onEventClick,onAddEvent,onDragStart,
       <div className="p-2 border-t border-[var(--border)] flex-shrink-0 flex flex-col gap-1.5">
         <button onClick={onAddEvent} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">＋ 予定を追加</button>
         <button onClick={onBulkImport} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">一括取り込み</button>
+        <button onClick={onCopyForIOS} className="w-full text-[11px] py-1.5 rounded-md border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors">iOSアプリ用にコピー</button>
       </div>
     </>
   );
@@ -1155,6 +1156,24 @@ function App(){
 
   const handleResizeStart=useCallback((e,ev)=>{resizeRef.current={ev,startX:e.clientX,origEnd:ev.endDate||ev.startDate};setResizing(true);},[]);
 
+  // iOSアプリへの移行用: 全予定をJSONでクリップボードへコピー
+  const handleCopyForIOS=useCallback(async()=>{
+    const json=JSON.stringify(events);
+    let ok=false;
+    try{await navigator.clipboard.writeText(json);ok=true;}catch{}
+    if(!ok){
+      try{
+        const ta=document.createElement("textarea");
+        ta.value=json;ta.style.position="fixed";ta.style.opacity="0";
+        document.body.appendChild(ta);ta.select();
+        ok=document.execCommand("copy");
+        document.body.removeChild(ta);
+      }catch{}
+    }
+    alert(ok?`${events.length}件の予定をコピーしました。\niOSアプリの「設定 → クリップボードから読み込む」で取り込めます。`:"コピーに失敗しました。");
+    if(isMobile)setSidebarOpen(false);
+  },[events,isMobile]);
+
   const handleExportCSV=useCallback(()=>{
     const y=currentDate.getFullYear(),mo=currentDate.getMonth();
     const ms=`${y}-${String(mo+1).padStart(2,"0")}-01`;
@@ -1277,6 +1296,7 @@ function App(){
           onDragStart={handleDragStart} currentDate={currentDate} weekStart={weekStart}
           checkedColors={checkedColors} onToggleColor={handleToggleColor}
           onBulkImport={()=>{setShowBulkImport(true);if(isMobile)setSidebarOpen(false);}}
+          onCopyForIOS={handleCopyForIOS}
           isMobile={isMobile} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)}/>
         <div className={`flex flex-col flex-1 ${isMobile?"overflow-y-auto":"overflow-hidden"}`}>
           <div className={isMobile&&view==="month"?"flex-shrink-0":"flex-1 overflow-hidden"} ref={calendarRef}>
