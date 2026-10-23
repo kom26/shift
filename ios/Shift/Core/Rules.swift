@@ -77,6 +77,24 @@ enum Rules {
         ds >= start && ds <= (end ?? start)
     }
 
+    static func daysBetween(_ a: String, _ b: String) -> Int {
+        guard let da = parse(a), let db = parse(b) else { return 0 }
+        return cal.dateComponents([.day], from: da, to: db).day ?? 0
+    }
+
+    /// 開始時刻の昇順(終日・時刻なしは末尾)、同時刻は勤務時間の短い順、同値は元の順(Web版 sortUnplaced 相当)
+    static func sortUnplaced(_ evs: [ShiftEvent]) -> [ShiftEvent] {
+        func key(_ e: ShiftEvent) -> String { e.allDay ? "99:99" : (e.startTime ?? "99:99") }
+        func hours(_ e: ShiftEvent) -> Double { e.effectiveHours ?? 999 }
+        return evs.enumerated().sorted { a, b in
+            let ka = key(a.element), kb = key(b.element)
+            if ka != kb { return ka < kb }
+            let ha = hours(a.element), hb = hours(b.element)
+            if ha != hb { return ha < hb }
+            return a.offset < b.offset
+        }.map(\.element)
+    }
+
     static func dayType(_ ds: String, isHoliday: Bool) -> DayType {
         if isHoliday { return .holiday }
         switch weekday(ds) {

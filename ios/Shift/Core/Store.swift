@@ -100,6 +100,61 @@ final class Store {
         persist()
     }
 
+    var unplacedEvents: [ShiftEvent] { events.filter { !$0.placed } }
+
+    /// 日付へ配置する。配置済みなら元の日数(終了日−開始日)を保つ
+    func place(id: String, on date: String) {
+        guard let i = events.firstIndex(where: { $0.id == id }) else { return }
+        var e = events[i]
+        let duration: Int
+        if let sd = e.startDate, let ed = e.endDate { duration = Rules.daysBetween(sd, ed) } else { duration = 0 }
+        let baseEnd = duration > 0 ? Rules.addDays(date, duration) : date
+        e.startDate = date
+        e.endDate = Rules.resolveEndDate(start: date, end: baseEnd, allDay: e.allDay, startTime: e.startTime, endTime: e.endTime)
+        e.placed = true
+        events[i] = e
+        persist()
+    }
+
+    /// 未配置に戻し、未配置グループの末尾へ移す
+    func unplace(id: String) {
+        guard let i = events.firstIndex(where: { $0.id == id }) else { return }
+        var e = events.remove(at: i)
+        e.startDate = nil
+        e.endDate = nil
+        e.placed = false
+        events = events.filter(\.placed) + events.filter { !$0.placed } + [e]
+        persist()
+    }
+
+    func sortUnplaced() {
+        events = events.filter(\.placed) + Rules.sortUnplaced(events.filter { !$0.placed })
+        persist()
+    }
+
+    /// date を含む月に開始日がある配置済み予定を全て未配置に戻し、未配置を並び替える。戻した件数を返す
+    @discardableResult
+    func recallMonth(of date: String) -> Int {
+        let b = Rules.monthBounds(of: date)
+        var recalled: [ShiftEvent] = []
+        var rest: [ShiftEvent] = []
+        for ev in events {
+            if ev.placed, let sd = ev.startDate, sd >= b.first, sd <= b.last {
+                var e = ev
+                e.startDate = nil
+                e.endDate = nil
+                e.placed = false
+                recalled.append(e)
+            } else {
+                rest.append(ev)
+            }
+        }
+        guard !recalled.isEmpty else { return 0 }
+        events = rest.filter(\.placed) + Rules.sortUnplaced(rest.filter { !$0.placed } + recalled)
+        persist()
+        return recalled.count
+    }
+
     func toggleColor(_ color: String) {
         if checkedColors.contains(color) { checkedColors.remove(color) } else { checkedColors.insert(color) }
         defaults.set(Array(checkedColors), forKey: Keys.checked)
