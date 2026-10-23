@@ -35,7 +35,7 @@ struct StoreUnplacedTests {
 
     @Test func placeOvernightEventEndsNextDay() {
         let store = make()
-        store.save(ev("u", nil, placed: false, allDay: false, st: "22:00", et: "06:00"))
+        store.save(ev("u", nil, allDay: false, placed: false, st: "22:00", et: "06:00"))
         store.place(id: "u", on: "2026-10-24")
         #expect(store.events[0].endDate == "2026-10-25")
     }
@@ -66,9 +66,9 @@ struct StoreUnplacedTests {
         let store = make()
         store.save(ev("p", "2026-10-20"))
         store.save(ev("a", nil, placed: false))
-        store.save(ev("b", nil, placed: false, allDay: false, st: "15:00", et: "23:00"))
-        store.save(ev("c", nil, placed: false, allDay: false, st: "07:00", et: "15:00"))
-        store.save(ev("d", nil, placed: false, allDay: false, st: "15:00", et: "19:00"))
+        store.save(ev("b", nil, allDay: false, placed: false, st: "15:00", et: "23:00"))
+        store.save(ev("c", nil, allDay: false, placed: false, st: "07:00", et: "15:00"))
+        store.save(ev("d", nil, allDay: false, placed: false, st: "15:00", et: "19:00"))
         store.sortUnplaced()
         #expect(store.events.map(\.id) == ["p", "c", "d", "b", "a"])
     }
@@ -77,7 +77,7 @@ struct StoreUnplacedTests {
         let store = make()
         store.save(ev("x", "2026-10-10", allDay: false, st: "09:00", et: "18:00"))
         store.save(ev("y", "2026-11-02"))
-        store.save(ev("u", nil, placed: false, allDay: false, st: "20:00", et: "23:00"))
+        store.save(ev("u", nil, allDay: false, placed: false, st: "20:00", et: "23:00"))
         let n = store.recallMonth(of: "2026-10-15")
         #expect(n == 1)
         #expect(store.events.map(\.id) == ["y", "x", "u"])
