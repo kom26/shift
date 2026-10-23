@@ -123,6 +123,7 @@ struct WeekView: View {
                 }
             }
         }
+        .clipped()
     }
 
     private func column(_ ds: String, colW: CGFloat, H: CGFloat) -> some View {

@@ -35,7 +35,7 @@ struct MonthView: View {
             }
             Divider()
             GeometryReader { geo in
-                let minRow = geo.size.height / CGFloat(max(1, weeks.count))
+                let minRow = (geo.size.height - CGFloat(weeks.count)) / CGFloat(max(1, weeks.count))
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
@@ -78,6 +78,7 @@ struct MonthView: View {
                                      totals: store.totals(from: cells[0], to: cells[6]),
                                      emptyText: "-")
                             .frame(height: stripH)
+                            .allowsHitTesting(false)
                     }
                 }
             }
