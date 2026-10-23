@@ -24,11 +24,19 @@ workflows:
           DEVICE=$(xcrun simctl list devices available | grep -E '^ +iPhone' | tail -1 | sed -E 's/^ +(.*) \([0-9A-Fa-f-]{36}\).*/\1/')
           [ -n "$DEVICE" ] || { echo "No iPhone simulator found"; exit 1; }
           echo "Using simulator: $DEVICE"
+          code=0
           xcodebuild test \
             -project Shift.xcodeproj \
             -scheme Shift \
             -destination "platform=iOS Simulator,name=$DEVICE,OS=latest" \
-            2>&1 | tee build/test.log
+            > build/test.log 2>&1 || code=$?
+          echo "=== RESULT SUMMARY (exit $code) ==="
+          grep -E "Test run with|Test Suite .* (passed|failed)|Executed [0-9]+ tests" build/test.log | tail -5
+          if [ "$code" -ne 0 ]; then
+            echo "=== FAILURE DETAILS ==="
+            grep -E "error:|✘|Test Case .* failed|Testing failed|Crash|crashed|failed to launch" build/test.log | sort -u | head -60
+          fi
+          exit $code
     artifacts:
       - ios/build/test.log
 
