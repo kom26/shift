@@ -114,12 +114,10 @@ final class Store {
         guard let src = events.first(where: { $0.id == id }) else { return }
         var copy = src
         copy.id = UUID().uuidString
-        if copy.placed {
-            let at = (events.lastIndex(where: \.placed) ?? events.count - 1) + 1
-            events.insert(copy, at: at)
-        } else {
-            events.append(copy)
-        }
+        var placed = events.filter(\.placed)
+        var unplaced = events.filter { !$0.placed }
+        if copy.placed { placed.append(copy) } else { unplaced.append(copy) }
+        events = placed + unplaced
         persist()
     }
 

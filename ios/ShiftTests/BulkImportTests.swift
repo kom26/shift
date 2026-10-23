@@ -24,7 +24,13 @@ struct BulkImportTests {
     }
 
     @Test func parseDropsEmptyTitles() {
-        #expect(BulkImport.parse("\t memo\n  \n").isEmpty)
+        // 先頭・末尾は最初に trim される(Web版と同じ)。途中の空タイトル行は捨てる
+        let rows = BulkImport.parse("A\t1\n\t memo\n  \nB")
+        #expect(rows.count == 2)
+        #expect(rows[0].title == "A")
+        #expect(rows[0].memo == "1")
+        #expect(rows[1].title == "B")
+        #expect(rows[1].memo == "")
     }
 
     @Test func makeEventsCreatesUnplacedAllDay() {
