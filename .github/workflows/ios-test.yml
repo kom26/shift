@@ -1,0 +1,38 @@
+name: ios-test
+
+on:
+  push:
+    branches:
+      - 'feat/ios-**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: cd ios && xcodegen generate
+      - name: Run unit tests
+        run: |
+          cd ios
+          mkdir -p build
+          DEVICE=$(xcrun simctl list devices available | grep -E '^ +iPhone' | tail -1 | sed -E 's/^ +(.*) \([0-9A-Fa-f-]{36}\).*/\1/')
+          [ -n "$DEVICE" ] || { echo "No iPhone simulator found"; exit 1; }
+          echo "Using simulator: $DEVICE"
+          code=0
+          xcodebuild test \
+            -project Shift.xcodeproj \
+            -scheme Shift \
+            -destination "platform=iOS Simulator,name=$DEVICE,OS=latest" \
+            > build/test.log 2>&1 || code=$?
+          echo "=== RESULT SUMMARY (exit $code) ==="
+          grep -E "Test run with|Test Suite .* (passed|failed)|Executed [0-9]+ tests" build/test.log | tail -5
+          if [ "$code" -ne 0 ]; then
+            echo "=== FAILURE DETAILS ==="
+            grep -E "error:|✘|Test Case .* failed|Testing failed|Crash|crashed|failed to launch" build/test.log | sort -u | head -80
+          fi
+          exit $code
