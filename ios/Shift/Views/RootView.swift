@@ -30,16 +30,13 @@ struct RootView: View {
                 case .month:
                     MonthView(anchor: anchor, startMonday: startMonday, summaryMode: showSummary, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
                 case .week:
-                    WeekView(anchor: anchor, startMonday: startMonday, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
+                    WeekView(anchor: anchor, startMonday: startMonday, summaryMode: showSummary, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
                 }
             }
             .id(mode)
             .transition(.opacity)
             .contentShape(Rectangle())
             .simultaneousGesture(swipe)
-            if showSummary > 0 && mode == .week {
-                SummaryBar(label: summary.label, totals: summary.totals)
-            }
             UnplacedArea(anchor: anchor, onSelectEvent: edit)
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
