@@ -53,6 +53,7 @@ struct MonthView: View {
             }
             .dropDestination(for: String.self) { ids, location in
                 guard let id = ids.first else { return false }
+                guard w > 0 else { return false }
                 let col = min(6, max(0, Int(location.x / w)))
                 guard let ds = cells[col] else { return false }
                 onDropEvent(id, ds)
