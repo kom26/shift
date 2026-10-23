@@ -70,4 +70,4 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        submit_to_testflight: false   # 内部テストのみ。外部テスト(ベータ審査)には test-info の入力が必要
