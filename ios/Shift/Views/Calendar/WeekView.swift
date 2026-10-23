@@ -17,7 +17,7 @@ struct WeekView: View {
         let allDayRows = SpanLayout.rows(events: store.visibleEvents.filter(\.allDay), weekCells: days)
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                Color.clear.frame(width: timeW)
+                Color.clear.frame(width: timeW, height: 0)
                 ForEach(days, id: \.self) { header($0) }
             }
             GeometryReader { geo in
