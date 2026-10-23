@@ -1,0 +1,32 @@
+workflows:
+  ios-test:
+    name: Shift iOS test
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      xcode: latest
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'feat/ios-*'
+          include: true
+    scripts:
+      - name: Install xcodegen
+        script: brew install xcodegen
+      - name: Generate Xcode project
+        script: cd ios && xcodegen generate
+      - name: Run unit tests
+        script: |
+          set -o pipefail
+          cd ios
+          mkdir -p build
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -o 'iPhone [^(]*' | sed 's/ *$//')
+          echo "Using simulator: $DEVICE"
+          xcodebuild test \
+            -project Shift.xcodeproj \
+            -scheme Shift \
+            -destination "platform=iOS Simulator,name=$DEVICE,OS=latest" \
+            2>&1 | tee build/test.log
+    artifacts:
+      - ios/build/test.log

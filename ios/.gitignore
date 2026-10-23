@@ -1,0 +1,4 @@
+Shift.xcodeproj
+build/
+*.xcuserstate
+.DS_Store
