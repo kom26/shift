@@ -64,7 +64,7 @@ struct MonthView: View {
                 .scrollBounceBehavior(.basedOnSize)
             }
             SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
-                         fill: Color(.secondarySystemBackground), labelColor: Color.secondary)
+                         fill: Color(.secondarySystemBackground), labelColor: Color.secondary, fontSize: 10)
                 .frame(height: monthStripH)
                 .overlay(alignment: .top) {
                     Rectangle().fill(Color(.separator)).frame(height: 0.5)
@@ -87,7 +87,7 @@ struct MonthView: View {
                 SummaryStrip(label: "週計",
                              totals: store.totals(from: cells[0], to: cells[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthOrder),
                              emptyText: "-",
-                             fill: Color.clear, labelColor: Color.secondary)
+                             fill: Color.clear, labelColor: Color.secondary, fontSize: 9.5)
                     .frame(height: stripH)
                     .frame(maxWidth: .infinity)
                     .overlay(alignment: .top) {

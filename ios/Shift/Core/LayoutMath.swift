@@ -2,11 +2,11 @@ import CoreGraphics
 
 /// 月表示とルート画面で共有する縦方向のレイアウト定数・計算
 enum LayoutMath {
-    static let numH: CGFloat = 16
+    static let numH: CGFloat = 15
     static let bottomPad: CGFloat = 2
     static let barGap: CGFloat = 1
-    static let weekStripH: CGFloat = 18
-    static let refBarH: CGFloat = 14
+    static let weekStripH: CGFloat = 16
+    static let refBarH: CGFloat = 13
     static let weekdayHeaderH: CGFloat = 24
     static let monthStripH: CGFloat = 20
     static let unplacedHeaderH: CGFloat = 24

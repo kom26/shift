@@ -74,11 +74,11 @@ struct SpanBars: View {
         ZStack(alignment: .topLeading) {
             ForEach(rows.indices, id: \.self) { r in
                 ForEach(rows[r]) { s in
-                    EventBar(span: s, height: barH, fontSize: compactFont ? (barH >= 14 ? 9 : 8) : (barH >= 16 ? 10 : 9))
+                    EventBar(span: s, height: barH, fontSize: compactFont ? (barH <= 13 ? 8.5 : 9) : (barH >= 16 ? 10 : 9))
                         .frame(width: max(0, colW * CGFloat(s.span) - 2), height: barH)
                         .onTapGesture { onSelect(s.event) }
                         .eventMenu(for: s.event, store: store, onEdit: onSelect) {
-                            EventBarPreview(event: s.event, height: barH, fontSize: compactFont ? (barH >= 14 ? 9 : 8) : (barH >= 16 ? 10 : 9))
+                            EventBarPreview(event: s.event, height: barH, fontSize: compactFont ? (barH <= 13 ? 8.5 : 9) : (barH >= 16 ? 10 : 9))
                         }
                         .draggable(s.event.id)
                         .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + gap))

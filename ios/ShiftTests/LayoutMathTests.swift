@@ -7,8 +7,8 @@ struct LayoutMathTests {
         LayoutMath.monthCalendarHeight(available: available, weeks: weeks)
     }
 
-    @Test func fiveWeeksFitsExactly() { #expect(abs(h(5, 659) - 529) < 0.001) }
+    @Test func fiveWeeksFitsExactly() { #expect(abs(h(5, 659) - 494) < 0.001) }
     @Test func sixWeeksCappedByBottomArea() { #expect(abs(h(6, 659) - 543) < 0.001) }
     @Test func smallScreenCapped() { #expect(abs(h(5, 400) - 284) < 0.001) }
-    @Test func fourWeeks() { #expect(abs(h(4, 800) - 432) < 0.001) }
+    @Test func fourWeeks() { #expect(abs(h(4, 800) - 404) < 0.001) }
 }
