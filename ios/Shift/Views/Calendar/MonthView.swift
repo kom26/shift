@@ -37,7 +37,7 @@ struct MonthView: View {
             GeometryReader { geo in
                 // 週ブロック = セル領域 + (集計ON時) 週計の帯。区切り線 1pt ぶんも差し引いて画面に収める
                 let n = CGFloat(max(1, weeks.count))
-                let minCells = (geo.size.height - n - (summaryOn ? n * stripH : 0)) / n
+                let minCells = (geo.size.height - n - 1 - (summaryOn ? n * stripH : 0)) / n
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
@@ -46,7 +46,10 @@ struct MonthView: View {
                         }
                     }
                 }
+                .scrollBounceBehavior(.basedOnSize)
+                .background(Color(.systemBackground))
             }
+            .background(Color(.systemBackground))
             if summaryOn {
                 let b = Rules.monthBounds(of: anchor)
                 Divider()

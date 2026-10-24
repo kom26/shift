@@ -80,6 +80,19 @@ final class Store {
         return order.compactMap { map[$0] }
     }
 
+    /// 同じ内容で新IDのコピーを作る。配置済みなら最後の配置済みの直後、未配置なら末尾
+    func duplicate(id: String) {
+        guard let src = events.first(where: { $0.id == id }) else { return }
+        var copy = src
+        copy.id = UUID().uuidString
+        var placed = events.filter(\.placed)
+        var unplaced = events.filter { !$0.placed }
+        if copy.placed { placed.append(copy) } else { unplaced.append(copy) }
+        events = placed + unplaced
+        persist()
+    }
+
+
     // MARK: 変更
 
     func save(_ event: ShiftEvent) {

@@ -139,6 +139,7 @@ struct WeekView: View {
                     block(ev, h: h)
                         .frame(width: max(0, colW - 2), height: h)
                         .onTapGesture { onSelectEvent(ev) }
+                        .eventMenu(for: ev, store: store, onEdit: onSelectEvent)
                         .draggable(ev.id)
                         .offset(x: 1, y: H * CGFloat(seg.top))
                 }

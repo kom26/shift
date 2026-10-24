@@ -110,6 +110,7 @@ struct UnplacedArea: View {
         .overlay(alignment: .leading) { Rectangle().fill(color).frame(width: 3) }
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .onTapGesture { onSelectEvent(ev) }
+        .eventMenu(for: ev, store: store, onEdit: onSelectEvent)
         .draggable(ev.id)
     }
 
