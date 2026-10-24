@@ -20,9 +20,9 @@ struct EventBar: View {
             .padding(.trailing, 3)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: height)
-            .foregroundStyle(color)
+            .foregroundStyle(EventColor.text(ev.color))
             .background(
-                color.opacity(0.16),
+                color.opacity(0.55),
                 in: UnevenRoundedRectangle(
                     topLeadingRadius: span.isStart ? r : 0,
                     bottomLeadingRadius: span.isStart ? r : 0,
@@ -37,7 +37,7 @@ struct EventBar: View {
                     topTrailingRadius: span.isEnd ? r : 0))
             .overlay(alignment: .leading) {
                 if span.isStart {
-                    Rectangle().fill(color).frame(width: 3)
+                    Rectangle().fill(EventColor.line(ev.color)).frame(width: 3)
                 }
             }
     }
@@ -59,11 +59,11 @@ struct EventBarPreview: View {
             .fixedSize()
             .padding(.horizontal, 8)
             .frame(height: height)
-            .foregroundStyle(color)
-            .background(color.opacity(0.16), in: shape)
+            .foregroundStyle(EventColor.text(event.color))
+            .background(color.opacity(0.55), in: shape)
             .background(Color(.systemBackground), in: shape)
             .overlay(alignment: .leading) {
-                Rectangle().fill(color).frame(width: 3)
+                Rectangle().fill(EventColor.line(event.color)).frame(width: 3)
             }
             .clipShape(shape)
     }

@@ -189,10 +189,10 @@ struct WeekView: View {
                     .fixedSize()
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(EventColor.text(ev.color))
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .background(color.opacity(0.8), in: shape)
+        .background(color.opacity(0.85), in: shape)
         .background(Color(.systemBackground), in: shape)
         .clipShape(shape)
     }
@@ -203,19 +203,17 @@ struct WeekView: View {
             Text(ev.title)
                 .font(.system(size: 10, weight: .bold))
                 .lineLimit(2)
-                .shadow(color: .black.opacity(0.35), radius: 1, x: 0, y: 1)
             if h > 30 {
                 Text(Rules.timeLabel(ev))
                     .font(.system(size: 9))
                     .lineLimit(1)
-                    .shadow(color: .black.opacity(0.35), radius: 1, x: 0, y: 1)
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(EventColor.text(ev.color))
         .padding(2)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(color.opacity(0.8), in: RoundedRectangle(cornerRadius: 3))
+        .background(color.opacity(0.85), in: RoundedRectangle(cornerRadius: 3))
         .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 3))
-        .overlay(RoundedRectangle(cornerRadius: 3).stroke(color, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 3).stroke(EventColor.line(ev.color), lineWidth: 1))
     }
 }

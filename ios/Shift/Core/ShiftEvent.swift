@@ -20,13 +20,13 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     }
 
     static func new(on date: String) -> ShiftEvent {
-        ShiftEvent(id: UUID().uuidString, title: "", memo: "", color: "#6366f1",
+        ShiftEvent(id: UUID().uuidString, title: "", memo: "", color: Store.defaultColors[0],
                    startDate: date, endDate: date, placed: true, allDay: false,
                    startTime: nil, endTime: nil, workHours: nil)
     }
 
     static func newUnplaced() -> ShiftEvent {
-        ShiftEvent(id: UUID().uuidString, title: "", memo: "", color: "#6366f1",
+        ShiftEvent(id: UUID().uuidString, title: "", memo: "", color: Store.defaultColors[0],
                    startDate: nil, endDate: nil, placed: false, allDay: false,
                    startTime: nil, endTime: nil, workHours: nil)
     }

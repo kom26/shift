@@ -17,6 +17,35 @@ extension Color {
     }
 }
 
+/// パステル塗りの上で読める文字色/線色 (明暗で切替)
+enum EventColor {
+    private static func hsb(_ hex: String) -> (h: CGFloat, s: CGFloat, b: CGFloat) {
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(Color(hex: hex)).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return (h, s, b)
+    }
+
+    static func text(_ hex: String) -> Color {
+        let c = hsb(hex)
+        return Color(UIColor { trait in
+            if trait.userInterfaceStyle == .dark {
+                return UIColor(hue: c.h, saturation: c.s * 0.55, brightness: 0.95, alpha: 1)
+            }
+            return UIColor(hue: c.h, saturation: min(1, c.s * 1.2 + 0.15), brightness: 0.36, alpha: 1)
+        })
+    }
+
+    static func line(_ hex: String) -> Color {
+        let c = hsb(hex)
+        return Color(UIColor { trait in
+            if trait.userInterfaceStyle == .dark {
+                return UIColor(Color(hex: hex))
+            }
+            return UIColor(hue: c.h, saturation: min(1, c.s * 1.15 + 0.1), brightness: min(1, c.b * 0.82), alpha: 1)
+        })
+    }
+}
+
 enum Theme {
     static let accent = Color(UIColor { trait in
         trait.userInterfaceStyle == .dark ? UIColor(Color(hex: "#818cf8")) : UIColor(Color(hex: "#4f46e5"))
