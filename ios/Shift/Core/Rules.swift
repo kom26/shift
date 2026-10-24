@@ -167,6 +167,13 @@ enum Rules {
         return addDays(endDate, n)
     }
 
+    /// 終了が開始より厳密に前なら true(絶対分 = 日差*1440 + 時刻分で比較)。不正入力は false
+    static func isEndBeforeStart(startDate: String, startTime: String, endDate: String, endTime: String) -> Bool {
+        guard parse(startDate) != nil, parse(endDate) != nil,
+              let sm = minutes(startTime), let em = minutes(endTime) else { return false }
+        return daysBetween(startDate, endDate) * 1440 + em < sm
+    }
+
     static func minutes(_ t: String?) -> Int? {
         guard let t = t.nonEmpty else { return nil }
         let p = t.split(separator: ":").compactMap { Int($0) }

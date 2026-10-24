@@ -25,6 +25,10 @@ struct EventEditor: View {
     @State private var workplaceId: String?
     @State private var breakInNight: Bool?
     @State private var didSetup = false
+    @State private var lastValidEndDate: Date
+    @State private var lastValidEndTime: String
+    @State private var endWarningVisible = false
+    @State private var endWarningTask: Task<Void, Never>?
     @State private var addingWorkplace = false
     @State private var workplaceCountBeforeAdd = 0
     @FocusState private var focusedField: Field?
@@ -39,11 +43,14 @@ struct EventEditor: View {
         _memo = State(initialValue: original.memo)
         _color = State(initialValue: original.color)
         _start = State(initialValue: Rules.parse(original.startDate ?? "") ?? Date())
-        _end = State(initialValue: Rules.parse(original.endDate ?? original.startDate ?? "") ?? Date())
+        let initialEnd = Rules.parse(original.endDate ?? original.startDate ?? "") ?? Date()
+        _end = State(initialValue: initialEnd)
+        _lastValidEndDate = State(initialValue: initialEnd)
         _hasDate = State(initialValue: original.startDate != nil)
         _allDay = State(initialValue: original.allDay)
         _startTime = State(initialValue: original.startTime ?? "09:00")
         _endTime = State(initialValue: original.endTime ?? "18:00")
+        _lastValidEndTime = State(initialValue: original.endTime ?? "18:00")
         _workplaceId = State(initialValue: original.workplaceId)
         _breakInNight = State(initialValue: original.breakInNight)
         // 保存済みの休憩分(既定と同じ値は onAppear で空に戻す)
@@ -155,9 +162,9 @@ struct EventEditor: View {
                 if new == nil || panel(for: new!) == nil { closeTimePanel() }
             }
             .onChange(of: start) { normalizeEnd() }
-            .onChange(of: end) { normalizeEnd() }
+            .onChange(of: end) { validateEndEdit() }
             .onChange(of: startTime) { breakText = ""; normalizeEnd() }
-            .onChange(of: endTime) { breakText = ""; normalizeEnd() }
+            .onChange(of: endTime) { validateEndEdit() }
             .onChange(of: hasDate) { normalizeEnd() }
             .onChange(of: allDay) { normalizeEnd() }
             .confirmationDialog("この予定を削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -333,6 +340,7 @@ struct EventEditor: View {
         } else {
             datePlaceholderChip(enabled: true) {
                 let d = Rules.parse(Rules.today()) ?? Date()
+                lastValidEndDate = d
                 start = d
                 end = d
                 hasDate = true
@@ -356,6 +364,14 @@ struct EventEditor: View {
             Spacer()
             if p == .start { startDateControl } else { endDateControl }
             timeChip(p)
+        }
+        if p == .end, endWarningVisible {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle")
+                Text("終了は開始より前には設定できません")
+            }
+            .font(.app(12))
+            .foregroundStyle(Color.orange)
         }
         if openPanel == p {
             VStack(spacing: 0) {
@@ -486,17 +502,61 @@ struct EventEditor: View {
         }
     }
 
-    /// 終了が開始より前になったら終了日を進める(終日は 終了日 >= 開始日)
+    /// 開始側の編集で終了が開始より前になったら終了日を進める(終日は 終了日 >= 開始日)。
+    /// 終了側の最後の有効値も更新するので、終了の検証(validateEndEdit)は何もしない
     private func normalizeEnd() {
         guard hasDate else { return }
         if allDay {
             if end < start { end = start }
+            syncLastValidEnd()
             return
         }
         let next = Rules.normalizedEndDate(
             startDate: Rules.format(start), startTime: startTime,
             endDate: Rules.format(end), endTime: endTime)
-        if next != Rules.format(end), let d = Rules.parse(next) { end = d }
+        if next != Rules.format(end), let d = Rules.parse(next) {
+            lastValidEndDate = d
+            lastValidEndTime = endTime
+            end = d
+        } else {
+            syncLastValidEnd()
+        }
+    }
+
+    private func syncLastValidEnd() {
+        lastValidEndDate = end
+        lastValidEndTime = endTime
+    }
+
+    /// 終了側の編集(日付・時刻)の検証。開始より前なら直前の有効値へ戻して警告する。
+    /// 戻した値は lastValid と一致するため、再度のonChangeでは何もしない(ループしない)
+    private func validateEndEdit() {
+        guard hasDate, !allDay else { syncLastValidEnd(); return }
+        let dateChanged = Rules.format(end) != Rules.format(lastValidEndDate)
+        let timeChanged = endTime != lastValidEndTime
+        guard dateChanged || timeChanged else { return }
+        if Rules.isEndBeforeStart(
+            startDate: Rules.format(start), startTime: startTime,
+            endDate: Rules.format(end), endTime: endTime) {
+            if dateChanged { end = lastValidEndDate }
+            if timeChanged { endTime = lastValidEndTime }
+            typed = ""
+            showEndWarning()
+        } else {
+            syncLastValidEnd()
+            if timeChanged { breakText = "" }
+        }
+    }
+
+    private func showEndWarning() {
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        endWarningTask?.cancel()
+        withAnimation { endWarningVisible = true }
+        endWarningTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation { endWarningVisible = false }
+        }
     }
 
     private func build() -> ShiftEvent {
