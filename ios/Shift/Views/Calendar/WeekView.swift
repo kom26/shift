@@ -38,6 +38,7 @@ struct WeekView: View {
                     .frame(height: 24)
             }
         }
+        .background { MonthWatermark(number: Rules.ymd(days[3]).month) }
     }
 
     private func header(_ ds: String) -> some View {

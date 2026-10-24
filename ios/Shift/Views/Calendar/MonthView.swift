@@ -47,15 +47,19 @@ struct MonthView: View {
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize)
-                .background(Color(.systemBackground))
             }
-            .background(Color(.systemBackground))
             if summaryOn {
                 let b = Rules.monthBounds(of: anchor)
                 Divider()
                 SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last), emptyText: "データなし")
                     .frame(height: stripH)
                     .background(Color(.secondarySystemBackground))
+            }
+        }
+        .background {
+            ZStack {
+                Color(.systemBackground)
+                MonthWatermark(number: ym.month)
             }
         }
     }
@@ -134,5 +138,18 @@ struct MonthView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { onSelectDay(ds) }
+    }
+}
+
+/// 背面に敷く巨大な月数字 (薄く、タップを通す)
+struct MonthWatermark: View {
+    let number: Int
+    var body: some View {
+        Text("\(number)")
+            .font(.system(size: 240, weight: .heavy))
+            .lineLimit(1)
+            .minimumScaleFactor(0.3)
+            .foregroundStyle(Color.primary.opacity(0.06))
+            .allowsHitTesting(false)
     }
 }

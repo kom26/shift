@@ -22,23 +22,14 @@ struct RootView: View {
     @State private var editing: EditorTarget?
     @State private var showSettings = false
     @State private var showFilter = false
+    @State private var dragX: CGFloat = 0
+    @State private var pagerWidth: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            Group {
-                switch mode {
-                case .month:
-                    MonthView(anchor: anchor, startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
-                case .week:
-                    WeekView(anchor: anchor, startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
-                }
-            }
-            .id(mode)
-            .transition(.opacity)
-            .contentShape(Rectangle())
-            .simultaneousGesture(swipe)
+            pager
             UnplacedArea(anchor: anchor, onSelectEvent: edit)
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
@@ -58,9 +49,9 @@ struct RootView: View {
                 }
                 .accessibilityLabel("設定")
                 Spacer(minLength: 0)
-                Button { step(-1) } label: { Image(systemName: "chevron.left") }
+                Button { slide(-1, width: pagerWidth) } label: { Image(systemName: "chevron.left") }
                 Text(title).font(.headline).lineLimit(1).minimumScaleFactor(0.7)
-                Button { step(1) } label: { Image(systemName: "chevron.right") }
+                Button { slide(1, width: pagerWidth) } label: { Image(systemName: "chevron.right") }
                 Spacer(minLength: 0)
                 Button { addUnplaced() } label: {
                     Text("＋ 追加")
@@ -120,10 +111,49 @@ struct RootView: View {
             : "\(sp.month)月\(sp.day)日〜\(ep.month)月\(ep.day)日"
     }
 
-    private var swipe: some Gesture {
-        DragGesture(minimumDistance: 30).onEnded { v in
-            guard abs(v.translation.width) > 60, abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
-            step(v.translation.width < 0 ? 1 : -1)
+    private var pager: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            HStack(spacing: 0) {
+                ForEach([-1, 0, 1], id: \.self) { k in
+                    page(offset: k)
+                        .frame(width: w, height: geo.size.height)
+                        .clipped()
+                }
+            }
+            .id(mode)
+            .transition(.opacity)
+            .frame(width: w * 3, alignment: .leading)
+            .offset(x: -w + dragX)
+            .clipped()
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 16)
+                    .onChanged { v in
+                        guard abs(v.translation.width) > abs(v.translation.height) else { return }
+                        dragX = v.translation.width
+                    }
+                    .onEnded { v in
+                        let dx = v.translation.width
+                        let horizontal = abs(dx) > abs(v.translation.height)
+                        if horizontal && (abs(dx) > w * 0.25 || abs(v.predictedEndTranslation.width) > w * 0.5) {
+                            slide(dx < 0 ? 1 : -1, width: w)
+                        } else {
+                            withAnimation(.snappy(duration: 0.25)) { dragX = 0 }
+                        }
+                    })
+            .onAppear { pagerWidth = w }
+            .onChange(of: w) { _, new in pagerWidth = new }
+        }
+    }
+
+    @ViewBuilder
+    private func page(offset k: Int) -> some View {
+        switch mode {
+        case .month:
+            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
+        case .week:
+            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
         }
     }
 
@@ -141,11 +171,20 @@ struct RootView: View {
         }
     }
 
-    private func step(_ n: Int) {
-        withAnimation(.snappy) {
-            anchor = mode == .month ? Rules.addMonths(anchor, n) : Rules.addDays(anchor, 7 * n)
-        }
+    /// direction: +1 = 次の期間 (左へスライド), -1 = 前の期間
+    private func slide(_ direction: Int, width: CGFloat) {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        let newAnchor = mode == .month ? Rules.addMonths(anchor, direction) : Rules.addDays(anchor, 7 * direction)
+        withAnimation(.snappy(duration: 0.25), completionCriteria: .logicallyComplete) {
+            dragX = direction > 0 ? -width : width
+        } completion: {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) {
+                anchor = newAnchor
+                dragX = 0
+            }
+        }
     }
 
     private func addEvent(on date: String) {
