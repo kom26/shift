@@ -8,17 +8,16 @@ struct UnplacedArea: View {
     let anchor: String
     let selectedDate: String?
     let startMonday: Bool
+    var fillHeight: Bool = false
     let onSelectEvent: (ShiftEvent) -> Void
 
     @AppStorage("unplacedCollapsed") private var collapsed = false
     @State private var confirmRecall = false
-    @State private var backTargeted = false
     @State private var page = 0
     @AppStorage("payBasis") private var payBasisRaw = PayBasis.work.rawValue
 
-    private var monthLabel: String {
-        let p = Rules.ymd(anchor)
-        return String(format: "%04d/%02d", p.year, p.month)
+    private var anchorMonthShort: String {
+        "\(Rules.ymd(anchor).month)月"
     }
 
     private var anchorMonthText: String {
@@ -26,36 +25,20 @@ struct UnplacedArea: View {
         return "\(p.year)年\(p.month)月"
     }
 
-    private var unplaceDelegate: EventDropDelegate {
-        EventDropDelegate(
-            resolve: { _ in "unplace" },
-            target: Binding(get: { backTargeted ? "unplace" : nil }, set: { backTargeted = ($0 != nil) }),
-            onDrop: { id, _ in
-                withAnimation(.snappy) { store.unplace(id: id) }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            })
+    private var unplaceDelegate: UnplaceDropDelegate {
+        UnplaceDropDelegate(onDrop: { id in
+            withAnimation(.snappy) { store.unplace(id: id) }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        })
     }
 
     var body: some View {
         let items = store.unplacedEvents
+        let drag = DragState.shared
+        let dragging = drag.isDragging
+        let over = drag.isOverUnplaced
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Text("未配置").font(.app(11, weight: .bold)).foregroundStyle(.secondary)
-                Text("\(items.count)")
-                    .font(.app(11))
-                    .padding(.horizontal, 6)
-                    .background(Color(.tertiarySystemFill), in: Capsule())
-                Button("\(monthLabel)を回収") { confirmRecall = true }
-                    .font(.app(11))
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                Button("並び替え") {
-                    withAnimation(.snappy) { store.sortUnplaced() }
-                }
-                .font(.app(11))
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-                Spacer()
+            ZStack {
                 if !collapsed {
                     HStack(spacing: 4) {
                         ForEach(0..<2, id: \.self) { i in
@@ -65,26 +48,40 @@ struct UnplacedArea: View {
                         }
                     }
                 }
-                Button {
-                    withAnimation(.snappy) { collapsed.toggle() }
-                } label: {
-                    Image(systemName: collapsed ? "chevron.up" : "chevron.down").font(.caption)
-                        .padding(4).contentShape(Rectangle())
+                HStack {
+                    Spacer()
+                    Button {
+                        withAnimation(.snappy) { collapsed.toggle() }
+                    } label: {
+                        Image(systemName: collapsed ? "chevron.up" : "chevron.down")
+                            .font(.app(12))
+                            .padding(4).contentShape(Rectangle())
+                    }
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
+            .frame(minHeight: LayoutMath.unplacedHeaderH)
 
             if !collapsed {
                 Divider()
-                TabView(selection: $page) {
-                    chipsPage(items).tag(0)
-                    cardsPage.tag(1)
+                ZStack {
+                    TabView(selection: $page) {
+                        chipsPage(items, hidden: dragging).tag(0)
+                        cardsPage
+                            .frame(height: LayoutMath.minUnplacedBody)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                            .tag(1)
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    if dragging { dropPrompt(over: over) }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 92)
+                .frame(minHeight: LayoutMath.minUnplacedBody,
+                       maxHeight: fillHeight ? .infinity : LayoutMath.minUnplacedBody)
+                .onDrop(of: [.plainText], delegate: unplaceDelegate)
             }
         }
+        .frame(maxHeight: (fillHeight && !collapsed) ? .infinity : nil, alignment: .top)
         .background(Color(.secondarySystemBackground).ignoresSafeArea(edges: .bottom))
         .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置に戻しますか?",
                             isPresented: $confirmRecall, titleVisibility: .visible) {
@@ -95,27 +92,70 @@ struct UnplacedArea: View {
         }
     }
 
-    private func chipsPage(_ items: [ShiftEvent]) -> some View {
+    private func chipsPage(_ items: [ShiftEvent], hidden: Bool) -> some View {
         HStack(spacing: 0) {
-                    ScrollView {
-                        if items.isEmpty {
-                            Text("すべて配置済みです 🎉")
-                                .font(.app(12))
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 24)
-                        } else {
-                            FlowLayout(spacing: 6) {
-                                ForEach(items) { chip($0) }
-                            }
-                            .padding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
+            ScrollView {
+                if items.isEmpty {
+                    Text("すべて配置済みです 🎉")
+                        .font(.app(12))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 24)
+                } else {
+                    FlowLayout(spacing: 6) {
+                        ForEach(items) { chip($0) }
                     }
-                    .contentMargins(.bottom, 8, for: .scrollContent)
-                    .onDrop(of: [.plainText], delegate: unplaceDelegate)
-                    backZone
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .contentMargins(.bottom, 8, for: .scrollContent)
+            VStack(spacing: 8) {
+                sideButton("\(anchorMonthShort)を回収") { confirmRecall = true }
+                sideButton("並び替え") {
+                    withAnimation(.snappy) { store.sortUnplaced() }
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(width: 84)
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
         }
+        .opacity(hidden ? 0 : 1)
+        .allowsHitTesting(!hidden)
+    }
+
+    private func sideButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.app(12))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(Color.primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
+                .background(Color(.secondarySystemFill), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func dropPrompt(over: Bool) -> some View {
+        ZStack {
+            Color(.secondarySystemBackground)
+            if over { Theme.accentSoft }
+            VStack(spacing: 4) {
+                Image(systemName: "tray.and.arrow.down").font(.app(22))
+                Text("未配置に戻す").font(.app(15))
+            }
+            .foregroundStyle(.secondary)
+            if over {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                    .padding(4)
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     private var cardsPage: some View {
@@ -201,19 +241,39 @@ struct UnplacedArea: View {
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
+}
 
-    private var backZone: some View {
-        VStack(spacing: 2) {
-            Image(systemName: "tray.and.arrow.down").font(.title3)
-            Text("未配置\nに戻す").font(.app(9)).multilineTextAlignment(.center)
+/// 未配置エリア全体で受ける move ドロップ
+struct UnplaceDropDelegate: DropDelegate {
+    let onDrop: (String) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [.plainText])
+    }
+
+    func dropEntered(info: DropInfo) {
+        DragState.shared.touch()
+        DragState.shared.isOverUnplaced = true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DragState.shared.touch()
+        DragState.shared.isOverUnplaced = true
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        DragState.shared.isOverUnplaced = false
+        DragState.shared.exitedTarget()
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        DragState.shared.ended()
+        guard let provider = info.itemProviders(for: [.plainText]).first else { return false }
+        _ = provider.loadObject(ofClass: NSString.self) { obj, _ in
+            guard let id = obj as? String else { return }
+            DispatchQueue.main.async { onDrop(id) }
         }
-        .foregroundStyle(backTargeted ? Theme.accent : Color.secondary)
-        .frame(width: 72)
-        .frame(maxHeight: .infinity)
-        .background {
-            (backTargeted ? Theme.accent.opacity(0.12) : Color(.tertiarySystemFill))
-                .ignoresSafeArea(edges: .bottom)
-        }
-        .onDrop(of: [.plainText], delegate: unplaceDelegate)
+        return true
     }
 }

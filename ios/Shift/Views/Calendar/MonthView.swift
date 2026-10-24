@@ -19,11 +19,11 @@ struct MonthView: View {
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @State private var dropTarget: String?
 
-    private let numH: CGFloat = 16
-    private let barGap: CGFloat = 1
-    private let bottomPad: CGFloat = 2
-    private let stripH: CGFloat = 18
-    private let monthStripH: CGFloat = 20
+    private let numH = LayoutMath.numH
+    private let barGap = LayoutMath.barGap
+    private let bottomPad = LayoutMath.bottomPad
+    private let stripH = LayoutMath.weekStripH
+    private let monthStripH = LayoutMath.monthStripH
 
     var body: some View {
         let ym = Rules.ymd(anchor)
@@ -39,10 +39,10 @@ struct MonthView: View {
                     Text(label)
                         .font(.app(10, weight: .medium))
                         .foregroundStyle(dow == 0 ? Theme.sunday : dow == 6 ? Theme.saturday : Color.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+            .frame(height: LayoutMath.weekdayHeaderH - 1)
             Divider()
             GeometryReader { geo in
                 // 区切り線 1pt ぶんを差し引いた、1週あたりの最小の高さ

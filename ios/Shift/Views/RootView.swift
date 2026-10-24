@@ -40,8 +40,17 @@ struct RootView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            pager
-            UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday, onSelectEvent: edit)
+            GeometryReader { geo in
+                VStack(spacing: 0) {
+                    if mode == .month && !unplacedCollapsed {
+                        pager.frame(height: LayoutMath.monthCalendarHeight(available: geo.size.height, weeks: monthWeekCount))
+                    } else {
+                        pager
+                    }
+                    UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday,
+                                 fillHeight: mode == .month, onSelectEvent: edit)
+                }
+            }
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
         .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew) }
@@ -114,6 +123,11 @@ struct RootView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private var monthWeekCount: Int {
+        let p = Rules.ymd(anchor)
+        return Rules.monthGrid(year: p.year, month: p.month, startMonday: startMonday).count
     }
 
     private var title: String {

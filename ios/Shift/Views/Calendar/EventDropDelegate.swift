@@ -18,19 +18,23 @@ struct EventDropDelegate: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) {
+        DragState.shared.touch()
         target = resolve(info.location)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
+        DragState.shared.touch()
         target = resolve(info.location)
         return DropProposal(operation: .move)
     }
 
     func dropExited(info: DropInfo) {
+        DragState.shared.exitedTarget()
         target = nil
     }
 
     func performDrop(info: DropInfo) -> Bool {
+        DragState.shared.ended()
         let date = resolve(info.location)
         guard let provider = info.itemProviders(for: [.plainText]).first, let date else {
             target = nil
