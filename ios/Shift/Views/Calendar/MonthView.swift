@@ -40,7 +40,7 @@ struct MonthView: View {
                 let n = CGFloat(max(1, weeks.count))
                 let strip: CGFloat = summaryOn ? stripH : 0
                 let minRow = (geo.size.height - n - 1) / n
-                let barH = min(18, max(14, floor((minRow - strip - numH - bottomPad) / 4) - 1))
+                let barH = min(18, max(14, floor((minRow - stripH - numH - bottomPad) / 4) - 1))
                 let needed = weekRows.map { numH + CGFloat($0.count) * (barH + barGap) + bottomPad + strip }
                 let rowH = max(minRow, needed.max() ?? 0)
                 ScrollView(.vertical, showsIndicators: false) {

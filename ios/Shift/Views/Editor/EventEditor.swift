@@ -88,13 +88,21 @@ struct EventEditor: View {
                     ColorRow(color: $color, recent: store.customColors)
                 }
                 Section {
-                    Toggle("日付を指定", isOn: $hasDate)
-                    if hasDate && allDay {
-                        DatePicker("開始日", selection: $start, displayedComponents: .date)
-                        DatePicker("終了日", selection: $end, in: start..., displayedComponents: .date)
-                    }
                     Toggle("終日", isOn: $allDay)
-                    if !allDay { timeRows }
+                    if allDay {
+                        HStack(spacing: 8) {
+                            Text("開始日")
+                            Spacer()
+                            startDateControl
+                        }
+                        HStack(spacing: 8) {
+                            Text("終了日")
+                            Spacer()
+                            endDateControl
+                        }
+                    } else {
+                        timeRows
+                    }
                 }
                 if let p = payBreakdown { paySection(p) }
                 Section {
@@ -246,18 +254,59 @@ struct EventEditor: View {
         .buttonStyle(.borderless)
     }
 
+    private func datePlaceholderChip(enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text("日付未定")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color(.secondarySystemFill)))
+        }
+        .buttonStyle(.borderless)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
+    }
+
+    @ViewBuilder
+    private var startDateControl: some View {
+        if hasDate {
+            DatePicker("", selection: $start, displayedComponents: .date).labelsHidden()
+            Button {
+                hasDate = false
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("日付をクリア")
+        } else {
+            datePlaceholderChip(enabled: true) {
+                let d = Rules.parse(Rules.today()) ?? Date()
+                start = d
+                end = d
+                hasDate = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var endDateControl: some View {
+        if hasDate {
+            DatePicker("", selection: $end, in: start..., displayedComponents: .date).labelsHidden()
+        } else {
+            datePlaceholderChip(enabled: false) {}
+        }
+    }
+
     @ViewBuilder
     private func timeRow(_ p: TimePanel) -> some View {
         HStack(spacing: 8) {
             Text(p == .start ? "開始" : "終了")
             Spacer()
-            if hasDate {
-                if p == .start {
-                    DatePicker("", selection: $start, displayedComponents: .date).labelsHidden()
-                } else {
-                    DatePicker("", selection: $end, in: start..., displayedComponents: .date).labelsHidden()
-                }
-            }
+            if p == .start { startDateControl } else { endDateControl }
             timeChip(p)
         }
         if openPanel == p { wheelPanel(p) }
