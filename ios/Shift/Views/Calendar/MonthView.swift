@@ -189,8 +189,7 @@ struct PaydayCoinButton: View {
     private let gold = Color(red: 0.95, green: 0.7, blue: 0.1)
 
     var body: some View {
-        Button(action: action) {
-            Image("CoinStack")
+        Image("CoinStack")
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
@@ -198,8 +197,8 @@ struct PaydayCoinButton: View {
                 .foregroundStyle(gold)
             .frame(minWidth: 28, minHeight: 24)
             .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        .onTapGesture(perform: action)
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel("給料日")
     }
 }
