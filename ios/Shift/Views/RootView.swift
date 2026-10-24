@@ -31,9 +31,12 @@ struct RootView: View {
     @State private var pagerWidth: CGFloat = 0
     @State private var lockFrames: [CGRect] = []
     @State private var committing = false
+    @State private var swipeActive = false
     @GestureState private var touchStart: Date? = nil
     /// この秒数以内に横へ動き出したタッチだけを月/週スワイプとみなす
     private static let pagerSwipeMaxHold: TimeInterval = 0.2
+    /// 動き出しとみなす最小移動量(pt)。この時点で swipe かどうかが決まる
+    private static let pagerMoveThreshold: CGFloat = 4
 
     var body: some View {
         VStack(spacing: 0) {
@@ -150,27 +153,33 @@ struct RootView: View {
                         if blocked { return }
                         let dx = v.translation.width
                         let dy = v.translation.height
-                        if dragX == 0 {
-                            if abs(dx) < 16 { return }
-                            if held > Self.pagerSwipeMaxHold { return }
-                            if abs(dx) <= abs(dy) { return }
+                        if swipeActive {
                             dragX = dx
-                        } else {
+                            return
+                        }
+                        if committing { return }
+                        if hypot(dx, dy) < Self.pagerMoveThreshold { return }
+                        if held > Self.pagerSwipeMaxHold { return }
+                        if abs(dx) > abs(dy) {
+                            swipeActive = true
                             dragX = dx
                         }
                     }
                     .onEnded { v in
-                        guard dragX != 0, !committing else { return }
+                        guard swipeActive else { return }
+                        if committing { swipeActive = false; return }
                         let dx = v.translation.width
                         if abs(dx) > w * 0.25 || abs(v.predictedEndTranslation.width) > w * 0.5 {
                             slide(dx < 0 ? 1 : -1, width: w)
                         } else {
                             withAnimation(.snappy(duration: 0.25)) { dragX = 0 }
                         }
+                        swipeActive = false
                     })
             .onChange(of: touchStart) { _, new in
-                if new == nil && dragX != 0 && !committing {
+                if new == nil && swipeActive && !committing {
                     withAnimation(.snappy) { dragX = 0 }
+                    swipeActive = false
                 }
             }
             .onAppear { pagerWidth = w }
