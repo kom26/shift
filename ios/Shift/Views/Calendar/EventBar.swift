@@ -27,6 +27,13 @@ struct EventBar: View {
                     bottomLeadingRadius: span.isStart ? r : 0,
                     bottomTrailingRadius: span.isEnd ? r : 0,
                     topTrailingRadius: span.isEnd ? r : 0))
+            .background(
+                Color(.systemBackground),
+                in: UnevenRoundedRectangle(
+                    topLeadingRadius: span.isStart ? r : 0,
+                    bottomLeadingRadius: span.isStart ? r : 0,
+                    bottomTrailingRadius: span.isEnd ? r : 0,
+                    topTrailingRadius: span.isEnd ? r : 0))
             .overlay(alignment: .leading) {
                 if span.isStart {
                     Rectangle().fill(color).frame(width: 3)
@@ -51,7 +58,7 @@ struct SpanBars: View {
                     EventBar(span: s, height: barH)
                         .frame(width: max(0, colW * CGFloat(s.span) - 2), height: barH)
                         .onTapGesture { onSelect(s.event) }
-                        .eventMenu(for: s.event, store: store, onEdit: onSelect)
+                        .eventMenu(for: s.event, store: store, previewCornerRadius: 4, onEdit: onSelect)
                         .draggable(s.event.id)
                         .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + 2))
                 }

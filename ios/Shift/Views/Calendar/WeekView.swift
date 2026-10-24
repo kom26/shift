@@ -139,7 +139,7 @@ struct WeekView: View {
                     block(ev, h: h)
                         .frame(width: max(0, colW - 2), height: h)
                         .onTapGesture { onSelectEvent(ev) }
-                        .eventMenu(for: ev, store: store, onEdit: onSelectEvent)
+                        .eventMenu(for: ev, store: store, previewCornerRadius: 3, onEdit: onSelectEvent)
                         .draggable(ev.id)
                         .offset(x: 1, y: H * CGFloat(seg.top))
                 }
@@ -177,6 +177,7 @@ struct WeekView: View {
         .padding(2)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(color.opacity(0.8), in: RoundedRectangle(cornerRadius: 3))
+        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 3))
         .overlay(RoundedRectangle(cornerRadius: 3).stroke(color, lineWidth: 1))
     }
 }
