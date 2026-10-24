@@ -95,9 +95,7 @@ struct WorkplaceEditor: View {
                 Section("色") {
                     HStack(spacing: 10) {
                         ForEach(Store.defaultColors, id: \.self) { c in
-                            Circle()
-                                .fill(Color(hex: c))
-                                .frame(width: 24, height: 24)
+                            ColorDot(hex: c, size: 24)
                                 .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
                                 .onTapGesture { color = c }
                         }

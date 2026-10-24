@@ -37,7 +37,7 @@ struct SummaryStrip: View {
                 } else {
                     ForEach(totals) { t in
                         HStack(spacing: 4) {
-                            Circle().fill(Color(hex: t.color)).frame(width: 8, height: 8)
+                            ColorDot(hex: t.color, size: 8)
                             Text(t.title).font(.app(fontSize)).lineLimit(1)
                             Text(Rules.formatHours(t.hours)).font(.app(fontSize, weight: .semibold))
                         }

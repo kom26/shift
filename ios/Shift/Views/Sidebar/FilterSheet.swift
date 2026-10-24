@@ -7,7 +7,7 @@ struct FilterSheet: View {
     private struct Row: Identifiable {
         let id: String
         let name: String
-        let color: Color?
+        let color: String?
         let count: Int
     }
 
@@ -17,7 +17,7 @@ struct FilterSheet: View {
             counts[store.workplace(for: ev)?.id ?? Store.noWorkplaceKey, default: 0] += 1
         }
         var list = store.workplaces.map {
-            Row(id: $0.id, name: $0.name, color: Color(hex: $0.color), count: counts[$0.id] ?? 0)
+            Row(id: $0.id, name: $0.name, color: $0.color, count: counts[$0.id] ?? 0)
         }
         if let n = counts[Store.noWorkplaceKey], n > 0 {
             list.append(Row(id: Store.noWorkplaceKey, name: "指定なし", color: nil, count: n))
@@ -35,7 +35,7 @@ struct FilterSheet: View {
                     Button { store.toggleWorkplaceFilter(r.id) } label: {
                         HStack {
                             if let c = r.color {
-                                Circle().fill(c).frame(width: 14, height: 14)
+                                ColorDot(hex: c, size: 14)
                             } else {
                                 Circle().strokeBorder(Color.secondary, lineWidth: 1).frame(width: 14, height: 14)
                             }

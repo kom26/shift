@@ -5,7 +5,7 @@ import Testing
 struct PaletteTests {
     @Test func defaultPaletteShape() {
         let colors = Store.defaultColors
-        #expect(colors.count == 6)
+        #expect(colors.count == 14)
         #expect(Set(colors).count == colors.count)
         let hexDigits = Set("0123456789abcdef")
         for c in colors {
@@ -13,7 +13,7 @@ struct PaletteTests {
             #expect(c.first == "#")
             #expect(c.dropFirst().allSatisfy { hexDigits.contains($0) })
         }
-        #expect(colors[0] == "#b9a6f2")
+        #expect(colors[0] == "#bf8df2")
     }
 
     @Test func newEventsUseFirstColor() {

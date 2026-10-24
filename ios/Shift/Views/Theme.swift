@@ -72,3 +72,16 @@ extension DayType {
         }
     }
 }
+
+/// 予定バーと同じ塗り(色の薄塗り)で描く色の丸
+struct ColorDot: View {
+    let hex: String
+    var size: CGFloat = 10
+
+    var body: some View {
+        Circle()
+            .fill(EventColor.fill(hex))
+            .background(Circle().fill(Color(.systemBackground)))
+            .frame(width: size, height: size)
+    }
+}

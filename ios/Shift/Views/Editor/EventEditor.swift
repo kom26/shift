@@ -218,7 +218,7 @@ struct EventEditor: View {
                         color = w.color
                     } label: {
                         HStack(spacing: 6) {
-                            Circle().fill(Color(hex: w.color)).frame(width: 10, height: 10)
+                            ColorDot(hex: w.color, size: 10)
                             Text(w.name).font(.app(13)).foregroundStyle(.primary)
                         }
                         .padding(.horizontal, 10)
@@ -750,9 +750,7 @@ private struct ColorRow: View {
     private func swatches(_ list: [String]) -> some View {
         HStack(spacing: 10) {
             ForEach(list, id: \.self) { c in
-                Circle()
-                    .fill(Color(hex: c))
-                    .frame(width: 24, height: 24)
+                ColorDot(hex: c, size: 24)
                     .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
                     .onTapGesture { color = c }
             }

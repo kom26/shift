@@ -85,7 +85,7 @@ struct DaySheet: View {
             timeColumn(row)
                 .frame(width: 64, alignment: .trailing)
             RoundedRectangle(cornerRadius: 2)
-                .fill(Color(hex: ev.color))
+                .fill(EventColor.fill(ev.color))
                 .frame(width: 4)
             VStack(alignment: .leading, spacing: 2) {
                 Text(ev.title)

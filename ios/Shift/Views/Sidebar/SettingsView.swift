@@ -66,7 +66,7 @@ struct SettingsView: View {
                     ForEach(store.workplaces) { w in
                         Button { editingWorkplace = w } label: {
                             HStack(spacing: 10) {
-                                Circle().fill(Color(hex: w.color)).frame(width: 12, height: 12)
+                                ColorDot(hex: w.color, size: 12)
                                 Text(w.name).foregroundStyle(.primary)
                             }
                         }

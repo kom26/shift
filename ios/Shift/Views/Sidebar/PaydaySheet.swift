@@ -22,7 +22,7 @@ struct PaydaySheet: View {
                 } else {
                     ForEach(rows) { r in
                         HStack(spacing: 8) {
-                            Circle().fill(Color(hex: r.workplace.color)).frame(width: 10, height: 10)
+                            ColorDot(hex: r.workplace.color, size: 10)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(r.workplace.name)
                                 Text("\(short(r.start))〜\(short(r.end))")
