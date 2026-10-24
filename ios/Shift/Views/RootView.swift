@@ -15,8 +15,10 @@ struct RootView: View {
     @AppStorage("mode") private var mode: CalendarMode = .week
     @AppStorage("startMonday") private var startMonday = false
     @AppStorage("summaryOn") private var summaryOn = false
+    @AppStorage("unplacedCollapsed") private var unplacedCollapsed = false
 
     @State private var anchor = Rules.today()
+    @State private var collapsedBeforeSummary = false
     @State private var editing: EditorTarget?
     @State private var showSettings = false
     @State private var showFilter = false
@@ -90,7 +92,7 @@ struct RootView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("色フィルタ")
-                Button { summaryOn.toggle() } label: {
+                Button { toggleSummary() } label: {
                     Text("集計")
                         .font(.caption.weight(.medium))
                         .padding(.horizontal, 8)
@@ -122,6 +124,20 @@ struct RootView: View {
         DragGesture(minimumDistance: 30).onEnded { v in
             guard abs(v.translation.width) > 60, abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
             step(v.translation.width < 0 ? 1 : -1)
+        }
+    }
+
+    /// 集計をオンにすると未配置エリアを折りたたみ、オフにすると元の開閉状態に戻す
+    private func toggleSummary() {
+        withAnimation(.snappy) {
+            if summaryOn {
+                summaryOn = false
+                unplacedCollapsed = collapsedBeforeSummary
+            } else {
+                collapsedBeforeSummary = unplacedCollapsed
+                summaryOn = true
+                unplacedCollapsed = true
+            }
         }
     }
 
