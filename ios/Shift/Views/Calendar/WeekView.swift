@@ -108,6 +108,7 @@ struct WeekView: View {
         GeometryReader { geo in
             let colW = (geo.size.width - timeW) / 7
             let H = geo.size.height
+            let timed = store.visibleEvents.filter { !$0.allDay }
             ZStack(alignment: .topLeading) {
                 ForEach(0..<48, id: \.self) { k in
                     Rectangle()
@@ -124,7 +125,7 @@ struct WeekView: View {
                 }
                 ForEach(0..<7, id: \.self) { i in
                     let ds = days[i]
-                    column(ds, colW: colW, H: H)
+                    column(ds, events: timed, colW: colW, H: H)
                         .frame(width: colW, height: H, alignment: .topLeading)
                         .background(dropTarget == ds ? Theme.accentSoft : (conflictDays.contains(ds) ? Color.red.opacity(0.10) : Color.clear))
                         .overlay(alignment: .leading) {
@@ -141,10 +142,10 @@ struct WeekView: View {
         .clipped()
     }
 
-    private func column(_ ds: String, colW: CGFloat, H: CGFloat) -> some View {
+    private func column(_ ds: String, events: [ShiftEvent], colW: CGFloat, H: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
             Color.clear.contentShape(Rectangle()).onTapGesture { onSelectDay(ds) }
-            ForEach(store.visibleEvents.filter { !$0.allDay }) { ev in
+            ForEach(events) { ev in
                 if let seg = Rules.timedSegment(ev, on: ds) {
                     let h = max(14, H * CGFloat(seg.height))
                     block(ev, h: h)

@@ -27,16 +27,7 @@ struct RootView: View {
     @State private var showSettings = false
     @State private var showFilter = false
     @State private var paydayTarget: PaydayTarget?
-    @State private var dragX: CGFloat = 0
-    @State private var pagerWidth: CGFloat = 0
-    @State private var lockFrames: [CGRect] = []
-    @State private var committing = false
-    @State private var swipeActive = false
-    @GestureState private var touchStart: Date? = nil
-    /// この秒数以内に横へ動き出したタッチだけを月/週スワイプとみなす
-    private static let pagerSwipeMaxHold: TimeInterval = 0.2
-    /// 動き出しとみなす最小移動量(pt)。この時点で swipe かどうかが決まる
-    private static let pagerMoveThreshold: CGFloat = 4
+    @State private var pagerCommand: PagerCommand?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -63,9 +54,9 @@ struct RootView: View {
                 }
                 .accessibilityLabel("設定")
                 Spacer(minLength: 0)
-                Button { slide(-1, width: pagerWidth) } label: { Image(systemName: "chevron.left") }
+                Button { pagerCommand = PagerCommand(direction: -1, id: UUID()) } label: { Image(systemName: "chevron.left") }
                 Text(title).font(.headline).lineLimit(1).minimumScaleFactor(0.7)
-                Button { slide(1, width: pagerWidth) } label: { Image(systemName: "chevron.right") }
+                Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
                 Spacer(minLength: 0)
                 Button { addUnplaced() } label: {
                     Text("＋ 予定追加")
@@ -126,67 +117,13 @@ struct RootView: View {
     }
 
     private var pager: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            HStack(spacing: 0) {
-                ForEach([-1, 0, 1], id: \.self) { k in
-                    page(offset: k)
-                        .frame(width: w, height: geo.size.height)
-                        .clipped()
-                }
-            }
+        PagerView(prev: page(offset: -1), current: page(offset: 0), next: page(offset: 1),
+                  command: $pagerCommand,
+                  onCommit: { dir in
+                      anchor = mode == .month ? Rules.addMonths(anchor, dir) : Rules.addDays(anchor, 7 * dir)
+                  })
             .id(mode)
             .transition(.opacity)
-            .frame(width: w * 3, alignment: .leading)
-            .offset(x: -w + dragX)
-            .clipped()
-            .contentShape(Rectangle())
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .named("pager"))
-                    .updating($touchStart) { v, state, _ in
-                        if state == nil { state = v.time }
-                    }
-                    .onChanged { v in
-                        let t0 = touchStart ?? v.time
-                        let held = v.time.timeIntervalSince(t0)
-                        let blocked = lockFrames.contains { $0.contains(v.startLocation) }
-                        if blocked { return }
-                        let dx = v.translation.width
-                        let dy = v.translation.height
-                        if swipeActive {
-                            dragX = dx
-                            return
-                        }
-                        if committing { return }
-                        if hypot(dx, dy) < Self.pagerMoveThreshold { return }
-                        if held > Self.pagerSwipeMaxHold { return }
-                        if abs(dx) > abs(dy) {
-                            swipeActive = true
-                            dragX = dx
-                        }
-                    }
-                    .onEnded { v in
-                        guard swipeActive else { return }
-                        if committing { swipeActive = false; return }
-                        let dx = v.translation.width
-                        if abs(dx) > w * 0.25 || abs(v.predictedEndTranslation.width) > w * 0.5 {
-                            slide(dx < 0 ? 1 : -1, width: w)
-                        } else {
-                            withAnimation(.snappy(duration: 0.25)) { dragX = 0 }
-                        }
-                        swipeActive = false
-                    })
-            .onChange(of: touchStart) { _, new in
-                if new == nil && swipeActive && !committing {
-                    withAnimation(.snappy) { dragX = 0 }
-                    swipeActive = false
-                }
-            }
-            .onAppear { pagerWidth = w }
-            .onChange(of: w) { _, new in pagerWidth = new }
-        }
-        .coordinateSpace(name: "pager")
-        .onPreferenceChange(ScrollLockFramesKey.self) { lockFrames = $0 }
     }
 
     @ViewBuilder
@@ -204,24 +141,6 @@ struct RootView: View {
         withAnimation(.snappy) {
             summaryOn.toggle()
             unplacedCollapsed = true
-        }
-    }
-
-    /// direction: +1 = 次の期間 (左へスライド), -1 = 前の期間
-    private func slide(_ direction: Int, width: CGFloat) {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        committing = true
-        let newAnchor = mode == .month ? Rules.addMonths(anchor, direction) : Rules.addDays(anchor, 7 * direction)
-        withAnimation(.snappy(duration: 0.25), completionCriteria: .logicallyComplete) {
-            dragX = direction > 0 ? -width : width
-        } completion: {
-            var t = Transaction()
-            t.disablesAnimations = true
-            withTransaction(t) {
-                anchor = newAnchor
-                dragX = 0
-                committing = false
-            }
         }
     }
 
