@@ -10,14 +10,14 @@ struct MonthView: View {
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
     let onDropEvent: (String, String) -> Void
+    let onSelectPayday: (String) -> Void
 
     @State private var dropTarget: String?
 
-    private let numH: CGFloat = 22
-    private let barH: CGFloat = 20
-    private let barGap: CGFloat = 2
-    private let bottomPad: CGFloat = 6
-    private let stripH: CGFloat = 24
+    private let numH: CGFloat = 20
+    private let barGap: CGFloat = 1
+    private let bottomPad: CGFloat = 3
+    private let stripH: CGFloat = 22
 
     var body: some View {
         let ym = Rules.ymd(anchor)
@@ -35,26 +35,29 @@ struct MonthView: View {
             }
             Divider()
             GeometryReader { geo in
-                // 週ブロック = セル領域 + (集計ON時) 週計の帯。区切り線 1pt ぶんも差し引いて画面に収める
+                // 区切り線 1pt ぶんを差し引いた、1週あたりの最小の高さ
+                let weekRows = weeks.map { SpanLayout.rows(events: store.visibleEvents, weekCells: $0.map { Optional($0) }) }
                 let n = CGFloat(max(1, weeks.count))
-                let minCells = (geo.size.height - n - 1 - (summaryOn ? n * stripH : 0)) / n
+                let strip: CGFloat = summaryOn ? stripH : 0
+                let minRow = (geo.size.height - n - 1) / n
+                let barH = min(18, max(14, floor((minRow - strip - numH - bottomPad) / 4) - 1))
+                let needed = weekRows.map { numH + CGFloat($0.count) * (barH + barGap) + bottomPad + strip }
+                let rowH = max(minRow, needed.max() ?? 0)
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
-                            weekBlock(weeks[i], minCells: minCells)
+                            weekBlock(weeks[i], rows: weekRows[i], rowH: rowH, barH: barH)
                             Divider()
                         }
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
-            if summaryOn {
-                let b = Rules.monthBounds(of: anchor)
-                Divider()
-                SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
-                    .frame(height: stripH)
-                    .background(Color(.secondarySystemBackground))
-            }
+            Divider()
+            let b = Rules.monthBounds(of: anchor)
+            SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
+                .frame(height: stripH)
+                .background(Color(.secondarySystemBackground))
         }
         .background {
             ZStack {
@@ -64,13 +67,10 @@ struct MonthView: View {
         }
     }
 
-    private func weekBlock(_ cells: [String], minCells: CGFloat) -> some View {
-        let rows = SpanLayout.rows(events: store.visibleEvents, weekCells: cells.map { Optional($0) })
-        let barsH = CGFloat(rows.count) * (barH + barGap)
-        let cellsH = max(minCells, numH + barsH + bottomPad)
-        return VStack(spacing: 0) {
-            weekCells(cells, rows: rows)
-                .frame(height: cellsH)
+    private func weekBlock(_ cells: [String], rows: [[BarSpan]], rowH: CGFloat, barH: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            weekCells(cells, rows: rows, barH: barH)
+                .frame(height: summaryOn ? rowH - stripH : rowH)
                 .clipped()
             if summaryOn {
                 SummaryStrip(label: "週計",
@@ -86,7 +86,7 @@ struct MonthView: View {
         }
     }
 
-    private func weekCells(_ cells: [String], rows: [[BarSpan]]) -> some View {
+    private func weekCells(_ cells: [String], rows: [[BarSpan]], barH: CGFloat) -> some View {
         GeometryReader { geo in
             let w = geo.size.width / 7
             ZStack(alignment: .topLeading) {
@@ -99,7 +99,7 @@ struct MonthView: View {
                             }
                     }
                 }
-                SpanBars(rows: rows, colW: w, barH: barH, leading: 0, onSelect: onSelectEvent)
+                SpanBars(rows: rows, colW: w, barH: barH, leading: 0, gap: barGap, onSelect: onSelectEvent)
                     .offset(y: numH)
             }
             .onDrop(of: [.plainText], delegate: EventDropDelegate(
@@ -120,11 +120,17 @@ struct MonthView: View {
         let isDrop = dropTarget == ds
         let bg: Color = isDrop || isToday ? Theme.accentSoft : (inMonth ? Color.clear : Color(.tertiarySystemFill))
         return VStack(alignment: .leading, spacing: 0) {
-            Text("\(Rules.ymd(ds).day)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(isToday ? Theme.accent : type.color)
-                .opacity(inMonth ? 1 : 0.45)
-                .frame(height: numH, alignment: .leading)
+            HStack(spacing: 0) {
+                Text("\(Rules.ymd(ds).day)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isToday ? Theme.accent : type.color)
+                    .opacity(inMonth ? 1 : 0.45)
+                Spacer(minLength: 0)
+                if store.hasPayday(on: ds) {
+                    PaydayCoinButton { onSelectPayday(ds) }
+                }
+            }
+            .frame(height: numH)
             Spacer(minLength: 0)
         }
         .padding(.leading, 4)
@@ -151,5 +157,29 @@ struct MonthWatermark: View {
             .minimumScaleFactor(0.3)
             .foregroundStyle(Color.primary.opacity(0.06))
             .allowsHitTesting(false)
+    }
+}
+
+/// 給料日のコイン(2枚重ね)。タップで給料シートを開く
+struct PaydayCoinButton: View {
+    let action: () -> Void
+    private let gold = Color(red: 0.95, green: 0.7, blue: 0.1)
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Image(systemName: "yensign.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(gold)
+                Image(systemName: "yensign.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(gold)
+                    .offset(x: 4, y: 2)
+            }
+            .frame(minWidth: 28, minHeight: 24)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("給料日")
     }
 }

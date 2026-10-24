@@ -15,6 +15,10 @@ struct WorkplaceEditor: View {
     @State private var holidayBonus: String
     @State private var rules: [BreakRule]
     @State private var breakFromNight: Bool
+    @State private var closingDay: Int
+    @State private var paydayOn: Bool
+    @State private var paydayDay: Int
+    @State private var paydayOffset: Int
     @State private var confirmApply = false
     @FocusState private var focus: String?
 
@@ -31,6 +35,10 @@ struct WorkplaceEditor: View {
         _holidayBonus = State(initialValue: Self.text(workplace?.holidayBonus))
         _rules = State(initialValue: workplace?.breakRules ?? [])
         _breakFromNight = State(initialValue: workplace?.breakFromNight ?? true)
+        _closingDay = State(initialValue: workplace?.closingDay ?? 0)
+        _paydayOn = State(initialValue: workplace?.paydayDay != nil)
+        _paydayDay = State(initialValue: workplace?.paydayDay ?? 25)
+        _paydayOffset = State(initialValue: workplace?.paydayMonthOffset ?? 1)
     }
 
     private static func text(_ v: Int?) -> String {
@@ -66,6 +74,14 @@ struct WorkplaceEditor: View {
                 .frame(width: 100)
                 .focused($focus, equals: key)
             Text(unit).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var dayOptions: some View {
+        Text("末日").tag(0)
+        ForEach(1...31, id: \.self) { d in
+            Text("\(d)日").tag(d)
         }
     }
 
@@ -120,6 +136,30 @@ struct WorkplaceEditor: View {
                 } header: {
                     Text("休憩ルール")
                 }
+                Section {
+                    Picker("締め日", selection: $closingDay) {
+                        dayOptions
+                    }
+                    .pickerStyle(.menu)
+                    Toggle("給料日を設定する", isOn: $paydayOn)
+                    if paydayOn {
+                        Picker("支払い月", selection: $paydayOffset) {
+                            Text("当月").tag(0)
+                            Text("翌月").tag(1)
+                            Text("翌々月").tag(2)
+                        }
+                        .pickerStyle(.menu)
+                        Picker("給料日", selection: $paydayDay) {
+                            dayOptions
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    Text("例: 末日締め・翌月25日払い")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("給料日")
+                }
                 Section("休憩を引く時間帯の既定") {
                     Picker("休憩を引く時間帯", selection: $breakFromNight) {
                         Text("深夜帯から引く").tag(true)
@@ -171,7 +211,10 @@ struct WorkplaceEditor: View {
                   weekdayBonus: bonus.map { Int($0) ?? 0 },
                   holidayBonus: Int(holidayBonus) ?? 0,
                   breakRules: rules,
-                  breakFromNight: breakFromNight)
+                  breakFromNight: breakFromNight,
+                  closingDay: closingDay,
+                  paydayDay: paydayOn ? paydayDay : nil,
+                  paydayMonthOffset: paydayOffset)
     }
 
     private func commit(applyToEvents: Bool) {

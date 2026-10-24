@@ -3,6 +3,7 @@ import SwiftUI
 struct EventBar: View {
     let span: BarSpan
     let height: CGFloat
+    var fontSize: CGFloat = 10
 
     var body: some View {
         let ev = span.event
@@ -12,7 +13,7 @@ struct EventBar: View {
             ? "…"
             : ((ev.allDay || ev.startTime == nil) ? ev.title : Rules.timeLabel(ev))
         Text(label)
-            .font(.system(size: 10, weight: .bold))
+            .font(.system(size: fontSize, weight: .bold))
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.leading, span.isStart ? 5 : 3)
@@ -49,21 +50,22 @@ struct SpanBars: View {
     let colW: CGFloat
     let barH: CGFloat
     let leading: CGFloat
+    var gap: CGFloat = 2
     let onSelect: (ShiftEvent) -> Void
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(rows.indices, id: \.self) { r in
                 ForEach(rows[r]) { s in
-                    EventBar(span: s, height: barH)
+                    EventBar(span: s, height: barH, fontSize: barH >= 16 ? 10 : 9)
                         .frame(width: max(0, colW * CGFloat(s.span) - 2), height: barH)
                         .onTapGesture { onSelect(s.event) }
                         .eventMenu(for: s.event, store: store, previewCornerRadius: 4, onEdit: onSelect)
                         .draggable(s.event.id)
-                        .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + 2))
+                        .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + gap))
                 }
             }
         }
-        .frame(height: CGFloat(rows.count) * (barH + 2), alignment: .topLeading)
+        .frame(height: CGFloat(rows.count) * (barH + gap), alignment: .topLeading)
     }
 }

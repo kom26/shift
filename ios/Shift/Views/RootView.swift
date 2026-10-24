@@ -9,6 +9,11 @@ struct EditorTarget: Identifiable {
     var id: String { event.id }
 }
 
+struct PaydayTarget: Identifiable {
+    let date: String
+    var id: String { date }
+}
+
 struct RootView: View {
     @Environment(Store.self) private var store
     @Environment(Holidays.self) private var holidays
@@ -22,6 +27,7 @@ struct RootView: View {
     @State private var editing: EditorTarget?
     @State private var showSettings = false
     @State private var showFilter = false
+    @State private var paydayTarget: PaydayTarget?
     @State private var dragX: CGFloat = 0
     @State private var pagerWidth: CGFloat = 0
 
@@ -34,6 +40,7 @@ struct RootView: View {
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
         .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew) }
+        .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showFilter) { FilterSheet() }
     }
@@ -73,6 +80,16 @@ struct RootView: View {
                     Text("今日").font(.subheadline).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
                 }
                 Spacer(minLength: 0)
+                Button { toggleSummary() } label: {
+                    Text("週計")
+                        .font(.caption.weight(.medium))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(summaryOn ? Theme.accentSoft : Color.clear, in: Capsule())
+                        .overlay(Capsule().stroke(summaryOn ? Theme.accent : Color.secondary.opacity(0.4)))
+                        .frame(minHeight: 36)
+                        .contentShape(Rectangle())
+                }
                 Button { showFilter = true } label: {
                     Image(systemName: store.checkedColors.isEmpty
                           ? "line.3.horizontal.decrease.circle"
@@ -83,16 +100,6 @@ struct RootView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("色フィルタ")
-                Button { toggleSummary() } label: {
-                    Text("集計")
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(summaryOn ? Theme.accentSoft : Color.clear, in: Capsule())
-                        .overlay(Capsule().stroke(summaryOn ? Theme.accent : Color.secondary.opacity(0.4)))
-                        .frame(minHeight: 36)
-                        .contentShape(Rectangle())
-                }
             }
         }
         .padding(.horizontal, 12)
@@ -151,9 +158,9 @@ struct RootView: View {
     private func page(offset k: Int) -> some View {
         switch mode {
         case .month:
-            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
+            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) })
         case .week:
-            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
+            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) })
         }
     }
 

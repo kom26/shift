@@ -10,6 +10,7 @@ struct WeekView: View {
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
     let onDropEvent: (String, String) -> Void
+    let onSelectPayday: (String) -> Void
 
     @State private var dropTarget: String?
 
@@ -28,15 +29,15 @@ struct WeekView: View {
             allDayRow(days: days, rows: allDayRows)
             Divider()
             grid(days)
+            let b = Rules.monthBounds(of: anchor)
             if summaryOn {
-                let b = Rules.monthBounds(of: anchor)
                 Divider()
                 SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
                     .frame(height: 24)
-                Divider()
-                SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
-                    .frame(height: 24)
             }
+            Divider()
+            SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
+                .frame(height: 24)
         }
         .background { MonthWatermark(number: Rules.ymd(days[3]).month) }
     }
@@ -60,6 +61,11 @@ struct WeekView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
+        .overlay(alignment: .topTrailing) {
+            if store.hasPayday(on: ds) {
+                PaydayCoinButton { onSelectPayday(ds) }
+            }
+        }
         .background(isToday ? Theme.accentSoft : Color.clear)
     }
 
