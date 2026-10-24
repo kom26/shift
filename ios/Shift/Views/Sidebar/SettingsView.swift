@@ -6,6 +6,9 @@ struct SettingsView: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
     @AppStorage("startMonday") private var startMonday = false
+    @AppStorage("conflictWarningOn") private var conflictWarningOn = true
+    @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
+    @FocusState private var gapFocused: Bool
     @State private var importing = false
     @State private var message: String?
     @State private var editingWorkplace: Workplace?
@@ -16,6 +19,31 @@ struct SettingsView: View {
             Form {
                 Section("カレンダー") {
                     Toggle("週の始まりを月曜にする", isOn: $startMonday)
+                }
+                Section {
+                    Toggle("重なりを赤く注意表示", isOn: $conflictWarningOn)
+                    if conflictWarningOn {
+                        HStack {
+                            Text("間の時間が")
+                            TextField("0", text: Binding(
+                                get: { String(conflictGapMinutes) },
+                                set: { input in
+                                    let digits = String(input.filter { $0.isASCII && $0.isNumber }.prefix(6))
+                                    conflictGapMinutes = min(max(Int(digits) ?? 0, 0), 1440)
+                                }))
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 70)
+                                .focused($gapFocused)
+                            Text("分未満のとき注意")
+                        }
+                    }
+                } header: {
+                    Text("シフトの重なり")
+                } footer: {
+                    if conflictWarningOn {
+                        Text("0分: 時間が重なる場合だけ。30分なら、前のシフトの終わりから次の開始まで30分未満でも赤くします")
+                    }
                 }
                 Section {
                     if store.workplaces.isEmpty {
@@ -57,6 +85,10 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完了") { gapFocused = false }
+                }
             }
             .sheet(item: $editingWorkplace) { WorkplaceEditor(workplace: $0) }
             .sheet(isPresented: $addingWorkplace) { WorkplaceEditor(workplace: nil) }

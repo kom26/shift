@@ -12,6 +12,8 @@ struct WeekView: View {
     let onDropEvent: (String, String) -> Void
     let onSelectPayday: (String) -> Void
 
+    @AppStorage("conflictWarningOn") private var conflictWarningOn = true
+    @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @State private var dropTarget: String?
 
     private let timeW: CGFloat = 22
@@ -20,7 +22,7 @@ struct WeekView: View {
     var body: some View {
         let start = Rules.weekStart(of: anchor, startMonday: startMonday)
         let days = (0..<7).map { Rules.addDays(start, $0) }
-        let conflictDays = Conflicts.days(events: store.events)
+        let conflictDays: Set<String> = conflictWarningOn ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
         let allDayRows = SpanLayout.rows(events: store.visibleEvents.filter(\.allDay), weekCells: days.map { Optional($0) })
         VStack(spacing: 0) {
             HStack(spacing: 0) {

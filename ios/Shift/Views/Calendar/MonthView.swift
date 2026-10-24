@@ -12,6 +12,8 @@ struct MonthView: View {
     let onDropEvent: (String, String) -> Void
     let onSelectPayday: (String) -> Void
 
+    @AppStorage("conflictWarningOn") private var conflictWarningOn = true
+    @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @State private var dropTarget: String?
 
     private let numH: CGFloat = 20
@@ -25,7 +27,7 @@ struct MonthView: View {
         let monthBounds = Rules.monthBounds(of: anchor)
         let monthTotals = store.totals(from: monthBounds.first, to: monthBounds.last, isHoliday: { holidays.name(on: $0) != nil })
         let monthOrder = monthTotals.map(\.key)
-        let conflictDays = Conflicts.days(events: store.events)
+        let conflictDays: Set<String> = conflictWarningOn ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(Array(Rules.weekdayLabels(startMonday: startMonday).enumerated()), id: \.offset) { i, label in

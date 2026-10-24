@@ -2,8 +2,12 @@ import Foundation
 
 /// 時間が重なっている予定のある日を求める
 enum Conflicts {
-    /// 時刻つき・配置済みの予定同士が実時間で重なる日(yyyy-MM-dd)の集合。終日・未配置は無視する
-    static func days(events: [ShiftEvent]) -> Set<String> {
+    private static func floorDiv(_ a: Int) -> Int {
+        Int((Double(a) / 1440).rounded(.down))
+    }
+
+    /// 時刻つき・配置済みの予定同士が実時間で重なる、または間が minGapMinutes 分未満の日(yyyy-MM-dd)の集合。終日・未配置は無視する
+    static func days(events: [ShiftEvent], minGapMinutes: Int = 0) -> Set<String> {
         var reference: String?
         var items: [(s: Int, e: Int)] = []
         for ev in events {
@@ -21,10 +25,15 @@ enum Conflicts {
         var result = Set<String>()
         for i in 0..<items.count {
             var j = i + 1
-            while j < items.count, items[j].s < items[i].e {
+            while j < items.count, items[j].s < items[i].e + minGapMinutes {
                 let lo = max(items[i].s, items[j].s)
                 let hi = min(items[i].e, items[j].e)
-                if lo < hi {
+                let gap = items[j].s - items[i].e
+                if gap >= 0 {
+                    if gap < minGapMinutes {
+                        for d in floorDiv(items[i].e)...floorDiv(items[j].s) { result.insert(Rules.addDays(ref, d)) }
+                    }
+                } else if lo < hi {
                     // 負の値にも対応するため切り下げ除算を使う
                     let first = Int((Double(lo) / 1440).rounded(.down))
                     let last = Int((Double(hi) / 1440).rounded(.up)) - 1
