@@ -17,6 +17,8 @@ struct SummaryStrip: View {
     let label: String?
     let totals: [ColorTotal]
     let emptyText: String
+    var fill: Color = .clear
+    var labelColor: Color = .secondary
 
     @State private var contentWidth: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
@@ -27,7 +29,7 @@ struct SummaryStrip: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 if let label {
-                    Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                    Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(labelColor)
                 }
                 if totals.isEmpty {
                     Text(emptyText).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -59,6 +61,6 @@ struct SummaryStrip: View {
                 .onAppear { containerWidth = g.size.width }
                 .onChange(of: g.size.width) { _, new in containerWidth = new }
         })
-        .frame(height: 22)
+        .background(fill)
     }
 }

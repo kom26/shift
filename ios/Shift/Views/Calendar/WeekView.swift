@@ -36,12 +36,15 @@ struct WeekView: View {
             let monthTotals = store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil })
             if summaryOn {
                 Divider()
-                SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthTotals.map(\.key)), emptyText: "データなし")
-                    .frame(height: 24)
+                SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthTotals.map(\.key)), emptyText: "データなし",
+                             fill: Theme.weekFill, labelColor: Theme.weekText)
+                    .frame(height: 18)
+            } else {
+                Divider()
             }
-            Divider()
-            SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし")
-                .frame(height: 24)
+            SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
+                         fill: Theme.monthFill, labelColor: Theme.monthText)
+                .frame(height: 20)
         }
         .background { MonthWatermark(number: Rules.ymd(days[3]).month) }
     }

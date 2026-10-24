@@ -59,7 +59,7 @@ struct UnplacedArea: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
 
             if !collapsed {
                 Divider()
@@ -83,7 +83,7 @@ struct UnplacedArea: View {
                     .onDrop(of: [.plainText], delegate: unplaceDelegate)
                     backZone
                 }
-                .frame(height: 120)
+                .frame(height: 92)
             }
         }
         .background(Color(.secondarySystemBackground).ignoresSafeArea(edges: .bottom))

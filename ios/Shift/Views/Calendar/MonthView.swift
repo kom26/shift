@@ -16,10 +16,11 @@ struct MonthView: View {
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @State private var dropTarget: String?
 
-    private let numH: CGFloat = 20
+    private let numH: CGFloat = 16
     private let barGap: CGFloat = 1
-    private let bottomPad: CGFloat = 3
-    private let stripH: CGFloat = 22
+    private let bottomPad: CGFloat = 2
+    private let stripH: CGFloat = 18
+    private let monthStripH: CGFloat = 20
 
     var body: some View {
         let ym = Rules.ymd(anchor)
@@ -45,24 +46,26 @@ struct MonthView: View {
                 let weekRows = weeks.map { SpanLayout.rows(events: store.visibleEvents, weekCells: $0.map { Optional($0) }) }
                 let n = CGFloat(max(1, weeks.count))
                 let strip: CGFloat = summaryOn ? stripH : 0
-                let minRow = (geo.size.height - n - 1) / n
-                let barH = min(18, max(14, floor((minRow - stripH - numH - bottomPad) / 4) - 1))
+                let minRow = (geo.size.height - (n - 1)) / n
+                let barH = min(16, max(11, floor((minRow - stripH - numH - bottomPad) / 4) - 1))
                 let needed = weekRows.map { numH + CGFloat($0.count) * (barH + barGap) + bottomPad + strip }
                 let rowH = max(minRow, needed.max() ?? 0)
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
                             weekBlock(weeks[i], rows: weekRows[i], rowH: rowH, barH: barH, monthOrder: monthOrder, conflictDays: conflictDays)
-                            Divider()
+                            if i < weeks.count - 1 { Divider() }
                         }
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
-            Divider()
-            SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし")
-                .frame(height: stripH)
-                .background(Color(.secondarySystemBackground))
+            SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
+                         fill: Theme.monthFill, labelColor: Theme.monthText)
+                .frame(height: monthStripH)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(Color(.separator)).frame(height: 0.5)
+                }
         }
         .background {
             ZStack {
@@ -80,10 +83,10 @@ struct MonthView: View {
             if summaryOn {
                 SummaryStrip(label: "週計",
                              totals: store.totals(from: cells[0], to: cells[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthOrder),
-                             emptyText: "-")
+                             emptyText: "-",
+                             fill: Theme.weekFill, labelColor: Theme.weekText)
                     .frame(height: stripH)
                     .frame(maxWidth: .infinity)
-                    .background(Color(.secondarySystemBackground))
                     .overlay(alignment: .top) {
                         Rectangle().fill(Color(.separator)).frame(height: 0.5)
                     }
@@ -104,7 +107,7 @@ struct MonthView: View {
                             }
                     }
                 }
-                SpanBars(rows: rows, colW: w, barH: barH, leading: 0, gap: barGap, onSelect: onSelectEvent)
+                SpanBars(rows: rows, colW: w, barH: barH, compactFont: true, leading: 0, gap: barGap, onSelect: onSelectEvent)
                     .offset(y: numH)
             }
             .onDrop(of: [.plainText], delegate: EventDropDelegate(
@@ -130,7 +133,7 @@ struct MonthView: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
                 Text("\(Rules.ymd(ds).day)")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(isToday ? Theme.accent : type.color)
                     .opacity(inMonth ? 1 : 0.45)
                 Spacer(minLength: 0)
