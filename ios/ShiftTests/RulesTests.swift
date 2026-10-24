@@ -64,6 +64,11 @@ struct RulesTests {
         #expect(Rules.resolveEndDate(start: "2026-10-24", end: nil, allDay: true, startTime: nil, endTime: nil) == "2026-10-24")
     }
 
+    @Test func resolveEndDateKeepsMultiDayAndShiftsExtendedStart() {
+        #expect(Rules.resolveEndDate(start: "2026-09-22", end: nil, allDay: false, startTime: "24:00", endTime: "06:30") == "2026-09-23")
+        #expect(Rules.resolveEndDate(start: "2026-10-01", end: "2026-10-03", allDay: false, startTime: "22:00", endTime: "06:00") == "2026-10-03")
+    }
+
     @Test func resolveEndDateEndBeforeStartFallsBackToStart() {
         #expect(Rules.resolveEndDate(start: "2026-10-24", end: "2026-10-20", allDay: false, startTime: "09:00", endTime: "18:00") == "2026-10-24")
     }

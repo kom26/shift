@@ -141,11 +141,10 @@ enum Rules {
         let ed = end.nonEmpty
         guard !allDay, let st = startTime.nonEmpty, let et = endTime.nonEmpty else { return ed ?? sd }
         let sm = minutes(st) ?? 0, em = minutes(et) ?? 0
-        // 24:00以降の時刻を含む予定は月ビューでは開始日のみ(単日バー)
-        if sm >= 1440 || em >= 1440 { return sd }
-        if em <= sm { return addDays(sd, 1) }
-        if let ed, ed >= sd { return ed }
-        return sd
+        let base = (ed != nil && ed! >= sd) ? ed! : sd
+        // 同日で終了が開始と同じなら翌日。それ以外は日付込みで終了が開始より前になる分だけ進める
+        if base == sd && em == sm { return addDays(sd, 1) }
+        return normalizedEndDate(startDate: sd, startTime: st, endDate: base, endTime: et)
     }
 
     /// 終了時刻に24時間を足した表記("02:00" → "26:00")。24:00以上・36:00超・不正は nil

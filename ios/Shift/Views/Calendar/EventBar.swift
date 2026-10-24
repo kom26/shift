@@ -12,7 +12,7 @@ struct EventBar: View {
             ? "…"
             : ((ev.allDay || ev.startTime == nil) ? ev.title : Rules.timeLabel(ev))
         Text(label)
-            .font(.app(fontSize, weight: .bold))
+            .font(.bar(fontSize, weight: .bold))
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.leading, span.isStart ? 5 : 3)
@@ -47,7 +47,7 @@ struct EventBarPreview: View {
         let label = (event.allDay || event.startTime == nil) ? event.title : Rules.timeLabel(event)
         let shape = RoundedRectangle(cornerRadius: 4)
         Text(label)
-            .font(.app(fontSize, weight: .bold))
+            .font(.bar(fontSize, weight: .bold))
             .lineLimit(1)
             .fixedSize()
             .padding(.horizontal, 8)

@@ -139,6 +139,7 @@ struct PayCalculatorTests {
         #expect(p.overtimeMinutes == 2460)
         #expect(close(p.base, 49000))
         #expect(close(p.overtime, 10250))
-        #expect(close(p.total, 59250))
+        // 深夜割増 3250(深夜840分から休憩60分を引いた780分) を含む
+        #expect(close(p.total, 62500))
     }
 }

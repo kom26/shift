@@ -198,12 +198,12 @@ struct WeekView: View {
         let time = Rules.timeLabel(ev)
         return VStack(alignment: .leading, spacing: 0) {
             Text(ev.title)
-                .font(.app(10, weight: .bold))
+                .font(.bar(10, weight: .bold))
                 .lineLimit(1)
                 .fixedSize()
             if !time.isEmpty {
                 Text(time)
-                    .font(.app(9, weight: .bold))
+                    .font(.bar(9, weight: .bold))
                     .lineLimit(1)
                     .fixedSize()
             }
@@ -219,11 +219,11 @@ struct WeekView: View {
     private func block(_ ev: ShiftEvent, h: CGFloat) -> some View {
         return VStack(alignment: .leading, spacing: 0) {
             Text(ev.title)
-                .font(.app(10, weight: .bold))
+                .font(.bar(10, weight: .bold))
                 .lineLimit(2)
             if h > 30 {
                 Text(Rules.timeLabel(ev))
-                    .font(.app(9))
+                    .font(.bar(9))
                     .lineLimit(1)
             }
         }

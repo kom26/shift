@@ -20,24 +20,18 @@ enum AppFont {
         if !urls.isEmpty {
             CTFontManagerRegisterFontsForURLs(urls as CFArray, .process, nil)
         }
-        configureAppearance()
+
     }
 
-    private static func configureAppearance() {
-        if let bold = UIFont(name: "ZenMaruGothic-Bold", size: 17) {
-            UINavigationBar.appearance().titleTextAttributes = [.font: bold]
-        }
-        if let large = UIFont(name: "ZenMaruGothic-Bold", size: 34) {
-            UINavigationBar.appearance().largeTitleTextAttributes = [.font: large]
-        }
-        if let regular = UIFont(name: "ZenMaruGothic-Regular", size: 17) {
-            UIBarButtonItem.appearance().setTitleTextAttributes([.font: regular], for: .normal)
-        }
-    }
 }
 
 extension Font {
-    static func app(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+    /// 予定バー専用の丸ゴシック
+    static func bar(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .custom(AppFont.name(for: weight), size: size)
+    }
+
+    static func app(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight)
     }
 }
