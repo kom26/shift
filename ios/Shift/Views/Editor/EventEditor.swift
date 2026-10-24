@@ -25,6 +25,8 @@ struct EventEditor: View {
     @State private var workplaceId: String?
     @State private var breakInNight: Bool?
     @State private var didSetup = false
+    @State private var addingWorkplace = false
+    @State private var workplaceCountBeforeAdd = 0
     @FocusState private var focusedField: Field?
 
     enum Field: Hashable { case title, memo, breakMinutes, timeEntry }
@@ -84,7 +86,7 @@ struct EventEditor: View {
                 Section {
                     TextField("タイトル", text: $title)
                         .focused($focusedField, equals: .title)
-                    if !store.workplaces.isEmpty { workplaceChips }
+                    workplaceChips
                     ColorRow(color: $color, recent: store.customColors)
                 }
                 Section {
@@ -156,6 +158,16 @@ struct EventEditor: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .sheet(isPresented: $addingWorkplace, onDismiss: selectNewWorkplace) {
+            WorkplaceEditor(workplace: nil)
+        }
+    }
+
+    private func selectNewWorkplace() {
+        guard store.workplaces.count > workplaceCountBeforeAdd, let w = store.workplaces.last else { return }
+        workplaceId = w.id
+        title = w.name
+        color = w.color
     }
 
     private var workplaceChips: some View {
@@ -164,7 +176,7 @@ struct EventEditor: View {
                 Button {
                     workplaceId = nil
                 } label: {
-                    Text("職場なし").font(.footnote).foregroundStyle(.primary)
+                    Text("指定なし").font(.footnote).foregroundStyle(.primary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(Capsule().fill(Color(.secondarySystemFill)))
@@ -188,6 +200,17 @@ struct EventEditor: View {
                     }
                     .buttonStyle(.borderless)
                 }
+                Button {
+                    workplaceCountBeforeAdd = store.workplaces.count
+                    addingWorkplace = true
+                } label: {
+                    Image(systemName: "plus").font(.footnote).foregroundStyle(Theme.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .overlay(Capsule().strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("職場を追加")
             }
             .padding(.vertical, 2)
         }
