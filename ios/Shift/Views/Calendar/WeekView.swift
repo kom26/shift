@@ -107,7 +107,7 @@ struct WeekView: View {
                 }
                 ForEach(1..<24, id: \.self) { h in
                     Text("\(h)")
-                        .font(.system(size: 8))
+                        .font(.system(size: 8).monospacedDigit())
                         .foregroundStyle(.secondary)
                         .frame(width: timeW - 2, alignment: .trailing)
                         .offset(y: H * CGFloat(h) / 24 - 5)
