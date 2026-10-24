@@ -35,11 +35,6 @@ struct EventBar: View {
                     bottomLeadingRadius: span.isStart ? r : 0,
                     bottomTrailingRadius: span.isEnd ? r : 0,
                     topTrailingRadius: span.isEnd ? r : 0))
-            .overlay(alignment: .leading) {
-                if span.isStart {
-                    Rectangle().fill(EventColor.line(ev.color)).frame(width: 3)
-                }
-            }
     }
 }
 
@@ -62,9 +57,6 @@ struct EventBarPreview: View {
             .foregroundStyle(EventColor.text(event.color))
             .background(color.opacity(0.55), in: shape)
             .background(Color(.systemBackground), in: shape)
-            .overlay(alignment: .leading) {
-                Rectangle().fill(EventColor.line(event.color)).frame(width: 3)
-            }
             .clipShape(shape)
     }
 }

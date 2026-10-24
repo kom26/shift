@@ -14,6 +14,7 @@ struct UnplacedArea: View {
     @State private var confirmRecall = false
     @State private var backTargeted = false
     @State private var page = 0
+    @AppStorage("payBasis") private var payBasisRaw = PayBasis.work.rawValue
 
     private var monthLabel: String {
         let p = Rules.ymd(anchor)
@@ -119,19 +120,22 @@ struct UnplacedArea: View {
 
     private var cardsPage: some View {
         let d = store.summaryCards(selectedDate: selectedDate, today: Rules.today(), anchor: anchor,
-                                   startMonday: startMonday, isHoliday: { holidays.name(on: $0) != nil })
+                                   startMonday: startMonday,
+                                   payBasis: PayBasis(rawValue: payBasisRaw) ?? .work,
+                                   isHoliday: { holidays.name(on: $0) != nil })
         let wd = DeltaFormat.hours(d.weekHours - d.prevWeekHours)
         let md = DeltaFormat.hours(d.monthHours - d.prevMonthHours)
         let pd = DeltaFormat.yen(d.monthPay - d.prevMonthPay)
         return HStack(spacing: 8) {
-            card(title: "週の労働時間", titleColor: Theme.weekText, value: Rules.formatHours(d.weekHours),
+            card(title: "週の労働時間", titleColor: Theme.weekText, period: d.weekLabel, value: Rules.formatHours(d.weekHours),
                  delta: "先週比 " + wd.text, trend: wd.trend, fill: Theme.weekFill)
-            card(title: "月の労働時間", titleColor: Theme.monthText, value: Rules.formatHours(d.monthHours),
+            card(title: "月の労働時間", titleColor: Theme.monthText, period: d.monthLabel, value: Rules.formatHours(d.monthHours),
                  delta: "先月比 " + md.text, trend: md.trend, fill: Theme.monthFill)
-            card(title: "見込み給料", titleColor: Theme.payText, value: Money.yen(d.monthPay),
+            card(title: "見込み給料", titleColor: Theme.payText, period: d.payLabel, value: Money.yen(d.monthPay),
                  delta: "先月比 " + pd.text, trend: pd.trend, fill: Theme.payFill)
         }
-        .padding(8)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -143,17 +147,20 @@ struct UnplacedArea: View {
         }
     }
 
-    private func card(title: String, titleColor: Color, value: String, delta: String,
+    private func card(title: String, titleColor: Color, period: String, value: String, delta: String,
                       trend: DeltaFormat.Trend, fill: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 1) {
             Text(title).font(.system(size: 11)).foregroundStyle(titleColor)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(period).font(.system(size: 10)).foregroundStyle(Color.secondary)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(value).font(.system(size: 20, weight: .bold)).foregroundStyle(Color.primary)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(delta).font(.system(size: 11)).foregroundStyle(trendColor(trend))
                 .lineLimit(1).minimumScaleFactor(0.7)
         }
-        .padding(8)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(fill, in: RoundedRectangle(cornerRadius: 12))
     }
@@ -171,7 +178,6 @@ struct UnplacedArea: View {
         .padding(.vertical, 5)
         .background(color.opacity(0.45))
         .background(Color(.systemBackground))
-        .overlay(alignment: .leading) { Rectangle().fill(EventColor.line(ev.color)).frame(width: 3) }
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .onTapGesture { onSelectEvent(ev) }
         .eventMenu(for: ev, store: store, onEdit: onSelectEvent) {
@@ -195,7 +201,6 @@ struct UnplacedArea: View {
         .padding(.vertical, 5)
         .background(color.opacity(0.45))
         .background(Color(.systemBackground))
-        .overlay(alignment: .leading) { Rectangle().fill(EventColor.line(ev.color)).frame(width: 3) }
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 

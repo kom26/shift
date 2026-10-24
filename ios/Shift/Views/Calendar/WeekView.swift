@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct WeekView: View {
@@ -12,6 +13,7 @@ struct WeekView: View {
     let onSelectEvent: (ShiftEvent) -> Void
     let onDropEvent: (String, String) -> Void
     let onSelectPayday: (String) -> Void
+    let onLongPressDay: (String) -> Void
 
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
@@ -38,13 +40,13 @@ struct WeekView: View {
             if summaryOn {
                 Divider()
                 SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthTotals.map(\.key)), emptyText: "データなし",
-                             fill: Theme.weekFill, labelColor: Theme.weekText)
+                             fill: Color.clear, labelColor: Color.secondary)
                     .frame(height: 18)
             } else {
                 Divider()
             }
             SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
-                         fill: Theme.monthFill, labelColor: Theme.monthText)
+                         fill: Color(.secondarySystemBackground), labelColor: Color.secondary)
                 .frame(height: 20)
         }
         .background { MonthWatermark(number: Rules.ymd(days[3]).month) }
@@ -96,6 +98,10 @@ struct WeekView: View {
                             (dropTarget == days[i] ? Theme.accentSoft : Color.clear)
                                 .contentShape(Rectangle())
                                 .onTapGesture { onSelectDay(days[i]) }
+                                .onLongPressGesture(minimumDuration: 0.45) {
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                    onLongPressDay(days[i])
+                                }
                         }
                     }
                     SpanBars(rows: rows, colW: colW, barH: barH, leading: timeW, onSelect: onSelectEvent)
@@ -153,7 +159,12 @@ struct WeekView: View {
 
     private func column(_ ds: String, events: [ShiftEvent], colW: CGFloat, H: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
-            Color.clear.contentShape(Rectangle()).onTapGesture { onSelectDay(ds) }
+            Color.clear.contentShape(Rectangle())
+                .onTapGesture { onSelectDay(ds) }
+                .onLongPressGesture(minimumDuration: 0.45) {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    onLongPressDay(ds)
+                }
             ForEach(events) { ev in
                 if let seg = Rules.timedSegment(ev, on: ds) {
                     let h = max(14, H * CGFloat(seg.height))

@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
     @AppStorage("startMonday") private var startMonday = false
+    @AppStorage("payBasis") private var payBasis = PayBasis.work.rawValue
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @FocusState private var gapFocused: Bool
@@ -19,6 +20,17 @@ struct SettingsView: View {
             Form {
                 Section("カレンダー") {
                     Toggle("週の始まりを月曜にする", isOn: $startMonday)
+                }
+                Section {
+                    Picker("月の見込み給料", selection: $payBasis) {
+                        Text("勤務ベース").tag(PayBasis.work.rawValue)
+                        Text("給料日ベース").tag(PayBasis.payday.rawValue)
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("見込み給料")
+                } footer: {
+                    Text("勤務ベース: 表示中の月に働いた分。給料日ベース: 表示中の月に受け取る給料(職場の給料日の設定が必要です)。")
                 }
                 Section {
                     Toggle("重なりを赤く注意表示", isOn: $conflictWarningOn)

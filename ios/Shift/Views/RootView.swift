@@ -14,6 +14,11 @@ struct PaydayTarget: Identifiable {
     var id: String { date }
 }
 
+struct DayTarget: Identifiable {
+    let date: String
+    var id: String { date }
+}
+
 struct RootView: View {
     @Environment(Store.self) private var store
     @Environment(Holidays.self) private var holidays
@@ -27,6 +32,7 @@ struct RootView: View {
     @State private var showSettings = false
     @State private var showFilter = false
     @State private var paydayTarget: PaydayTarget?
+    @State private var dayTarget: DayTarget?
     @State private var pagerCommand: PagerCommand?
     @State private var selectedDate: String?
 
@@ -40,6 +46,11 @@ struct RootView: View {
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
         .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew) }
         .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
+        .sheet(item: $dayTarget) { t in
+            DaySheet(date: t.date, onSelectEvent: { ev in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { edit(ev) }
+            })
+        }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showFilter) { FilterSheet() }
     }
@@ -131,9 +142,9 @@ struct RootView: View {
     private func page(offset k: Int) -> some View {
         switch mode {
         case .month:
-            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) })
+            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: { dayTarget = DayTarget(date: $0) })
         case .week:
-            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) })
+            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: { dayTarget = DayTarget(date: $0) })
         }
     }
 

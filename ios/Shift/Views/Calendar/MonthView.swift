@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct MonthView: View {
@@ -12,6 +13,7 @@ struct MonthView: View {
     let onSelectEvent: (ShiftEvent) -> Void
     let onDropEvent: (String, String) -> Void
     let onSelectPayday: (String) -> Void
+    let onLongPressDay: (String) -> Void
 
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
@@ -62,7 +64,7 @@ struct MonthView: View {
                 .scrollBounceBehavior(.basedOnSize)
             }
             SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
-                         fill: Theme.monthFill, labelColor: Theme.monthText)
+                         fill: Color(.secondarySystemBackground), labelColor: Color.secondary)
                 .frame(height: monthStripH)
                 .overlay(alignment: .top) {
                     Rectangle().fill(Color(.separator)).frame(height: 0.5)
@@ -85,7 +87,7 @@ struct MonthView: View {
                 SummaryStrip(label: "週計",
                              totals: store.totals(from: cells[0], to: cells[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthOrder),
                              emptyText: "-",
-                             fill: Theme.weekFill, labelColor: Theme.weekText)
+                             fill: Color.clear, labelColor: Color.secondary)
                     .frame(height: stripH)
                     .frame(maxWidth: .infinity)
                     .overlay(alignment: .top) {
@@ -161,6 +163,10 @@ struct MonthView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { onSelectDay(ds) }
+        .onLongPressGesture(minimumDuration: 0.45) {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            onLongPressDay(ds)
+        }
     }
 }
 
