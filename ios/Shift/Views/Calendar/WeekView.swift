@@ -7,6 +7,7 @@ struct WeekView: View {
     let anchor: String
     let startMonday: Bool
     let summaryOn: Bool
+    let selectedDate: String?
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
     let onDropEvent: (String, String) -> Void
@@ -74,6 +75,11 @@ struct WeekView: View {
             }
         }
         .background(conflict ? Color.red.opacity(0.16) : (isToday ? Theme.accentSoft : Color.clear))
+        .overlay {
+            if selectedDate == ds {
+                Rectangle().strokeBorder(Theme.accent, lineWidth: 1.5)
+            }
+        }
     }
 
     @ViewBuilder

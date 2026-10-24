@@ -4,12 +4,16 @@ import UniformTypeIdentifiers
 
 struct UnplacedArea: View {
     @Environment(Store.self) private var store
+    @Environment(Holidays.self) private var holidays
     let anchor: String
+    let selectedDate: String?
+    let startMonday: Bool
     let onSelectEvent: (ShiftEvent) -> Void
 
     @AppStorage("unplacedCollapsed") private var collapsed = false
     @State private var confirmRecall = false
     @State private var backTargeted = false
+    @State private var page = 0
 
     private var monthLabel: String {
         let p = Rules.ymd(anchor)
@@ -51,6 +55,15 @@ struct UnplacedArea: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 Spacer()
+                if !collapsed {
+                    HStack(spacing: 4) {
+                        ForEach(0..<2, id: \.self) { i in
+                            Circle()
+                                .fill(i == page ? Theme.accent : Color.secondary.opacity(0.35))
+                                .frame(width: 6, height: 6)
+                        }
+                    }
+                }
                 Button {
                     withAnimation(.snappy) { collapsed.toggle() }
                 } label: {
@@ -63,7 +76,26 @@ struct UnplacedArea: View {
 
             if !collapsed {
                 Divider()
-                HStack(spacing: 0) {
+                TabView(selection: $page) {
+                    chipsPage(items).tag(0)
+                    cardsPage.tag(1)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(height: 92)
+            }
+        }
+        .background(Color(.secondarySystemBackground).ignoresSafeArea(edges: .bottom))
+        .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置に戻しますか?",
+                            isPresented: $confirmRecall, titleVisibility: .visible) {
+            Button("未配置に戻す", role: .destructive) {
+                withAnimation(.snappy) { _ = store.recallMonth(of: anchor) }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
+        }
+    }
+
+    private func chipsPage(_ items: [ShiftEvent]) -> some View {
+        HStack(spacing: 0) {
                     ScrollView {
                         if items.isEmpty {
                             Text("すべて配置済みです 🎉")
@@ -82,18 +114,48 @@ struct UnplacedArea: View {
                     .contentMargins(.bottom, 8, for: .scrollContent)
                     .onDrop(of: [.plainText], delegate: unplaceDelegate)
                     backZone
-                }
-                .frame(height: 92)
-            }
         }
-        .background(Color(.secondarySystemBackground).ignoresSafeArea(edges: .bottom))
-        .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置に戻しますか?",
-                            isPresented: $confirmRecall, titleVisibility: .visible) {
-            Button("未配置に戻す", role: .destructive) {
-                withAnimation(.snappy) { _ = store.recallMonth(of: anchor) }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            }
+    }
+
+    private var cardsPage: some View {
+        let d = store.summaryCards(selectedDate: selectedDate, today: Rules.today(), anchor: anchor,
+                                   startMonday: startMonday, isHoliday: { holidays.name(on: $0) != nil })
+        let wd = DeltaFormat.hours(d.weekHours - d.prevWeekHours)
+        let md = DeltaFormat.hours(d.monthHours - d.prevMonthHours)
+        let pd = DeltaFormat.yen(d.monthPay - d.prevMonthPay)
+        return HStack(spacing: 8) {
+            card(title: "週の労働時間", titleColor: Theme.weekText, value: Rules.formatHours(d.weekHours),
+                 delta: "先週比 " + wd.text, trend: wd.trend, fill: Theme.weekFill)
+            card(title: "月の労働時間", titleColor: Theme.monthText, value: Rules.formatHours(d.monthHours),
+                 delta: "先月比 " + md.text, trend: md.trend, fill: Theme.monthFill)
+            card(title: "見込み給料", titleColor: Theme.payText, value: Money.yen(d.monthPay),
+                 delta: "先月比 " + pd.text, trend: pd.trend, fill: Theme.payFill)
         }
+        .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func trendColor(_ t: DeltaFormat.Trend) -> Color {
+        switch t {
+        case .up: return Theme.monthText
+        case .down: return Theme.deltaDown
+        case .flat: return Color.secondary
+        }
+    }
+
+    private func card(title: String, titleColor: Color, value: String, delta: String,
+                      trend: DeltaFormat.Trend, fill: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.system(size: 11)).foregroundStyle(titleColor)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(value).font(.system(size: 20, weight: .bold)).foregroundStyle(Color.primary)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(delta).font(.system(size: 11)).foregroundStyle(trendColor(trend))
+                .lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(fill, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func chip(_ ev: ShiftEvent) -> some View {

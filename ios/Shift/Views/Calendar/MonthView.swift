@@ -7,6 +7,7 @@ struct MonthView: View {
     let anchor: String
     let startMonday: Bool
     let summaryOn: Bool
+    let selectedDate: String?
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
     let onDropEvent: (String, String) -> Void
@@ -147,6 +148,11 @@ struct MonthView: View {
         .padding(.leading, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(bg)
+        .overlay {
+            if selectedDate == ds {
+                Rectangle().strokeBorder(Theme.accent, lineWidth: 1.5)
+            }
+        }
         .overlay {
             if isDrop {
                 Rectangle()

@@ -28,13 +28,14 @@ struct RootView: View {
     @State private var showFilter = false
     @State private var paydayTarget: PaydayTarget?
     @State private var pagerCommand: PagerCommand?
+    @State private var selectedDate: String?
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
             pager
-            UnplacedArea(anchor: anchor, onSelectEvent: edit)
+            UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday, onSelectEvent: edit)
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
         .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew) }
@@ -130,9 +131,9 @@ struct RootView: View {
     private func page(offset k: Int) -> some View {
         switch mode {
         case .month:
-            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) })
+            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) })
         case .week:
-            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) })
+            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) })
         }
     }
 
@@ -145,6 +146,7 @@ struct RootView: View {
     }
 
     private func addEvent(on date: String) {
+        selectedDate = date
         editing = EditorTarget(event: .new(on: date), isNew: true)
     }
 
