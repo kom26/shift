@@ -220,6 +220,16 @@ final class Store {
         persistWorkplaces()
     }
 
+    /// 詳細つきの職場を末尾へ追加する
+    func addWorkplace(_ w: Workplace) {
+        let n = w.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty else { return }
+        var copy = w
+        copy.name = n
+        workplaces.append(copy)
+        persistWorkplaces()
+    }
+
     func updateWorkplace(id: String, name: String, color: String, applyToEvents: Bool) {
         let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !n.isEmpty, let i = workplaces.firstIndex(where: { $0.id == id }) else { return }

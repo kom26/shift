@@ -31,10 +31,10 @@ struct WeekView: View {
             if summaryOn {
                 let b = Rules.monthBounds(of: anchor)
                 Divider()
-                SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6]), emptyText: "データなし")
+                SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
                     .frame(height: 24)
                 Divider()
-                SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last), emptyText: "データなし")
+                SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
                     .frame(height: 24)
             }
         }

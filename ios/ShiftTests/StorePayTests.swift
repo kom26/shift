@@ -57,4 +57,10 @@ struct StorePayTests {
         let t = store.totals(from: "2026-10-20", to: "2026-10-20", isHoliday: { $0 == "2026-10-20" })
         #expect(abs(t[0].pay - 9300) < 0.0001)
     }
+
+    @Test func addWorkplaceWithDetails() {
+        let store = make()
+        store.addWorkplace(Workplace(id: "n1", name: "B", color: "#222222", hourlyWage: 1200))
+        #expect(store.workplaces.last?.hourlyWage == 1200)
+    }
 }

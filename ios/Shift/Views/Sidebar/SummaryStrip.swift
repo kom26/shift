@@ -19,10 +19,15 @@ struct SummaryStrip: View {
                             Circle().fill(Color(hex: t.color)).frame(width: 8, height: 8)
                             Text(t.title).font(.system(size: 11)).lineLimit(1)
                             Text(Rules.formatHours(t.hours)).font(.system(size: 11, weight: .semibold))
+                            if t.pay > 0 {
+                                Text(Money.yen(t.pay)).font(.system(size: 11)).foregroundStyle(.secondary)
+                            }
                         }
                     }
                     if totals.count > 1 {
-                        Text("合計 " + Rules.formatHours(totals.reduce(0) { $0 + $1.hours }))
+                        let pay = totals.reduce(0) { $0 + $1.pay }
+                        Text("合計 " + Rules.formatHours(totals.reduce(0) { $0 + $1.hours })
+                             + (pay > 0 ? " " + Money.yen(pay) : ""))
                             .font(.system(size: 11, weight: .bold))
                     }
                 }

@@ -51,7 +51,7 @@ struct MonthView: View {
             if summaryOn {
                 let b = Rules.monthBounds(of: anchor)
                 Divider()
-                SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last), emptyText: "データなし")
+                SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
                     .frame(height: stripH)
                     .background(Color(.secondarySystemBackground))
             }
@@ -74,7 +74,7 @@ struct MonthView: View {
                 .clipped()
             if summaryOn {
                 SummaryStrip(label: "週計",
-                             totals: store.totals(from: cells[0], to: cells[6]),
+                             totals: store.totals(from: cells[0], to: cells[6], isHoliday: { holidays.name(on: $0) != nil }),
                              emptyText: "-")
                     .frame(height: stripH)
                     .frame(maxWidth: .infinity)

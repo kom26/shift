@@ -3,6 +3,7 @@ import UIKit
 
 struct EventEditor: View {
     @Environment(Store.self) private var store
+    @Environment(Holidays.self) private var holidays
     @Environment(\.dismiss) private var dismiss
 
     let original: ShiftEvent
@@ -21,6 +22,9 @@ struct EventEditor: View {
     @State private var confirmDelete = false
     @State private var openPanel: TimePanel?
     @State private var typed = ""
+    @State private var workplaceId: String?
+    @State private var breakInNight: Bool?
+    @State private var didSetup = false
     @FocusState private var focusedField: Field?
 
     enum Field: Hashable { case title, memo, breakMinutes, timeEntry }
@@ -38,14 +42,40 @@ struct EventEditor: View {
         _allDay = State(initialValue: original.allDay)
         _startTime = State(initialValue: original.startTime ?? "09:00")
         _endTime = State(initialValue: original.endTime ?? "18:00")
-        _breakText = State(initialValue: Rules.breakOverride(of: original).map(String.init) ?? "")
+        _workplaceId = State(initialValue: original.workplaceId)
+        _breakInNight = State(initialValue: original.breakInNight)
+        // 保存済みの休憩分(既定と同じ値は onAppear で空に戻す)
+        let savedBreak: String
+        if let wh = original.workHours, !original.allDay,
+           let span = Rules.totalMinutes(start: original.startTime, end: original.endTime) {
+            savedBreak = String(max(0, Int((Double(span) - wh * 60).rounded())))
+        } else {
+            savedBreak = ""
+        }
+        _breakText = State(initialValue: savedBreak)
     }
 
     private var canSave: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
     private var total: Int? { allDay ? nil : Rules.totalMinutes(start: startTime, end: endTime) }
-    private var defaultBreak: Int { total.map { Rules.defaultBreak($0) } ?? 0 }
+    private var selectedWorkplace: Workplace? {
+        guard let id = workplaceId else { return nil }
+        return store.workplaces.first { $0.id == id }
+    }
+    private var defaultBreak: Int {
+        total.map { BreakRules.minutes(span: $0, rules: selectedWorkplace?.breakRules ?? []) } ?? 0
+    }
+    private var effectiveBreak: Int { Int(breakText) ?? defaultBreak }
     private var hours: Double? {
-        Rules.workHours(start: startTime, end: endTime, allDay: allDay, breakMinutes: Int(breakText))
+        Rules.workHours(start: startTime, end: endTime, allDay: allDay, breakMinutes: effectiveBreak)
+    }
+    private var showsNightPicker: Bool {
+        !allDay && selectedWorkplace != nil && effectiveBreak >= 1
+            && PayCalculator.nightMinutes(startTime: startTime, endTime: endTime) > 0
+    }
+    private var payBreakdown: PayBreakdown? {
+        guard let w = selectedWorkplace, !allDay else { return nil }
+        let holiday = hasDate && holidays.name(on: Rules.format(start)) != nil
+        return PayCalculator.pay(event: build(), workplace: w, isHoliday: holiday)
     }
 
     var body: some View {
@@ -66,6 +96,7 @@ struct EventEditor: View {
                     Toggle("終日", isOn: $allDay)
                     if !allDay { timeRows }
                 }
+                if let p = payBreakdown { paySection(p) }
                 Section {
                     TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
                         .focused($focusedField, equals: .memo)
@@ -92,6 +123,14 @@ struct EventEditor: View {
                     Button("完了") { closeTimePanel() }
                 }
             }
+            .onAppear {
+                guard !didSetup else { return }
+                didSetup = true
+                if selectedWorkplace == nil {
+                    workplaceId = store.workplace(for: original)?.id
+                }
+                if let b = Int(breakText), b == defaultBreak { breakText = "" }
+            }
             .onChange(of: focusedField) { old, new in
                 if old == .timeEntry && new != .timeEntry && openPanel != nil { closeTimePanel() }
             }
@@ -111,8 +150,19 @@ struct EventEditor: View {
     private var workplaceChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                Button {
+                    workplaceId = nil
+                } label: {
+                    Text("職場なし").font(.footnote).foregroundStyle(.primary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color(.secondarySystemFill)))
+                        .overlay(Capsule().stroke(Theme.accent, lineWidth: selectedWorkplace == nil ? 2 : 0))
+                }
+                .buttonStyle(.borderless)
                 ForEach(store.workplaces) { w in
                     Button {
+                        workplaceId = w.id
                         title = w.name
                         color = w.color
                     } label: {
@@ -123,7 +173,7 @@ struct EventEditor: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(Capsule().fill(Color(.secondarySystemFill)))
-                        .overlay(Capsule().stroke(Theme.accent, lineWidth: title == w.name ? 2 : 0))
+                        .overlay(Capsule().stroke(Theme.accent, lineWidth: selectedWorkplace?.id == w.id ? 2 : 0))
                     }
                     .buttonStyle(.borderless)
                 }
@@ -283,8 +333,41 @@ struct EventEditor: View {
                     .buttonStyle(.borderless)
             }
         }
+        if showsNightPicker {
+            Picker("休憩を引く時間帯", selection: $breakInNight) {
+                Text("職場の既定に従う").tag(Bool?.none)
+                Text("深夜帯から").tag(Bool?.some(true))
+                Text("深夜以外から").tag(Bool?.some(false))
+            }
+            .pickerStyle(.menu)
+        }
         if let hours {
             LabeledContent("実労働", value: Rules.formatHours(hours))
+        }
+    }
+
+    private func paySection(_ p: PayBreakdown) -> some View {
+        Section {
+            HStack {
+                Text("見込み給与")
+                Spacer()
+                Text(Money.yen(p.total)).font(.title3.weight(.bold).monospacedDigit())
+            }
+            payRow("基本", p.base, always: true)
+            payRow("深夜割増", p.night)
+            payRow("残業割増", p.overtime)
+            payRow("加給", p.bonus)
+            payRow("交通費", p.transport)
+            LabeledContent("実労働", value: Rules.formatHours(Double(p.netMinutes) / 60))
+                .font(.footnote)
+        }
+    }
+
+    @ViewBuilder
+    private func payRow(_ label: String, _ amount: Double, always: Bool = false) -> some View {
+        if always || amount > 0 {
+            LabeledContent(label, value: Money.yen(amount))
+                .font(.footnote)
         }
     }
 
@@ -308,7 +391,9 @@ struct EventEditor: View {
         e.allDay = allDay
         e.startTime = st
         e.endTime = et
-        e.workHours = Rules.workHours(start: st, end: et, allDay: allDay, breakMinutes: Int(breakText))
+        e.workHours = Rules.workHours(start: st, end: et, allDay: allDay, breakMinutes: effectiveBreak)
+        e.workplaceId = workplaceId
+        e.breakInNight = breakInNight
         return e
     }
 

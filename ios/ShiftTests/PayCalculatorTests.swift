@@ -106,4 +106,10 @@ struct PayCalculatorTests {
         let e = ev("x", "2026-10-20", allDay: false, st: "09:00", et: "18:00", wh: 0)
         #expect(PayCalculator.pay(event: e, workplace: wp(), isHoliday: false) == nil)
     }
+
+    @Test func nightMinutesHelper() {
+        #expect(PayCalculator.nightMinutes(startTime: "22:00", endTime: "25:00") == 180)
+        #expect(PayCalculator.nightMinutes(startTime: "09:00", endTime: "18:00") == 0)
+        #expect(PayCalculator.nightMinutes(startTime: "22:00", endTime: "06:00") == 420)
+    }
 }
