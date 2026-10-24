@@ -47,6 +47,7 @@ struct EventEditor: View {
             Form {
                 Section {
                     TextField("タイトル", text: $title)
+                    if !store.workplaces.isEmpty { workplaceChips }
                     ColorRow(color: $color, recent: store.customColors)
                 }
                 Section {
@@ -88,6 +89,30 @@ struct EventEditor: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private var workplaceChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(store.workplaces) { w in
+                    Button {
+                        title = w.name
+                        color = w.color
+                    } label: {
+                        HStack(spacing: 6) {
+                            Circle().fill(Color(hex: w.color)).frame(width: 10, height: 10)
+                            Text(w.name).font(.footnote).foregroundStyle(.primary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color(.secondarySystemFill)))
+                        .overlay(Capsule().stroke(Theme.accent, lineWidth: title == w.name ? 2 : 0))
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.vertical, 2)
+        }
     }
 
     @ViewBuilder

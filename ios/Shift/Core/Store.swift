@@ -30,12 +30,14 @@ final class Store {
     private(set) var events: [ShiftEvent] = []
     private(set) var checkedColors: Set<String>
     private(set) var customColors: [String]
+    private(set) var workplaces: [Workplace]
 
     @ObservationIgnored private let fileURL: URL
     @ObservationIgnored private let defaults: UserDefaults
     private enum Keys {
         static let checked = "shift-checked-colors"
         static let custom = "shift-custom-colors"
+        static let workplaces = "shift-workplaces"
     }
 
     init(fileURL: URL = Store.defaultFileURL, defaults: UserDefaults = .standard) {
@@ -43,6 +45,8 @@ final class Store {
         self.defaults = defaults
         checkedColors = Set(defaults.stringArray(forKey: Keys.checked) ?? [])
         customColors = defaults.stringArray(forKey: Keys.custom) ?? []
+        workplaces = defaults.data(forKey: Keys.workplaces)
+            .flatMap { try? JSONDecoder().decode([Workplace].self, from: $0) } ?? []
         if let data = try? Data(contentsOf: fileURL),
            let list = try? JSONDecoder().decode([ShiftEvent].self, from: data) {
             events = list
@@ -232,6 +236,54 @@ final class Store {
         }
         persist()
         return list.count
+    }
+
+    // MARK: 職場
+
+    func addWorkplace(name: String, color: String) {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty else { return }
+        workplaces.append(Workplace(id: UUID().uuidString, name: n, color: color))
+        persistWorkplaces()
+    }
+
+    func updateWorkplace(id: String, name: String, color: String, applyToEvents: Bool) {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty, let i = workplaces.firstIndex(where: { $0.id == id }) else { return }
+        let oldName = workplaces[i].name
+        workplaces[i].name = n
+        workplaces[i].color = color
+        persistWorkplaces()
+        if applyToEvents {
+            for j in events.indices where events[j].title == oldName {
+                events[j].title = n
+                events[j].color = color
+            }
+            persist()
+        }
+    }
+
+    func deleteWorkplace(id: String) {
+        workplaces.removeAll { $0.id == id }
+        persistWorkplaces()
+    }
+
+    func moveWorkplaces(from source: IndexSet, to destination: Int) {
+        let moving = source.sorted().map { workplaces[$0] }
+        let before = source.filter { $0 < destination }.count
+        var rest = workplaces
+        for i in source.sorted(by: >) { rest.remove(at: i) }
+        rest.insert(contentsOf: moving, at: destination - before)
+        workplaces = rest
+        persistWorkplaces()
+    }
+
+    func eventCount(matchingTitle name: String) -> Int {
+        events.filter { $0.title == name }.count
+    }
+
+    private func persistWorkplaces() {
+        if let data = try? JSONEncoder().encode(workplaces) { defaults.set(data, forKey: Keys.workplaces) }
     }
 
     private func persist() {
