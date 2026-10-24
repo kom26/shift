@@ -12,9 +12,11 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     var startTime: String?
     var endTime: String?
     var workHours: Double?
+    var workplaceId: String? = nil
+    var breakInNight: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours
+        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight
     }
 
     static func new(on date: String) -> ShiftEvent {
@@ -49,6 +51,8 @@ extension ShiftEvent {
         startTime = try c.decodeIfPresent(String.self, forKey: .startTime).nonEmpty
         endTime = try c.decodeIfPresent(String.self, forKey: .endTime).nonEmpty
         workHours = try c.decodeIfPresent(Double.self, forKey: .workHours)
+        workplaceId = try c.decodeIfPresent(String.self, forKey: .workplaceId)
+        breakInNight = try c.decodeIfPresent(Bool.self, forKey: .breakInNight)
     }
 }
 

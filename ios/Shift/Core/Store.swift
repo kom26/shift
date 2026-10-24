@@ -6,6 +6,7 @@ struct ColorTotal: Identifiable {
     var title: String = ""
     var hours: Double
     var count: Int
+    var pay: Double = 0
     var id: String { color }
 }
 
@@ -64,7 +65,7 @@ final class Store {
     }
 
     /// 開始日が from...to に入る予定を色ごとに合計する
-    func totals(from: String, to: String) -> [ColorTotal] {
+    func totals(from: String, to: String, isHoliday: (String) -> Bool = { _ in false }) -> [ColorTotal] {
         var order: [String] = []
         var map: [String: ColorTotal] = [:]
         for ev in visibleEvents {
@@ -76,8 +77,18 @@ final class Store {
             }
             map[ev.color]!.hours += h
             map[ev.color]!.count += 1
+            if let w = workplace(for: ev),
+               let p = PayCalculator.pay(event: ev, workplace: w, isHoliday: isHoliday(sd)) {
+                map[ev.color]!.pay += p.total
+            }
         }
         return order.compactMap { map[$0] }
+    }
+
+    /// workplaceId が一致する職場、なければタイトルが職場名と一致する職場
+    func workplace(for event: ShiftEvent) -> Workplace? {
+        if let id = event.workplaceId, let w = workplaces.first(where: { $0.id == id }) { return w }
+        return workplaces.first(where: { $0.name == event.title })
     }
 
     /// 同じ内容で新IDのコピーを作る。配置済みなら最後の配置済みの直後、未配置なら末尾
@@ -223,6 +234,13 @@ final class Store {
             }
             persist()
         }
+    }
+
+    /// 職場の詳細(時給・加給・休憩ルールなど)を同じIDの職場へ丸ごと反映する
+    func updateWorkplaceDetails(_ w: Workplace) {
+        guard let i = workplaces.firstIndex(where: { $0.id == w.id }) else { return }
+        workplaces[i] = w
+        persistWorkplaces()
     }
 
     func deleteWorkplace(id: String) {
