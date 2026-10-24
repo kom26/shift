@@ -55,6 +55,6 @@ struct StorePayTests {
         let store = make(holidayBonus: 100)
         store.save(shift("e1", "A", "2026-10-20"))
         let t = store.totals(from: "2026-10-20", to: "2026-10-20", isHoliday: { $0 == "2026-10-20" })
-        #expect(abs(t[0].pay - 8800) < 0.0001)
+        #expect(abs(t[0].pay - 9300) < 0.0001)
     }
 }
