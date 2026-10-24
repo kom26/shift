@@ -272,16 +272,6 @@ struct EventEditor: View {
     private var startDateControl: some View {
         if hasDate {
             DatePicker("", selection: $start, displayedComponents: .date).labelsHidden()
-            Button {
-                hasDate = false
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("日付をクリア")
         } else {
             datePlaceholderChip(enabled: true) {
                 let d = Rules.parse(Rules.today()) ?? Date()
