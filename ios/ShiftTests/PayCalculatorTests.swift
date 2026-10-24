@@ -120,4 +120,25 @@ struct PayCalculatorTests {
         #expect(PayCalculator.nightMinutes(startTime: "09:00", endTime: "18:00") == 0)
         #expect(PayCalculator.nightMinutes(startTime: "22:00", endTime: "06:00") == 420)
     }
+
+    @Test func nightMinutesMultiDay() {
+        func n(_ sd: String, _ st: String, _ ed: String, _ et: String) -> Int {
+            PayCalculator.nightMinutes(startDate: sd, startTime: st, endDate: ed, endTime: et)
+        }
+        #expect(n("2026-10-01", "22:00", "2026-10-03", "06:00") == 840)
+        #expect(n("2026-10-01", "22:00", "2026-10-02", "06:00") == 420)
+        #expect(n("2026-10-01", "09:00", "2026-10-01", "18:00") == 0)
+        #expect(n("2026-10-01", "22:00", "2026-10-01", "25:00") == 180)
+    }
+
+    @Test func multiDayPayCountsDates() throws {
+        let w = Workplace(id: "w3", name: "A", color: "#111111", hourlyWage: 1000, transport: 0)
+        let e = ev("x", "2026-10-01", "2026-10-03", allDay: false, st: "09:00", et: "11:00", wh: nil)
+        let p = try #require(PayCalculator.pay(event: e, workplace: w, isHoliday: false))
+        #expect(p.netMinutes == 2940)
+        #expect(p.overtimeMinutes == 2460)
+        #expect(close(p.base, 49000))
+        #expect(close(p.overtime, 10250))
+        #expect(close(p.total, 59250))
+    }
 }

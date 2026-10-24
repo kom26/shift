@@ -56,7 +56,8 @@ struct EventEditor: View {
         // 保存済みの休憩分(既定と同じ値は onAppear で空に戻す)
         let savedBreak: String
         if let wh = original.workHours, !original.allDay,
-           let span = Rules.totalMinutes(start: original.startTime, end: original.endTime) {
+           let span = Rules.spanMinutes(startDate: original.startDate, startTime: original.startTime,
+                                        endDate: original.endDate, endTime: original.endTime) {
             savedBreak = String(max(0, Int((Double(span) - wh * 60).rounded())))
         } else {
             savedBreak = ""
@@ -65,7 +66,12 @@ struct EventEditor: View {
     }
 
     private var canSave: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
-    private var total: Int? { allDay ? nil : Rules.totalMinutes(start: startTime, end: endTime) }
+    private var startDateText: String? { hasDate ? Rules.format(start) : nil }
+    private var endDateText: String? { hasDate ? Rules.format(end) : nil }
+    private var total: Int? {
+        allDay ? nil : Rules.spanMinutes(startDate: startDateText, startTime: startTime,
+                                         endDate: endDateText, endTime: endTime)
+    }
     private var selectedWorkplace: Workplace? {
         guard let id = workplaceId else { return nil }
         return store.workplaces.first { $0.id == id }
@@ -75,11 +81,13 @@ struct EventEditor: View {
     }
     private var effectiveBreak: Int { Int(breakText) ?? defaultBreak }
     private var hours: Double? {
-        Rules.workHours(start: startTime, end: endTime, allDay: allDay, breakMinutes: effectiveBreak)
+        Rules.workHours(startDate: startDateText, startTime: startTime, endDate: endDateText, endTime: endTime,
+                        allDay: allDay, breakMinutes: effectiveBreak)
     }
     private var showsNightPicker: Bool {
         !allDay && effectiveBreak >= 1
-            && PayCalculator.nightMinutes(startTime: startTime, endTime: endTime) > 0
+            && PayCalculator.nightMinutes(startDate: startDateText, startTime: startTime,
+                                          endDate: endDateText, endTime: endTime) > 0
     }
     private var breakInNightNoWorkplace: Binding<Bool> {
         Binding(get: { breakInNight ?? true }, set: { breakInNight = $0 })
@@ -528,23 +536,35 @@ struct EventEditor: View {
         lastValidEndTime = endTime
     }
 
-    /// 終了側の編集(日付・時刻)の検証。開始より前なら直前の有効値へ戻して警告する。
-    /// 戻した値は lastValid と一致するため、再度のonChangeでは何もしない(ループしない)
+    /// 終了側の編集の検証。
+    /// 終了時刻の編集: 開始より前になるなら通知なしで終了日を進める。
+    /// 終了日の編集: 開始より前になるなら直前の日付へ戻して警告する。
+    /// いずれも lastValid を先に更新/一致させるため、再度のonChangeでは何もしない(ループしない)
     private func validateEndEdit() {
         guard hasDate, !allDay else { syncLastValidEnd(); return }
         let dateChanged = Rules.format(end) != Rules.format(lastValidEndDate)
         let timeChanged = endTime != lastValidEndTime
         guard dateChanged || timeChanged else { return }
-        if Rules.isEndBeforeStart(
+        if timeChanged {
+            breakText = ""
+            let next = Rules.normalizedEndDate(
+                startDate: Rules.format(start), startTime: startTime,
+                endDate: Rules.format(end), endTime: endTime)
+            if next != Rules.format(end), let d = Rules.parse(next) {
+                lastValidEndDate = d
+                lastValidEndTime = endTime
+                end = d
+            } else {
+                syncLastValidEnd()
+            }
+        } else if Rules.isEndBeforeStart(
             startDate: Rules.format(start), startTime: startTime,
             endDate: Rules.format(end), endTime: endTime) {
-            if dateChanged { end = lastValidEndDate }
-            if timeChanged { endTime = lastValidEndTime }
+            end = lastValidEndDate
             typed = ""
             showEndWarning()
         } else {
             syncLastValidEnd()
-            if timeChanged { breakText = "" }
         }
     }
 
@@ -579,7 +599,8 @@ struct EventEditor: View {
         e.allDay = allDay
         e.startTime = st
         e.endTime = et
-        e.workHours = Rules.workHours(start: st, end: et, allDay: allDay, breakMinutes: effectiveBreak)
+        e.workHours = Rules.workHours(startDate: e.startDate, startTime: st, endDate: e.endDate, endTime: et,
+                                      allDay: allDay, breakMinutes: effectiveBreak)
         e.workplaceId = workplaceId
         e.breakInNight = breakInNight
         return e

@@ -32,7 +32,7 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     }
 
     var effectiveHours: Double? {
-        workHours ?? Rules.workHours(start: startTime, end: endTime, allDay: allDay)
+        workHours ?? Rules.workHours(startDate: startDate, startTime: startTime, endDate: endDate, endTime: endTime, allDay: allDay)
     }
 }
 

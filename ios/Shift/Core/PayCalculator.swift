@@ -13,15 +13,26 @@ struct PayBreakdown: Equatable {
 }
 
 enum PayCalculator {
-    /// 深夜帯(分): 0:00-5:00、22:00-29:00、46:00-53:00
-    private static let nightIntervals: [(Int, Int)] = [(0, 300), (1320, 1740), (2760, 3180)]
-
+    /// 深夜帯(開始日0:00からの分): [0,300) と、各日k>=0の [1440k+1320, 1440k+1740)(22:00-翌5:00)。
+    /// 二重計上しないよう、翌朝の窓は別に足さない
     private static func nightOverlap(start s: Int, span: Int) -> Int {
-        var n = 0
-        for (a, b) in nightIntervals {
-            n += max(0, min(s + span, b) - max(s, a))
+        let end = s + span
+        var n = max(0, min(end, 300) - max(s, 0))
+        var k = 0
+        while 1440 * k + 1320 < end {
+            let a = 1440 * k + 1320, b = 1440 * k + 1740
+            n += max(0, min(end, b) - max(s, a))
+            k += 1
         }
         return n
+    }
+
+    /// 日付を含む拘束時間のうち、深夜帯と重なる分数
+    static func nightMinutes(startDate: String?, startTime: String?, endDate: String?, endTime: String?) -> Int {
+        guard let s = Rules.minutes(startTime),
+              let span = Rules.spanMinutes(startDate: startDate, startTime: startTime,
+                                           endDate: endDate, endTime: endTime) else { return 0 }
+        return nightOverlap(start: s, span: span)
     }
 
     /// 開始・終了時刻(HH:mm)の拘束時間のうち、深夜帯(22:00-翌5:00)と重なる分数
@@ -34,7 +45,8 @@ enum PayCalculator {
     static func pay(event: ShiftEvent, workplace: Workplace, isHoliday: Bool) -> PayBreakdown? {
         guard !event.allDay,
               let s = Rules.minutes(event.startTime),
-              let span = Rules.totalMinutes(start: event.startTime, end: event.endTime) else { return nil }
+              let span = Rules.spanMinutes(startDate: event.startDate, startTime: event.startTime,
+                                           endDate: event.endDate, endTime: event.endTime) else { return nil }
 
         let brk: Int
         if let wh = event.workHours {

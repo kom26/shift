@@ -208,6 +208,34 @@ struct RulesTests {
         #expect(n("2026-10-01", "xx", "2026-10-01", "06:00") == "2026-10-01")
     }
 
+    @Test func normalizedEndDateSilentTimeEditCase() {
+        #expect(Rules.normalizedEndDate(startDate: "2026-09-21", startTime: "22:00", endDate: "2026-09-21", endTime: "06:00") == "2026-09-22")
+    }
+
+    @Test func spanMinutesIncludesDates() {
+        func s(_ sd: String?, _ st: String?, _ ed: String?, _ et: String?) -> Int? {
+            Rules.spanMinutes(startDate: sd, startTime: st, endDate: ed, endTime: et)
+        }
+        #expect(s("2026-10-21", "22:00", "2026-10-22", "06:00") == 480)
+        #expect(s("2026-10-01", "09:00", "2026-10-03", "11:00") == 3000)
+        #expect(s("2026-10-01", "22:00", "2026-10-01", "25:00") == 180)
+        #expect(s("2026-10-01", "29:00", "2026-10-01", "36:00") == 420)
+        #expect(s("2026-10-01", "22:00", "2026-10-01", "06:00") == 480)
+        #expect(s("2026-10-01", "09:00", nil, "18:00") == 540)
+        #expect(s("2026-10-01", nil, nil, "18:00") == nil)
+        #expect(s(nil, "22:00", nil, "06:00") == 480)
+    }
+
+    @Test func workHoursUsesDates() {
+        #expect(Rules.workHours(startDate: "2026-10-01", startTime: "09:00", endDate: "2026-10-03", endTime: "11:00", allDay: false) == 49.0)
+        #expect(Rules.workHours(startDate: "2026-10-01", startTime: "09:00", endDate: "2026-10-03", endTime: "11:00", allDay: true) == nil)
+        let e = ev("m", "2026-10-01", "2026-10-03", allDay: false, st: "09:00", et: "11:00")
+        #expect(e.effectiveHours == 49.0)
+        var f = e
+        f.workHours = 48
+        #expect(Rules.breakOverride(of: f) == 120)
+    }
+
     @Test func isEndBeforeStartComparesAbsoluteMinutes() {
         func b(_ sd: String, _ st: String, _ ed: String, _ et: String) -> Bool {
             Rules.isEndBeforeStart(startDate: sd, startTime: st, endDate: ed, endTime: et)

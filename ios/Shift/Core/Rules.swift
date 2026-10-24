@@ -188,6 +188,20 @@ enum Rules {
         return m
     }
 
+    /// 日付差を含む拘束時間(分)。日付が不正・欠落なら時刻のみの totalMinutes。終了日なしは開始日扱い。
+    /// 結果が0以下なら従来どおり24時間を1回足す
+    static func spanMinutes(startDate: String?, startTime: String?, endDate: String?, endTime: String?) -> Int? {
+        guard let sm = minutes(startTime), let em = minutes(endTime) else { return nil }
+        guard let sd = startDate.nonEmpty, parse(sd) != nil else {
+            return totalMinutes(start: startTime, end: endTime)
+        }
+        let ed = endDate.nonEmpty ?? sd
+        guard parse(ed) != nil else { return totalMinutes(start: startTime, end: endTime) }
+        var span = daysBetween(sd, ed) * 1440 + (em - sm)
+        if span <= 0 { span += 1440 }
+        return span
+    }
+
     static func defaultBreak(_ total: Int) -> Int {
         total > 480 ? 60 : total > 360 ? 45 : 0
     }
@@ -198,10 +212,20 @@ enum Rules {
         return (Double(total - brk) / 60 * 100).rounded() / 100
     }
 
+    static func workHours(startDate: String?, startTime: String?, endDate: String?, endTime: String?,
+                          allDay: Bool, breakMinutes: Int? = nil) -> Double? {
+        guard !allDay,
+              let total = spanMinutes(startDate: startDate, startTime: startTime, endDate: endDate, endTime: endTime)
+        else { return nil }
+        let brk = breakMinutes ?? defaultBreak(total)
+        return (Double(total - brk) / 60 * 100).rounded() / 100
+    }
+
     /// 保存済みの workHours から、既定値と異なる休憩分を逆算する
     static func breakOverride(of ev: ShiftEvent) -> Int? {
         guard let wh = ev.workHours, !ev.allDay,
-              let total = totalMinutes(start: ev.startTime, end: ev.endTime) else { return nil }
+              let total = spanMinutes(startDate: ev.startDate, startTime: ev.startTime,
+                                      endDate: ev.endDate, endTime: ev.endTime) else { return nil }
         let brk = Int((Double(total) - wh * 60).rounded())
         return brk != defaultBreak(total) ? brk : nil
     }
