@@ -19,6 +19,9 @@ struct EventEditor: View {
     @State private var breakText: String
     @State private var hasDate: Bool
     @State private var confirmDelete = false
+    @FocusState private var focusedField: Field?
+
+    enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime }
 
     init(original: ShiftEvent, isNew: Bool) {
         self.original = original
@@ -47,6 +50,7 @@ struct EventEditor: View {
             Form {
                 Section {
                     TextField("タイトル", text: $title)
+                        .focused($focusedField, equals: .title)
                     if !store.workplaces.isEmpty { workplaceChips }
                     ColorRow(color: $color, recent: store.customColors)
                 }
@@ -61,6 +65,7 @@ struct EventEditor: View {
                 }
                 Section {
                     TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
+                        .focused($focusedField, equals: .memo)
                 }
                 Section {
                     Button("複製保存") { commit(duplicate: true) }.disabled(!canSave)
@@ -76,6 +81,12 @@ struct EventEditor: View {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isNew ? "追加" : "保存") { commit(duplicate: false) }.disabled(!canSave)
+                }
+            }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完了") { focusedField = nil }
                 }
             }
             .onChange(of: start) { _, new in if end < new { end = new } }
@@ -117,11 +128,9 @@ struct EventEditor: View {
 
     @ViewBuilder
     private var timeRows: some View {
-        Picker("開始", selection: $startTime) {
-            ForEach(Rules.timeOptions, id: \.self) { Text($0).tag($0) }
-        }
-        Picker("終了", selection: $endTime) {
-            ForEach(Rules.timeOptions, id: \.self) { Text($0).tag($0) }
+        HStack(spacing: 16) {
+            TimeColumn(label: "開始", value: $startTime, allow24: false, field: .startTime, focus: $focusedField)
+            TimeColumn(label: "終了", value: $endTime, allow24: true, field: .endTime, focus: $focusedField)
         }
         if endTime <= startTime {
             Label("翌日またぎ → 終了日を自動で翌日にします", systemImage: "moon.stars")
@@ -135,6 +144,7 @@ struct EventEditor: View {
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 60)
+                .focused($focusedField, equals: .breakMinutes)
             Text("分")
             if !breakText.isEmpty && breakText != String(defaultBreak) {
                 Button("リセット") { breakText = "" }
@@ -208,6 +218,63 @@ private struct ColorRow: View {
                     .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
                     .onTapGesture { color = c }
             }
+        }
+    }
+}
+
+private struct TimeColumn: View {
+    let label: String
+    @Binding var value: String
+    let allow24: Bool
+    let field: EventEditor.Field
+    var focus: FocusState<EventEditor.Field?>.Binding
+
+    @State private var draft = ""
+
+    private var isFocused: Bool { focus.wrappedValue == field }
+
+    private var items: [String] {
+        var list = Rules.timeOptions15(allow24: allow24)
+        if !list.contains(value) {
+            let idx = list.firstIndex { $0 > value } ?? list.endIndex
+            list.insert(value, at: idx)
+        }
+        return list
+    }
+
+    private var fieldText: Binding<String> {
+        Binding(
+            get: { isFocused ? draft : value },
+            set: { input in
+                guard isFocused else { return }
+                let digits = String(input.filter { $0.isASCII && $0.isNumber }.prefix(4))
+                draft = digits
+                if digits.count == 4, let t = Rules.parseTimeDigits(digits, allow24: allow24) {
+                    value = t
+                }
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(label).font(.footnote).foregroundStyle(.secondary)
+            TextField("", text: fieldText, prompt: Text(value))
+                .keyboardType(.numberPad)
+                .monospacedDigit()
+                .multilineTextAlignment(.center)
+                .focused(focus, equals: field)
+            Picker(label, selection: $value) {
+                ForEach(items, id: \.self) { Text($0).tag($0) }
+            }
+            .pickerStyle(.wheel)
+            .frame(height: 110)
+            .labelsHidden()
+        }
+        .frame(maxWidth: .infinity)
+        .onChange(of: focus.wrappedValue) { old, new in
+            // フォーカスの出入りで入力途中の文字を破棄(確定済みの値は value に反映済み)
+            if old == field || new == field { draft = "" }
         }
     }
 }

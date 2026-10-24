@@ -6,7 +6,22 @@ enum DayType { case normal, saturday, sunday, holiday }
 enum Rules {
     private static let cal = Calendar(identifier: .gregorian)
 
-    static let timeOptions: [String] = (0...48).map { String(format: "%02d:%@", $0 / 2, $0 % 2 == 0 ? "00" : "30") }
+    /// 15分刻みの時刻候補("HH:mm")。allow24 なら末尾に "24:00"(終了時刻専用)
+    static func timeOptions15(allow24: Bool) -> [String] {
+        var list = (0..<96).map { String(format: "%02d:%02d", $0 / 4, ($0 % 4) * 15) }
+        if allow24 { list.append("24:00") }
+        return list
+    }
+
+    /// 手入力の時刻("0930" / "09:30")を "HH:mm" に正規化する。不正なら nil
+    static func parseTimeDigits(_ text: String, allow24: Bool) -> String? {
+        let digits = text.filter { $0.isASCII && $0.isNumber }
+        guard digits.count == 4, let v = Int(digits) else { return nil }
+        let h = v / 100, m = v % 100
+        if h <= 23 && m <= 59 { return String(format: "%02d:%02d", h, m) }
+        if allow24 && v == 2400 { return "24:00" }
+        return nil
+    }
 
     // MARK: 日付
 
