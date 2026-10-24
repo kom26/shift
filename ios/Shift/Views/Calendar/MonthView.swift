@@ -6,7 +6,7 @@ struct MonthView: View {
     @Environment(Holidays.self) private var holidays
     let anchor: String
     let startMonday: Bool
-    let summaryMode: Int   // 0 なし / 1 週計 / 2 月計
+    let summaryOn: Bool
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
     let onDropEvent: (String, String) -> Void
@@ -35,29 +35,52 @@ struct MonthView: View {
             }
             Divider()
             GeometryReader { geo in
-                let minRow = (geo.size.height - CGFloat(weeks.count)) / CGFloat(max(1, weeks.count))
+                // 週ブロック = セル領域 + (集計ON時) 週計の帯。区切り線 1pt ぶんも差し引いて画面に収める
+                let n = CGFloat(max(1, weeks.count))
+                let minCells = (geo.size.height - n - (summaryOn ? n * stripH : 0)) / n
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
-                            weekRow(weeks[i], minRow: minRow)
+                            weekBlock(weeks[i], minCells: minCells)
                             Divider()
                         }
                     }
                 }
             }
-            if summaryMode == 2 {
+            if summaryOn {
                 let b = Rules.monthBounds(of: anchor)
                 Divider()
                 SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last), emptyText: "データなし")
+                    .frame(height: stripH)
+                    .background(Color(.secondarySystemBackground))
             }
         }
     }
 
-    private func weekRow(_ cells: [String], minRow: CGFloat) -> some View {
+    private func weekBlock(_ cells: [String], minCells: CGFloat) -> some View {
         let rows = SpanLayout.rows(events: store.visibleEvents, weekCells: cells.map { Optional($0) })
         let barsH = CGFloat(rows.count) * (barH + barGap)
-        let rowH = max(minRow, numH + barsH + bottomPad + (summaryMode == 1 ? stripH : 0))
-        return GeometryReader { geo in
+        let cellsH = max(minCells, numH + barsH + bottomPad)
+        return VStack(spacing: 0) {
+            weekCells(cells, rows: rows)
+                .frame(height: cellsH)
+                .clipped()
+            if summaryOn {
+                SummaryStrip(label: "週計",
+                             totals: store.totals(from: cells[0], to: cells[6]),
+                             emptyText: "-")
+                    .frame(height: stripH)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(.secondarySystemBackground))
+                    .overlay(alignment: .top) {
+                        Rectangle().fill(Color(.separator)).frame(height: 0.5)
+                    }
+            }
+        }
+    }
+
+    private func weekCells(_ cells: [String], rows: [[BarSpan]]) -> some View {
+        GeometryReader { geo in
             let w = geo.size.width / 7
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
@@ -71,16 +94,6 @@ struct MonthView: View {
                 }
                 SpanBars(rows: rows, colW: w, barH: barH, leading: 0, onSelect: onSelectEvent)
                     .offset(y: numH)
-                if summaryMode == 1 {
-                    VStack {
-                        Spacer(minLength: 0)
-                        SummaryStrip(label: nil,
-                                     totals: store.totals(from: cells[0], to: cells[6]),
-                                     emptyText: "-")
-                            .frame(height: stripH)
-                            .allowsHitTesting(false)
-                    }
-                }
             }
             .onDrop(of: [.plainText], delegate: EventDropDelegate(
                 resolve: { p in
@@ -90,8 +103,6 @@ struct MonthView: View {
                 target: $dropTarget,
                 onDrop: onDropEvent))
         }
-        .frame(height: rowH)
-        .clipped()
     }
 
     private func dayCell(_ ds: String) -> some View {

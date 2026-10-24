@@ -37,7 +37,6 @@ struct EventBar: View {
 
 /// 月/週ビュー共用: SpanLayout の行を上から積んで描画する
 struct SpanBars: View {
-    @Environment(Store.self) private var store
     let rows: [[BarSpan]]
     let colW: CGFloat
     let barH: CGFloat
@@ -51,7 +50,6 @@ struct SpanBars: View {
                     EventBar(span: s, height: barH)
                         .frame(width: max(0, colW * CGFloat(s.span) - 2), height: barH)
                         .onTapGesture { onSelect(s.event) }
-                        .eventMenu(for: s.event, store: store, onEdit: onSelect)
                         .draggable(s.event.id)
                         .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + 2))
                 }

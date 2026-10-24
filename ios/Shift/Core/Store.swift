@@ -9,14 +9,6 @@ struct ColorTotal: Identifiable {
     var id: String { color }
 }
 
-struct PanelRow: Identifiable {
-    let color: String
-    let title: String
-    let placed: Double
-    let unplaced: Double
-    var id: String { color }
-}
-
 @Observable
 final class Store {
     static let defaultColors = ["#6366f1", "#06b6d4", "#f59e0b", "#ec4899", "#10b981", "#f97316", "#8b5cf6", "#ef4444"]
@@ -86,49 +78,6 @@ final class Store {
             map[ev.color]!.count += 1
         }
         return order.compactMap { map[$0] }
-    }
-
-    /// 色フィルタを無視した月集計。配置済み(開始日がその月)と、月に関係ない全ての未配置を色ごとに合計する
-    func monthPanel(of anchor: String) -> [PanelRow] {
-        let b = Rules.monthBounds(of: anchor)
-        var order: [String] = []
-        var titles: [String: String] = [:]
-        var placed: [String: Double] = [:]
-        var unplaced: [String: Double] = [:]
-        for ev in events {
-            guard let h = ev.effectiveHours, h > 0 else { continue }
-            if ev.placed {
-                guard let sd = ev.startDate, sd >= b.first, sd <= b.last else { continue }
-                placed[ev.color, default: 0] += h
-            } else {
-                unplaced[ev.color, default: 0] += h
-            }
-            if titles[ev.color] == nil {
-                order.append(ev.color)
-                titles[ev.color] = ev.title
-            }
-        }
-        return order.map { c in
-            PanelRow(color: c, title: titles[c] ?? "", placed: placed[c] ?? 0, unplaced: unplaced[c] ?? 0)
-        }.filter { $0.placed > 0 || $0.unplaced > 0 }
-    }
-
-    /// 同じ内容で新IDのコピーを作る。配置済みなら最後の配置済みの直後、未配置なら末尾
-    func duplicate(id: String) {
-        guard let src = events.first(where: { $0.id == id }) else { return }
-        var copy = src
-        copy.id = UUID().uuidString
-        var placed = events.filter(\.placed)
-        var unplaced = events.filter { !$0.placed }
-        if copy.placed { placed.append(copy) } else { unplaced.append(copy) }
-        events = placed + unplaced
-        persist()
-    }
-
-    /// 配置済み → 既存の未配置 → 新規 の順に並べる
-    func append(_ new: [ShiftEvent]) {
-        events = events.filter(\.placed) + events.filter { !$0.placed } + new
-        persist()
     }
 
     // MARK: 変更

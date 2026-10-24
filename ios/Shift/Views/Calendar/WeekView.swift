@@ -6,7 +6,7 @@ struct WeekView: View {
     @Environment(Holidays.self) private var holidays
     let anchor: String
     let startMonday: Bool
-    let summaryMode: Int   // 0 なし / 1 週計 / 2 月計(週ビューでは何も出さない)
+    let summaryOn: Bool
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
     let onDropEvent: (String, String) -> Void
@@ -28,10 +28,14 @@ struct WeekView: View {
             allDayRow(days: days, rows: allDayRows)
             Divider()
             grid(days)
-            if summaryMode == 1 {
+            if summaryOn {
+                let b = Rules.monthBounds(of: anchor)
                 Divider()
                 SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6]), emptyText: "データなし")
-                    .padding(.vertical, 4)
+                    .frame(height: 24)
+                Divider()
+                SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last), emptyText: "データなし")
+                    .frame(height: 24)
             }
         }
     }
@@ -135,7 +139,6 @@ struct WeekView: View {
                     block(ev, h: h)
                         .frame(width: max(0, colW - 2), height: h)
                         .onTapGesture { onSelectEvent(ev) }
-                        .eventMenu(for: ev, store: store, onEdit: onSelectEvent)
                         .draggable(ev.id)
                         .offset(x: 1, y: H * CGFloat(seg.top))
                 }

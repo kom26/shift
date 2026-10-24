@@ -9,24 +9,17 @@ struct EditorTarget: Identifiable {
     var id: String { event.id }
 }
 
-struct CSVFile: Identifiable {
-    let url: URL
-    var id: URL { url }
-}
-
 struct RootView: View {
     @Environment(Store.self) private var store
     @Environment(Holidays.self) private var holidays
     @AppStorage("mode") private var mode: CalendarMode = .week
     @AppStorage("startMonday") private var startMonday = false
-    @AppStorage("showSummary") private var showSummary = 0   // 0 なし / 1 週計 / 2 月計
+    @AppStorage("summaryOn") private var summaryOn = false
 
     @State private var anchor = Rules.today()
     @State private var editing: EditorTarget?
-    @State private var showDrawer = false
     @State private var showSettings = false
-    @State private var showBulkImport = false
-    @State private var csvFile: CSVFile?
+    @State private var showFilter = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,9 +28,9 @@ struct RootView: View {
             Group {
                 switch mode {
                 case .month:
-                    MonthView(anchor: anchor, startMonday: startMonday, summaryMode: showSummary, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
+                    MonthView(anchor: anchor, startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
                 case .week:
-                    WeekView(anchor: anchor, startMonday: startMonday, summaryMode: showSummary, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
+                    WeekView(anchor: anchor, startMonday: startMonday, summaryOn: summaryOn, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop)
                 }
             }
             .id(mode)
@@ -48,28 +41,20 @@ struct RootView: View {
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
         .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew) }
-        .sheet(isPresented: $showDrawer) {
-            DrawerSheet(
-                anchor: anchor,
-                onEdit: { ev in fromDrawer { edit(ev) } },
-                onAddUnplaced: { fromDrawer { addUnplaced() } },
-                onBulkImport: { fromDrawer { showBulkImport = true } },
-                onSettings: { fromDrawer { showSettings = true } })
-        }
         .sheet(isPresented: $showSettings) { SettingsView() }
-        .sheet(isPresented: $showBulkImport) { BulkImportSheet() }
-        .sheet(item: $csvFile) { ShareSheet(items: [$0.url]) }
+        .sheet(isPresented: $showFilter) { FilterSheet() }
     }
 
     private var header: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Button { showDrawer = true } label: {
-                    Image(systemName: "line.3.horizontal").font(.title3)
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape").font(.title3)
                         .padding(.horizontal, 6)
                         .frame(minHeight: 36)
                         .contentShape(Rectangle())
                 }
+                .accessibilityLabel("設定")
                 Spacer(minLength: 0)
                 Button { step(-1) } label: { Image(systemName: "chevron.left") }
                 Text(title).font(.headline).lineLimit(1).minimumScaleFactor(0.7)
@@ -94,22 +79,26 @@ struct RootView: View {
                 Button { withAnimation(.snappy) { anchor = Rules.today() } } label: {
                     Text("今日").font(.subheadline).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
                 }
-                Button { startMonday.toggle() } label: {
-                    Text(startMonday ? "月始" : "日始").font(.subheadline).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
-                }
                 Spacer(minLength: 0)
-                Button { showSummary = (showSummary + 1) % 3 } label: {
-                    Text(["集計", "週計", "月計"][showSummary])
+                Button { showFilter = true } label: {
+                    Image(systemName: store.checkedColors.isEmpty
+                          ? "line.3.horizontal.decrease.circle"
+                          : "line.3.horizontal.decrease.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(store.checkedColors.isEmpty ? Color.primary : Theme.accent)
+                        .frame(minWidth: 36, minHeight: 36)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("色フィルタ")
+                Button { summaryOn.toggle() } label: {
+                    Text("集計")
                         .font(.caption.weight(.medium))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(showSummary > 0 ? Theme.accentSoft : Color.clear, in: Capsule())
-                        .overlay(Capsule().stroke(showSummary > 0 ? Theme.accent : Color.secondary.opacity(0.4)))
+                        .background(summaryOn ? Theme.accentSoft : Color.clear, in: Capsule())
+                        .overlay(Capsule().stroke(summaryOn ? Theme.accent : Color.secondary.opacity(0.4)))
                         .frame(minHeight: 36)
                         .contentShape(Rectangle())
-                }
-                Button { exportCSV() } label: {
-                    Text("CSV").font(.caption.weight(.medium)).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
                 }
             }
         }
@@ -153,24 +142,6 @@ struct RootView: View {
 
     private func edit(_ event: ShiftEvent) {
         editing = EditorTarget(event: event, isNew: false)
-    }
-
-    /// ドロワーを閉じてから次のシートを開く(シートの同時表示を避ける)
-    private func fromDrawer(_ next: @escaping () -> Void) {
-        showDrawer = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: next)
-    }
-
-    private func exportCSV() {
-        let text = CSVExport.make(events: store.events, month: anchor)
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(CSVExport.fileName(for: anchor))
-        do {
-            try Data(text.utf8).write(to: url, options: .atomic)
-            csvFile = CSVFile(url: url)
-        } catch {
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
-        }
     }
 
     private func drop(id: String, on date: String) {
