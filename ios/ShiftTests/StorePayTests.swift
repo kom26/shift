@@ -37,9 +37,13 @@ struct StorePayTests {
         store.save(shift("e1", "A", "2026-10-20"))
         store.save(shift("e2", "B", "2026-10-21"))
         let t = store.totals(from: "2026-10-18", to: "2026-10-24")
-        #expect(t.count == 1)
-        #expect(abs(t[0].pay - 8500) < 0.0001)
-        #expect(t[0].count == 2)
+        #expect(t.count == 2)
+        let a = t.first { $0.title == "A" }
+        let other = t.first { $0.title != "A" }
+        #expect(abs((a?.pay ?? -1) - 8500) < 0.0001)
+        #expect(a?.count == 1)
+        #expect(abs((other?.pay ?? -1) - 0) < 0.0001)
+        #expect(other?.count == 1)
     }
 
     @Test func workplaceIdTakesPriorityOverTitle() {

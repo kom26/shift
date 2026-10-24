@@ -150,7 +150,9 @@ struct WeekView: View {
                     block(ev, h: h)
                         .frame(width: max(0, colW - 2), height: h)
                         .onTapGesture { onSelectEvent(ev) }
-                        .eventMenu(for: ev, store: store, previewCornerRadius: 3, onEdit: onSelectEvent)
+                        .eventMenu(for: ev, store: store, onEdit: onSelectEvent) {
+                            blockPreview(ev)
+                        }
                         .draggable(ev.id)
                         .offset(x: 1, y: H * CGFloat(seg.top))
                 }
@@ -168,6 +170,30 @@ struct WeekView: View {
                 .allowsHitTesting(false)
             }
         }
+    }
+
+    private func blockPreview(_ ev: ShiftEvent) -> some View {
+        let color = Color(hex: ev.color)
+        let shape = RoundedRectangle(cornerRadius: 3)
+        let time = Rules.timeLabel(ev)
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(ev.title)
+                .font(.system(size: 10, weight: .bold))
+                .lineLimit(1)
+                .fixedSize()
+            if !time.isEmpty {
+                Text(time)
+                    .font(.system(size: 9, weight: .bold))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.8), in: shape)
+        .background(Color(.systemBackground), in: shape)
+        .clipShape(shape)
     }
 
     private func block(_ ev: ShiftEvent, h: CGFloat) -> some View {

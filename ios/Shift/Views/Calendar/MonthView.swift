@@ -168,22 +168,19 @@ struct MonthWatermark: View {
     }
 }
 
-/// 給料日のコイン(2枚重ね)。タップで給料シートを開く
+/// 給料日のコイン(積み重ねアイコン)。タップで給料シートを開く
 struct PaydayCoinButton: View {
     let action: () -> Void
     private let gold = Color(red: 0.95, green: 0.7, blue: 0.1)
 
     var body: some View {
         Button(action: action) {
-            ZStack {
-                Image(systemName: "yensign.circle.fill")
-                    .font(.system(size: 13))
-                    .foregroundStyle(gold)
-                Image(systemName: "yensign.circle.fill")
-                    .font(.system(size: 13))
-                    .foregroundStyle(gold)
-                    .offset(x: 4, y: 2)
-            }
+            Image("CoinStack")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 14, height: 14)
+                .foregroundStyle(gold)
             .frame(minWidth: 28, minHeight: 24)
             .contentShape(Rectangle())
         }

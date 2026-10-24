@@ -43,6 +43,32 @@ struct EventBar: View {
     }
 }
 
+/// 長押しプレビュー用: 省略なしの全文ラベル (必要な幅ちょうど)
+struct EventBarPreview: View {
+    let event: ShiftEvent
+    let height: CGFloat
+    var fontSize: CGFloat = 10
+
+    var body: some View {
+        let color = Color(hex: event.color)
+        let label = (event.allDay || event.startTime == nil) ? event.title : Rules.timeLabel(event)
+        let shape = RoundedRectangle(cornerRadius: 4)
+        Text(label)
+            .font(.system(size: fontSize, weight: .bold))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 8)
+            .frame(height: height)
+            .foregroundStyle(color)
+            .background(color.opacity(0.16), in: shape)
+            .background(Color(.systemBackground), in: shape)
+            .overlay(alignment: .leading) {
+                Rectangle().fill(color).frame(width: 3)
+            }
+            .clipShape(shape)
+    }
+}
+
 /// 月/週ビュー共用: SpanLayout の行を上から積んで描画する
 struct SpanBars: View {
     @Environment(Store.self) private var store
@@ -60,7 +86,9 @@ struct SpanBars: View {
                     EventBar(span: s, height: barH, fontSize: barH >= 16 ? 10 : 9)
                         .frame(width: max(0, colW * CGFloat(s.span) - 2), height: barH)
                         .onTapGesture { onSelect(s.event) }
-                        .eventMenu(for: s.event, store: store, previewCornerRadius: 4, onEdit: onSelect)
+                        .eventMenu(for: s.event, store: store, onEdit: onSelect) {
+                            EventBarPreview(event: s.event, height: barH, fontSize: barH >= 16 ? 10 : 9)
+                        }
                         .draggable(s.event.id)
                         .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + gap))
                 }

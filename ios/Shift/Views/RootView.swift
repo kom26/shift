@@ -23,7 +23,6 @@ struct RootView: View {
     @AppStorage("unplacedCollapsed") private var unplacedCollapsed = false
 
     @State private var anchor = Rules.today()
-    @State private var collapsedBeforeSummary = false
     @State private var editing: EditorTarget?
     @State private var showSettings = false
     @State private var showFilter = false
@@ -178,17 +177,11 @@ struct RootView: View {
         }
     }
 
-    /// 集計をオンにすると未配置エリアを折りたたみ、オフにすると元の開閉状態に戻す
+    /// 週計を切り替えると未配置エリアを必ず折りたたむ(自動では開かない)
     private func toggleSummary() {
         withAnimation(.snappy) {
-            if summaryOn {
-                summaryOn = false
-                unplacedCollapsed = collapsedBeforeSummary
-            } else {
-                collapsedBeforeSummary = unplacedCollapsed
-                summaryOn = true
-                unplacedCollapsed = true
-            }
+            summaryOn.toggle()
+            unplacedCollapsed = true
         }
     }
 

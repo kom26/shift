@@ -111,8 +111,29 @@ struct UnplacedArea: View {
         .overlay(alignment: .leading) { Rectangle().fill(color).frame(width: 3) }
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .onTapGesture { onSelectEvent(ev) }
-        .eventMenu(for: ev, store: store, previewCornerRadius: 6, onEdit: onSelectEvent)
+        .eventMenu(for: ev, store: store, onEdit: onSelectEvent) {
+            chipPreview(ev)
+        }
         .draggable(ev.id)
+    }
+
+    private func chipPreview(_ ev: ShiftEvent) -> some View {
+        let color = Color(hex: ev.color)
+        let time = Rules.timeLabel(ev)
+        return HStack(spacing: 4) {
+            Text(ev.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(color)
+            if !time.isEmpty {
+                Text(time).font(.system(size: 9)).foregroundStyle(color.opacity(0.7))
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(color.opacity(0.16))
+        .background(Color(.systemBackground))
+        .overlay(alignment: .leading) { Rectangle().fill(color).frame(width: 3) }
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     private var backZone: some View {
