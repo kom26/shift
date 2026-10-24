@@ -26,7 +26,7 @@ struct PaydaySheet: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(r.workplace.name)
                                 Text("\(short(r.start))〜\(short(r.end))")
-                                    .font(.caption)
+                                    .font(.app(12))
                                     .foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 8)

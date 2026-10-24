@@ -29,19 +29,15 @@ enum EventColor {
         let c = hsb(hex)
         return Color(UIColor { trait in
             if trait.userInterfaceStyle == .dark {
-                return UIColor(hue: c.h, saturation: c.s * 0.55, brightness: 0.95, alpha: 1)
+                return UIColor(hue: c.h, saturation: c.s * 0.6, brightness: 0.93, alpha: 1)
             }
-            return UIColor(hue: c.h, saturation: min(1, c.s * 1.2 + 0.15), brightness: 0.36, alpha: 1)
+            return UIColor(hue: c.h, saturation: min(1, c.s * 1.1 + 0.18), brightness: 0.52, alpha: 1)
         })
     }
 
-    static func line(_ hex: String) -> Color {
-        let c = hsb(hex)
-        return Color(UIColor { trait in
-            if trait.userInterfaceStyle == .dark {
-                return UIColor(Color(hex: hex))
-            }
-            return UIColor(hue: c.h, saturation: min(1, c.s * 1.15 + 0.1), brightness: min(1, c.b * 0.82), alpha: 1)
+    static func fill(_ hex: String) -> Color {
+        Color(UIColor { trait in
+            UIColor(Color(hex: hex)).withAlphaComponent(trait.userInterfaceStyle == .dark ? 0.22 : 0.30)
         })
     }
 }

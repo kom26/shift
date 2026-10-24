@@ -7,13 +7,12 @@ struct EventBar: View {
 
     var body: some View {
         let ev = span.event
-        let color = Color(hex: ev.color)
         let r: CGFloat = 4
         let label: String = !span.isStart
             ? "…"
             : ((ev.allDay || ev.startTime == nil) ? ev.title : Rules.timeLabel(ev))
         Text(label)
-            .font(.system(size: fontSize, weight: .bold))
+            .font(.app(fontSize, weight: .bold))
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.leading, span.isStart ? 5 : 3)
@@ -22,7 +21,7 @@ struct EventBar: View {
             .frame(height: height)
             .foregroundStyle(EventColor.text(ev.color))
             .background(
-                color.opacity(0.55),
+                EventColor.fill(ev.color),
                 in: UnevenRoundedRectangle(
                     topLeadingRadius: span.isStart ? r : 0,
                     bottomLeadingRadius: span.isStart ? r : 0,
@@ -45,17 +44,16 @@ struct EventBarPreview: View {
     var fontSize: CGFloat = 10
 
     var body: some View {
-        let color = Color(hex: event.color)
         let label = (event.allDay || event.startTime == nil) ? event.title : Rules.timeLabel(event)
         let shape = RoundedRectangle(cornerRadius: 4)
         Text(label)
-            .font(.system(size: fontSize, weight: .bold))
+            .font(.app(fontSize, weight: .bold))
             .lineLimit(1)
             .fixedSize()
             .padding(.horizontal, 8)
             .frame(height: height)
             .foregroundStyle(EventColor.text(event.color))
-            .background(color.opacity(0.55), in: shape)
+            .background(EventColor.fill(event.color), in: shape)
             .background(Color(.systemBackground), in: shape)
             .clipShape(shape)
     }

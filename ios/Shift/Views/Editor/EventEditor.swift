@@ -178,7 +178,7 @@ struct EventEditor: View {
                     title = ""
                     color = Store.defaultColors[0]
                 } label: {
-                    Text("指定なし").font(.footnote).foregroundStyle(.primary)
+                    Text("指定なし").font(.app(13)).foregroundStyle(.primary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(Capsule().fill(Color(.secondarySystemFill)))
@@ -193,7 +193,7 @@ struct EventEditor: View {
                     } label: {
                         HStack(spacing: 6) {
                             Circle().fill(Color(hex: w.color)).frame(width: 10, height: 10)
-                            Text(w.name).font(.footnote).foregroundStyle(.primary)
+                            Text(w.name).font(.app(13)).foregroundStyle(.primary)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
@@ -214,7 +214,8 @@ struct EventEditor: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel("職場を追加")
             }
-            .padding(.vertical, 2)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 3)
         }
     }
 
@@ -270,7 +271,7 @@ struct EventEditor: View {
         let open = openPanel == p
         return Button { toggleTimePanel(p) } label: {
             Text(chipText(p))
-                .font(.body.monospacedDigit())
+                .font(.app(17).monospacedDigit())
                 .foregroundStyle(open ? Theme.onAccent : Color.primary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -282,7 +283,7 @@ struct EventEditor: View {
     private func datePlaceholderChip(enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text("日付未定")
-                .font(.body)
+                .font(.app(17))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -352,7 +353,7 @@ struct EventEditor: View {
             }
             .pickerStyle(.wheel)
             .labelsHidden()
-            Text(":").font(.title3.monospacedDigit())
+            Text(":").font(.app(20).monospacedDigit())
             Picker("分", selection: minuteBinding) {
                 ForEach(minuteItems, id: \.self) { m in
                     Text(String(format: "%02d", m)).frame(maxWidth: .infinity, alignment: .leading)
@@ -386,7 +387,7 @@ struct EventEditor: View {
                 Image(systemName: "questionmark.circle")
                 Text("\(ext)とすると同日の予定として表記")
             }
-            .font(.footnote)
+            .font(.app(13))
             .foregroundStyle(.secondary)
         }
         HStack {
@@ -400,7 +401,7 @@ struct EventEditor: View {
             Text("分")
             if !breakText.isEmpty && breakText != String(defaultBreak) {
                 Button("リセット") { breakText = "" }
-                    .font(.footnote)
+                    .font(.app(13))
                     .buttonStyle(.borderless)
             }
         }
@@ -422,7 +423,7 @@ struct EventEditor: View {
             HStack {
                 Text("見込み給与")
                 Spacer()
-                Text(Money.yen(p.total)).font(.title3.weight(.bold).monospacedDigit())
+                Text(Money.yen(p.total)).font(.app(20, weight: .bold).monospacedDigit())
             }
             payRow("基本", p.base, always: true)
             payRow("深夜割増", p.night)
@@ -430,7 +431,7 @@ struct EventEditor: View {
             payRow("加給", p.bonus)
             payRow("交通費", p.transport)
             LabeledContent("実労働", value: Rules.formatHours(Double(p.netMinutes) / 60))
-                .font(.footnote)
+                .font(.app(13))
         }
     }
 
@@ -438,7 +439,7 @@ struct EventEditor: View {
     private func payRow(_ label: String, _ amount: Double, always: Bool = false) -> some View {
         if always || amount > 0 {
             LabeledContent(label, value: Money.yen(amount))
-                .font(.footnote)
+                .font(.app(13))
         }
     }
 
@@ -499,7 +500,7 @@ private struct ColorRow: View {
             swatches(Store.defaultColors)
             if !recent.isEmpty {
                 HStack {
-                    Text("最近").font(.caption2).foregroundStyle(.secondary)
+                    Text("最近").font(.app(11)).foregroundStyle(.secondary)
                     swatches(recent)
                 }
             }

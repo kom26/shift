@@ -58,13 +58,13 @@ struct WeekView: View {
         let isToday = ds == Rules.today()
         return VStack(spacing: 1) {
             Text(Rules.weekdayLabels(startMonday: false)[Rules.weekday(ds)])
-                .font(.system(size: 9))
+                .font(.app(9))
                 .foregroundStyle(type.color)
             Text("\(Rules.ymd(ds).day)")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.app(13, weight: .semibold))
                 .foregroundStyle(isToday ? Theme.accent : (type == .normal ? Color.primary : type.color))
             Text(holiday ?? " ")
-                .font(.system(size: 9))
+                .font(.app(9))
                 .foregroundStyle(Theme.sunday)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -133,7 +133,7 @@ struct WeekView: View {
                 }
                 ForEach(1..<24, id: \.self) { h in
                     Text("\(h)")
-                        .font(.system(size: 8).monospacedDigit())
+                        .font(.app(8).monospacedDigit())
                         .foregroundStyle(.secondary)
                         .frame(width: timeW - 2, alignment: .trailing)
                         .offset(y: H * CGFloat(h) / 24 - 5)
@@ -194,17 +194,16 @@ struct WeekView: View {
     }
 
     private func blockPreview(_ ev: ShiftEvent) -> some View {
-        let color = Color(hex: ev.color)
         let shape = RoundedRectangle(cornerRadius: 3)
         let time = Rules.timeLabel(ev)
         return VStack(alignment: .leading, spacing: 0) {
             Text(ev.title)
-                .font(.system(size: 10, weight: .bold))
+                .font(.app(10, weight: .bold))
                 .lineLimit(1)
                 .fixedSize()
             if !time.isEmpty {
                 Text(time)
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.app(9, weight: .bold))
                     .lineLimit(1)
                     .fixedSize()
             }
@@ -212,28 +211,27 @@ struct WeekView: View {
         .foregroundStyle(EventColor.text(ev.color))
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .background(color.opacity(0.85), in: shape)
+        .background(EventColor.fill(ev.color), in: shape)
         .background(Color(.systemBackground), in: shape)
         .clipShape(shape)
     }
 
     private func block(_ ev: ShiftEvent, h: CGFloat) -> some View {
-        let color = Color(hex: ev.color)
         return VStack(alignment: .leading, spacing: 0) {
             Text(ev.title)
-                .font(.system(size: 10, weight: .bold))
+                .font(.app(10, weight: .bold))
                 .lineLimit(2)
             if h > 30 {
                 Text(Rules.timeLabel(ev))
-                    .font(.system(size: 9))
+                    .font(.app(9))
                     .lineLimit(1)
             }
         }
         .foregroundStyle(EventColor.text(ev.color))
         .padding(2)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(color.opacity(0.85), in: RoundedRectangle(cornerRadius: 3))
+        .background(EventColor.fill(ev.color), in: RoundedRectangle(cornerRadius: 3))
         .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 3))
-        .overlay(RoundedRectangle(cornerRadius: 3).stroke(EventColor.line(ev.color), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color(hex: ev.color).opacity(0.55), lineWidth: 1))
     }
 }

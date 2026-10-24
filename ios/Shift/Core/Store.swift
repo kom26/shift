@@ -14,8 +14,8 @@ struct ColorTotal: Identifiable {
 
 @Observable
 final class Store {
-    // ラベンダー, ミント, ピーチ, バター, スカイ, ピンク, ライム, グレー
-    static let defaultColors = ["#b9a6f2", "#8fd9c3", "#f9b4a4", "#f7d77b", "#9cc9f5", "#f4a6c8", "#c4e08a", "#c7c7d1"]
+    // ラベンダー, ミント, ピーチ, バター, スカイ, ピンク
+    static let defaultColors = ["#b9a6f2", "#8fd9c3", "#f9b4a4", "#f7d77b", "#9cc9f5", "#f4a6c8"]
 
     static var defaultFileURL: URL {
         let dir = URL.applicationSupportDirectory

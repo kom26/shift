@@ -19,7 +19,7 @@ struct DaySheet: View {
         NavigationStack {
             VStack(spacing: 0) {
                 Text(dateText)
-                    .font(.system(size: 14))
+                    .font(.app(14))
                     .foregroundStyle(Color.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
@@ -60,7 +60,7 @@ struct DaySheet: View {
     private func paydayRow(_ r: Store.PaymentRow) -> some View {
         HStack(alignment: .center, spacing: 8) {
             Text("給料日")
-                .font(.system(size: 13, weight: .bold))
+                .font(.app(13, weight: .bold))
                 .foregroundStyle(Theme.payText)
                 .frame(width: 64, alignment: .trailing)
             RoundedRectangle(cornerRadius: 2)
@@ -68,10 +68,10 @@ struct DaySheet: View {
                 .frame(width: 4)
             VStack(alignment: .leading, spacing: 2) {
                 Text(Money.yen(r.amount))
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.app(17, weight: .bold))
                     .foregroundStyle(Theme.payText)
                 Text(r.workplace.name)
-                    .font(.system(size: 17))
+                    .font(.app(17))
                     .foregroundStyle(Color.primary)
             }
             Spacer(minLength: 0)
@@ -89,11 +89,11 @@ struct DaySheet: View {
                 .frame(width: 4)
             VStack(alignment: .leading, spacing: 2) {
                 Text(ev.title)
-                    .font(.system(size: 17))
+                    .font(.app(17))
                     .foregroundStyle(Color.primary)
                 if !ev.memo.isEmpty {
                     Text(ev.memo)
-                        .font(.system(size: 12))
+                        .font(.app(12))
                         .foregroundStyle(Color.secondary)
                         .lineLimit(1)
                 }
@@ -109,27 +109,27 @@ struct DaySheet: View {
         let ev = row.event
         if row.isAllDay {
             Text("終日")
-                .font(.system(size: 16))
+                .font(.app(16))
                 .foregroundStyle(Color.primary)
         } else if row.isContinuation {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("前日から")
-                    .font(.system(size: 11))
+                    .font(.app(11))
                     .foregroundStyle(Color.secondary)
                 if let e = ev.endTime {
                     Text(e)
-                        .font(.system(size: 14).monospacedDigit())
+                        .font(.app(14).monospacedDigit())
                         .foregroundStyle(Color.secondary)
                 }
             }
         } else {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(ev.startTime ?? "")
-                    .font(.system(size: 16).monospacedDigit())
+                    .font(.app(16).monospacedDigit())
                     .foregroundStyle(Color.primary)
                 if let e = ev.endTime {
                     Text(e)
-                        .font(.system(size: 14).monospacedDigit())
+                        .font(.app(14).monospacedDigit())
                         .foregroundStyle(Color.secondary)
                 }
             }

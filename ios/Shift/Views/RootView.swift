@@ -67,12 +67,12 @@ struct RootView: View {
                 .accessibilityLabel("設定")
                 Spacer(minLength: 0)
                 Button { pagerCommand = PagerCommand(direction: -1, id: UUID()) } label: { Image(systemName: "chevron.left") }
-                Text(title).font(.headline).lineLimit(1).minimumScaleFactor(0.7)
+                Text(title).font(.app(17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
                 Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
                 Spacer(minLength: 0)
                 Button { addUnplaced() } label: {
                     Text("＋ 予定追加")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.app(15, weight: .semibold))
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
@@ -87,12 +87,12 @@ struct RootView: View {
                 .pickerStyle(.segmented)
                 .frame(width: 110)
                 Button { withAnimation(.snappy) { anchor = Rules.today() } } label: {
-                    Text("今日").font(.subheadline).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
+                    Text("今日").font(.app(15)).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
                 }
                 Spacer(minLength: 0)
                 Button { toggleSummary() } label: {
                     Text("週計")
-                        .font(.caption.weight(.medium))
+                        .font(.app(12, weight: .medium))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(summaryOn ? Theme.accentSoft : Color.clear, in: Capsule())
@@ -104,7 +104,7 @@ struct RootView: View {
                     Image(systemName: store.checkedWorkplaces.isEmpty
                           ? "line.3.horizontal.decrease.circle"
                           : "line.3.horizontal.decrease.circle.fill")
-                        .font(.title3)
+                        .font(.app(20))
                         .foregroundStyle(store.checkedWorkplaces.isEmpty ? Color.primary : Theme.accent)
                         .frame(minWidth: 36, minHeight: 36)
                         .contentShape(Rectangle())

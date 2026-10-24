@@ -130,7 +130,7 @@ struct WorkplaceEditor: View {
                     }
                     if rules.isEmpty {
                         Text("設定がなければ法定(6時間超45分、8時間超60分)")
-                            .font(.caption)
+                            .font(.app(12))
                             .foregroundStyle(.secondary)
                     }
                 } header: {
@@ -155,7 +155,7 @@ struct WorkplaceEditor: View {
                         .pickerStyle(.menu)
                     }
                     Text("例: 末日締め・翌月25日払い")
-                        .font(.caption)
+                        .font(.app(12))
                         .foregroundStyle(.secondary)
                 } header: {
                     Text("給料日")

@@ -37,7 +37,7 @@ struct MonthView: View {
                 ForEach(Array(Rules.weekdayLabels(startMonday: startMonday).enumerated()), id: \.offset) { i, label in
                     let dow = startMonday ? (i + 1) % 7 : i
                     Text(label)
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.app(10, weight: .medium))
                         .foregroundStyle(dow == 0 ? Theme.sunday : dow == 6 ? Theme.saturday : Color.secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 4)
@@ -136,7 +136,7 @@ struct MonthView: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
                 Text("\(Rules.ymd(ds).day)")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.app(10, weight: .medium))
                     .foregroundStyle(isToday ? Theme.accent : type.color)
                     .opacity(inMonth ? 1 : 0.45)
                 Spacer(minLength: 0)
@@ -175,7 +175,7 @@ struct MonthWatermark: View {
     let number: Int
     var body: some View {
         Text("\(number)")
-            .font(.system(size: 240, weight: .heavy))
+            .font(.app(240, weight: .bold))
             .lineLimit(1)
             .minimumScaleFactor(0.3)
             .foregroundStyle(Color.primary.opacity(0.06))

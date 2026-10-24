@@ -5,7 +5,7 @@ import Testing
 struct PaletteTests {
     @Test func defaultPaletteShape() {
         let colors = Store.defaultColors
-        #expect(colors.count == 8)
+        #expect(colors.count == 6)
         #expect(Set(colors).count == colors.count)
         let hexDigits = Set("0123456789abcdef")
         for c in colors {

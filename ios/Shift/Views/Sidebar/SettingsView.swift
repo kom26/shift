@@ -60,7 +60,7 @@ struct SettingsView: View {
                 Section {
                     if store.workplaces.isEmpty {
                         Text("職場が登録されていません")
-                            .font(.footnote)
+                            .font(.app(13))
                             .foregroundStyle(.secondary)
                     }
                     ForEach(store.workplaces) { w in
@@ -81,7 +81,7 @@ struct SettingsView: View {
                     HStack {
                         Text("職場")
                         Spacer()
-                        EditButton().font(.footnote)
+                        EditButton().font(.app(13))
                     }
                 }
                 Section {

@@ -40,19 +40,19 @@ struct UnplacedArea: View {
         let items = store.unplacedEvents
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Text("未配置").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                Text("未配置").font(.app(11, weight: .bold)).foregroundStyle(.secondary)
                 Text("\(items.count)")
-                    .font(.caption2)
+                    .font(.app(11))
                     .padding(.horizontal, 6)
                     .background(Color(.tertiarySystemFill), in: Capsule())
                 Button("\(monthLabel)を回収") { confirmRecall = true }
-                    .font(.caption2)
+                    .font(.app(11))
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
                 Button("並び替え") {
                     withAnimation(.snappy) { store.sortUnplaced() }
                 }
-                .font(.caption2)
+                .font(.app(11))
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 Spacer()
@@ -100,7 +100,7 @@ struct UnplacedArea: View {
                     ScrollView {
                         if items.isEmpty {
                             Text("すべて配置済みです 🎉")
-                                .font(.caption)
+                                .font(.app(12))
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 24)
@@ -150,13 +150,13 @@ struct UnplacedArea: View {
     private func card(title: String, titleColor: Color, period: String, value: String, delta: String,
                       trend: DeltaFormat.Trend, fill: Color) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(title).font(.system(size: 11)).foregroundStyle(titleColor)
+            Text(title).font(.app(11)).foregroundStyle(titleColor)
                 .lineLimit(1).minimumScaleFactor(0.7)
-            Text(period).font(.system(size: 10)).foregroundStyle(Color.secondary)
+            Text(period).font(.app(10)).foregroundStyle(Color.secondary)
                 .lineLimit(1).minimumScaleFactor(0.7)
-            Text(value).font(.system(size: 20, weight: .bold)).foregroundStyle(Color.primary)
+            Text(value).font(.app(20, weight: .bold)).foregroundStyle(Color.primary)
                 .lineLimit(1).minimumScaleFactor(0.7)
-            Text(delta).font(.system(size: 11)).foregroundStyle(trendColor(trend))
+            Text(delta).font(.app(11)).foregroundStyle(trendColor(trend))
                 .lineLimit(1).minimumScaleFactor(0.7)
         }
         .padding(.horizontal, 8)
@@ -166,17 +166,16 @@ struct UnplacedArea: View {
     }
 
     private func chip(_ ev: ShiftEvent) -> some View {
-        let color = Color(hex: ev.color)
         let time = Rules.timeLabel(ev)
         return HStack(spacing: 4) {
-            Text(ev.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(EventColor.text(ev.color)).lineLimit(1)
+            Text(ev.title).font(.app(11, weight: .semibold)).foregroundStyle(EventColor.text(ev.color)).lineLimit(1)
             if !time.isEmpty {
-                Text(time).font(.system(size: 9)).foregroundStyle(EventColor.text(ev.color).opacity(0.8))
+                Text(time).font(.app(9)).foregroundStyle(EventColor.text(ev.color).opacity(0.85))
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(color.opacity(0.45))
+        .background(EventColor.fill(ev.color))
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .onTapGesture { onSelectEvent(ev) }
@@ -187,19 +186,18 @@ struct UnplacedArea: View {
     }
 
     private func chipPreview(_ ev: ShiftEvent) -> some View {
-        let color = Color(hex: ev.color)
         let time = Rules.timeLabel(ev)
         return HStack(spacing: 4) {
-            Text(ev.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(EventColor.text(ev.color))
+            Text(ev.title).font(.app(11, weight: .semibold)).foregroundStyle(EventColor.text(ev.color))
             if !time.isEmpty {
-                Text(time).font(.system(size: 9)).foregroundStyle(EventColor.text(ev.color).opacity(0.8))
+                Text(time).font(.app(9)).foregroundStyle(EventColor.text(ev.color).opacity(0.85))
             }
         }
         .lineLimit(1)
         .fixedSize()
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(color.opacity(0.45))
+        .background(EventColor.fill(ev.color))
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
@@ -207,7 +205,7 @@ struct UnplacedArea: View {
     private var backZone: some View {
         VStack(spacing: 2) {
             Image(systemName: "tray.and.arrow.down").font(.title3)
-            Text("未配置\nに戻す").font(.system(size: 9)).multilineTextAlignment(.center)
+            Text("未配置\nに戻す").font(.app(9)).multilineTextAlignment(.center)
         }
         .foregroundStyle(backTargeted ? Theme.accent : Color.secondary)
         .frame(width: 72)
