@@ -6,22 +6,24 @@ enum DayType { case normal, saturday, sunday, holiday }
 enum Rules {
     private static let cal = Calendar(identifier: .gregorian)
 
-    /// 15分刻みの時刻候補("HH:mm")。allow24 なら末尾に "24:00"(終了時刻専用)
-    static func timeOptions15(allow24: Bool) -> [String] {
-        var list = (0..<96).map { String(format: "%02d:%02d", $0 / 4, ($0 % 4) * 15) }
-        if allow24 { list.append("24:00") }
-        return list
-    }
+    /// 開始時刻の上限(27:00)と終了時刻の上限(36:00)。分で表す
+    static let maxStartMinutes = 27 * 60
+    static let maxEndMinutes = 36 * 60
 
-    /// 手入力の時刻("0930" / "09:30")を "HH:mm" に正規化する。不正なら nil
-    static func parseTimeDigits(_ text: String, allow24: Bool) -> String? {
+    /// 手入力の時刻("0930" / "09:30")を "HH:mm" に正規化する。不正・上限超えなら nil
+    static func parseTimeDigits(_ text: String, maxMinutes: Int) -> String? {
         let digits = text.filter { $0.isASCII && $0.isNumber }
         guard digits.count == 4, let v = Int(digits) else { return nil }
         let h = v / 100, m = v % 100
-        if h <= 23 && m <= 59 { return String(format: "%02d:%02d", h, m) }
-        if allow24 && v == 2400 { return "24:00" }
-        return nil
+        guard m <= 59, h * 60 + m <= maxMinutes else { return nil }
+        return String(format: "%02d:%02d", h, m)
     }
+
+    /// ホイールの時の候補(0...maxHour)
+    static func hourOptions(maxHour: Int) -> [Int] { Array(0...maxHour) }
+
+    /// ホイールの分の候補(0,5,...,55)
+    static let minuteOptions: [Int] = Array(stride(from: 0, to: 60, by: 5))
 
     // MARK: 日付
 
@@ -138,8 +140,10 @@ enum Rules {
         guard let sd = start.nonEmpty else { return end }
         let ed = end.nonEmpty
         guard !allDay, let st = startTime.nonEmpty, let et = endTime.nonEmpty else { return ed ?? sd }
-        if et == "24:00" { return ed ?? sd }
-        if et <= st { return addDays(sd, 1) }
+        let sm = minutes(st) ?? 0, em = minutes(et) ?? 0
+        // 24:00以降の時刻を含む予定は月ビューでは開始日のみ(単日バー)
+        if sm >= 1440 || em >= 1440 { return sd }
+        if em <= sm { return addDays(sd, 1) }
         if let ed, ed >= sd { return ed }
         return sd
     }
@@ -190,21 +194,20 @@ enum Rules {
         return ""
     }
 
-    /// 週ビューの1日分の縦位置(0...1)。日またぎの予定は開始日・終了日・中間日で形が変わる
+    /// 週ビューの1日分の縦位置(0...1)。開始日の0:00からの分で [s, e) を求め、表示日の範囲と交差させる
     static func timedSegment(_ ev: ShiftEvent, on ds: String) -> (top: Double, height: Double)? {
-        guard !ev.allDay, let start = ev.startDate, dateInRange(ds, start, ev.endDate) else { return nil }
-        let end = ev.endDate ?? start
-        let isStart = start == ds, isEnd = end == ds
-        let s = Double(minutes(ev.startTime) ?? 0)
-        let e = Double(minutes(ev.endTime) ?? 1440)
-        if isStart && isEnd {
-            let e2 = e <= s ? 1440 : e
-            return (s / 1440, max(30, e2 - s) / 1440)
-        } else if isStart {
-            return (s / 1440, (1440 - s) / 1440)
-        } else if isEnd {
-            return (0, max(30, e) / 1440)
-        }
-        return (0, 1)
+        guard !ev.allDay, let start = ev.startDate else { return nil }
+        let k = daysBetween(start, ds)
+        guard k >= 0 else { return nil }
+        let endDate = ev.endDate ?? start
+        let s = minutes(ev.startTime) ?? 0
+        var e = daysBetween(start, endDate) * 1440 + (minutes(ev.endTime) ?? 1440)
+        if e <= s && endDate == start { e = 1440 }
+        let lo = 1440 * k, hi = 1440 * (k + 1)
+        let from = max(s, lo), to = min(e, hi)
+        guard to > from else { return nil }
+        let top = Double(from - lo) / 1440
+        let height = min(max(30, to - from), 1440 - (from - lo))
+        return (top, Double(height) / 1440)
     }
 }

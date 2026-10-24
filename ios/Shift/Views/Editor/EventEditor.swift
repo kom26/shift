@@ -19,9 +19,12 @@ struct EventEditor: View {
     @State private var breakText: String
     @State private var hasDate: Bool
     @State private var confirmDelete = false
+    @State private var openPanel: TimePanel?
+    @State private var typed = ""
     @FocusState private var focusedField: Field?
 
-    enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime }
+    enum Field: Hashable { case title, memo, breakMinutes, timeEntry }
+    enum TimePanel: Hashable { case start, end }
 
     init(original: ShiftEvent, isNew: Bool) {
         self.original = original
@@ -56,7 +59,7 @@ struct EventEditor: View {
                 }
                 Section {
                     Toggle("日付を指定", isOn: $hasDate)
-                    if hasDate {
+                    if hasDate && allDay {
                         DatePicker("開始日", selection: $start, displayedComponents: .date)
                         DatePicker("終了日", selection: $end, in: start..., displayedComponents: .date)
                     }
@@ -86,8 +89,11 @@ struct EventEditor: View {
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("完了") { focusedField = nil }
+                    Button("完了") { closeTimePanel() }
                 }
+            }
+            .onChange(of: focusedField) { old, new in
+                if old == .timeEntry && new != .timeEntry && openPanel != nil { closeTimePanel() }
             }
             .onChange(of: start) { _, new in if end < new { end = new } }
             .onChange(of: startTime) { breakText = "" }
@@ -126,13 +132,138 @@ struct EventEditor: View {
         }
     }
 
+    // MARK: 時刻入力
+
+    private func maxMinutes(_ p: TimePanel) -> Int { p == .start ? Rules.maxStartMinutes : Rules.maxEndMinutes }
+    private func timeValue(_ p: TimePanel) -> String { p == .start ? startTime : endTime }
+
+    private func setTime(_ p: TimePanel, _ t: String) {
+        if p == .start { startTime = t } else { endTime = t }
+    }
+
+    private func closeTimePanel() {
+        typed = ""
+        focusedField = nil
+        withAnimation(.easeInOut(duration: 0.2)) { openPanel = nil }
+    }
+
+    private func toggleTimePanel(_ p: TimePanel) {
+        typed = ""
+        let next: TimePanel? = openPanel == p ? nil : p
+        withAnimation(.easeInOut(duration: 0.2)) { openPanel = next }
+        focusedField = next == nil ? nil : .timeEntry
+    }
+
+    /// チップの表示。入力途中なら打鍵中の数字を時刻の形で見せる
+    private func chipText(_ p: TimePanel) -> String {
+        guard openPanel == p, !typed.isEmpty else { return timeValue(p) }
+        return typed.count <= 2 ? typed : String(typed.prefix(2)) + ":" + String(typed.dropFirst(2))
+    }
+
+    private var typedBinding: Binding<String> {
+        Binding(
+            get: { typed },
+            set: { input in
+                guard let p = openPanel else { return }
+                let digits = String(input.filter { $0.isASCII && $0.isNumber }.prefix(4))
+                if digits.count == 4 {
+                    if let t = Rules.parseTimeDigits(digits, maxMinutes: maxMinutes(p)) {
+                        setTime(p, t)
+                    } else {
+                        UINotificationFeedbackGenerator().notificationOccurred(.error)
+                    }
+                    typed = ""
+                } else {
+                    typed = digits
+                }
+            }
+        )
+    }
+
+    private func timeChip(_ p: TimePanel) -> some View {
+        let open = openPanel == p
+        return Button { toggleTimePanel(p) } label: {
+            Text(chipText(p))
+                .font(.body.monospacedDigit())
+                .foregroundStyle(open ? Color.white : Color.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8).fill(open ? Theme.accent : Color(.secondarySystemFill)))
+        }
+        .buttonStyle(.borderless)
+    }
+
+    @ViewBuilder
+    private func timeRow(_ p: TimePanel) -> some View {
+        HStack(spacing: 8) {
+            Text(p == .start ? "開始" : "終了")
+            Spacer()
+            if hasDate {
+                if p == .start {
+                    DatePicker("", selection: $start, displayedComponents: .date).labelsHidden()
+                } else {
+                    DatePicker("", selection: $end, in: start..., displayedComponents: .date).labelsHidden()
+                }
+            }
+            timeChip(p)
+        }
+        if openPanel == p { wheelPanel(p) }
+    }
+
+    private func wheelPanel(_ p: TimePanel) -> some View {
+        let maxHour = maxMinutes(p) / 60
+        let cur = Rules.minutes(timeValue(p)) ?? 0
+        let curH = min(cur / 60, maxHour), curM = cur % 60
+        var minuteItems = Rules.minuteOptions
+        if !minuteItems.contains(curM) { minuteItems.append(curM); minuteItems.sort() }
+        if curH >= maxHour { minuteItems = [0] }
+        let hourBinding = Binding<Int>(
+            get: { curH },
+            set: { h in
+                let m = h >= maxHour ? 0 : curM
+                setTime(p, String(format: "%02d:%02d", h, m))
+            })
+        let minuteBinding = Binding<Int>(
+            get: { curH >= maxHour ? 0 : curM },
+            set: { m in setTime(p, String(format: "%02d:%02d", curH, m)) })
+        return HStack(spacing: 0) {
+            Picker("時", selection: hourBinding) {
+                ForEach(Rules.hourOptions(maxHour: maxHour), id: \.self) { h in
+                    Text(String(format: "%02d", h)).frame(maxWidth: .infinity, alignment: .trailing)
+                        .tag(h)
+                }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            Text(":").font(.title3.monospacedDigit())
+            Picker("分", selection: minuteBinding) {
+                ForEach(minuteItems, id: \.self) { m in
+                    Text(String(format: "%02d", m)).frame(maxWidth: .infinity, alignment: .leading)
+                        .tag(m)
+                }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+        }
+        .frame(height: 140)
+        .compositingGroup()
+        .clipped()
+    }
+
     @ViewBuilder
     private var timeRows: some View {
-        HStack(spacing: 16) {
-            TimeColumn(label: "開始", value: $startTime, allow24: false, field: .startTime, focus: $focusedField)
-            TimeColumn(label: "終了", value: $endTime, allow24: true, field: .endTime, focus: $focusedField)
-        }
-        if endTime <= startTime {
+        timeRow(.start)
+            .overlay(alignment: .leading) {
+                TextField("", text: typedBinding)
+                    .keyboardType(.numberPad)
+                    .focused($focusedField, equals: .timeEntry)
+                    .frame(width: 1, height: 1)
+                    .opacity(0.02)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        timeRow(.end)
+        if let sm = Rules.minutes(startTime), let em = Rules.minutes(endTime), em <= sm, em < 1440 {
             Label("翌日またぎ → 終了日を自動で翌日にします", systemImage: "moon.stars")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -218,63 +349,6 @@ private struct ColorRow: View {
                     .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
                     .onTapGesture { color = c }
             }
-        }
-    }
-}
-
-private struct TimeColumn: View {
-    let label: String
-    @Binding var value: String
-    let allow24: Bool
-    let field: EventEditor.Field
-    var focus: FocusState<EventEditor.Field?>.Binding
-
-    @State private var draft = ""
-
-    private var isFocused: Bool { focus.wrappedValue == field }
-
-    private var items: [String] {
-        var list = Rules.timeOptions15(allow24: allow24)
-        if !list.contains(value) {
-            let idx = list.firstIndex { $0 > value } ?? list.endIndex
-            list.insert(value, at: idx)
-        }
-        return list
-    }
-
-    private var fieldText: Binding<String> {
-        Binding(
-            get: { isFocused ? draft : value },
-            set: { input in
-                guard isFocused else { return }
-                let digits = String(input.filter { $0.isASCII && $0.isNumber }.prefix(4))
-                draft = digits
-                if digits.count == 4, let t = Rules.parseTimeDigits(digits, allow24: allow24) {
-                    value = t
-                }
-            }
-        )
-    }
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(label).font(.footnote).foregroundStyle(.secondary)
-            TextField("", text: fieldText, prompt: Text(value))
-                .keyboardType(.numberPad)
-                .monospacedDigit()
-                .multilineTextAlignment(.center)
-                .focused(focus, equals: field)
-            Picker(label, selection: $value) {
-                ForEach(items, id: \.self) { Text($0).tag($0) }
-            }
-            .pickerStyle(.wheel)
-            .frame(height: 110)
-            .labelsHidden()
-        }
-        .frame(maxWidth: .infinity)
-        .onChange(of: focus.wrappedValue) { old, new in
-            // フォーカスの出入りで入力途中の文字を破棄(確定済みの値は value に反映済み)
-            if old == field || new == field { draft = "" }
         }
     }
 }

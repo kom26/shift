@@ -26,6 +26,24 @@ struct PayCalculatorTests {
         #expect(p.netMinutes == 480)
     }
 
+    @Test func extendedEndSpillsIntoNight() throws {
+        let p = try #require(PayCalculator.pay(event: timed("2026-10-20", "22:00", "25:00"), workplace: wp(), isHoliday: false))
+        #expect(p.netMinutes == 180)
+        #expect(p.nightMinutes == 180)
+        #expect(close(p.base, 3000))
+        #expect(close(p.night, 750))
+        #expect(close(p.total, 4250))
+    }
+
+    @Test func extendedStartAfterNightWindow() throws {
+        let p = try #require(PayCalculator.pay(event: timed("2026-10-20", "29:00", "36:00"), workplace: wp(), isHoliday: false))
+        #expect(p.netMinutes == 375)
+        #expect(p.nightMinutes == 0)
+        #expect(close(p.base, 6250))
+        #expect(close(p.night, 0))
+        #expect(close(p.total, 6750))
+    }
+
     @Test func nightBreakFromNight() throws {
         let p = try #require(PayCalculator.pay(event: timed("2026-10-20", "22:00", "06:00"), workplace: wp(), isHoliday: false))
         #expect(p.nightMinutes == 375)

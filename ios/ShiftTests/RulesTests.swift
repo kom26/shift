@@ -139,6 +139,36 @@ struct RulesTests {
         #expect(Rules.timedSegment(e, on: "2026-10-26") == nil)
     }
 
+    @Test func resolveEndDateExtendedTimesStayOnStartDate() {
+        #expect(Rules.resolveEndDate(start: "2026-10-01", end: nil, allDay: false, startTime: "22:00", endTime: "25:00") == "2026-10-01")
+        #expect(Rules.resolveEndDate(start: "2026-10-01", end: nil, allDay: false, startTime: "29:00", endTime: "36:00") == "2026-10-01")
+        #expect(Rules.resolveEndDate(start: "2026-10-01", end: "2026-10-02", allDay: false, startTime: "22:00", endTime: "06:00") == "2026-10-02")
+    }
+
+    @Test func timedSegmentExtendedStartNextDay() throws {
+        let e = ev("a", "2026-10-01", allDay: false, st: "29:00", et: "36:00")
+        #expect(Rules.timedSegment(e, on: "2026-10-01") == nil)
+        let seg = try #require(Rules.timedSegment(e, on: "2026-10-02"))
+        #expect(abs(seg.top - 300.0 / 1440) < 0.0001)
+        #expect(abs(seg.height - 420.0 / 1440) < 0.0001)
+    }
+
+    @Test func timedSegmentExtendedEndSpillsToNextDay() throws {
+        let e = ev("b", "2026-10-01", allDay: false, st: "22:00", et: "25:00")
+        let first = try #require(Rules.timedSegment(e, on: "2026-10-01"))
+        #expect(abs(first.top - 1320.0 / 1440) < 0.0001)
+        #expect(abs(first.height - 120.0 / 1440) < 0.0001)
+        let second = try #require(Rules.timedSegment(e, on: "2026-10-02"))
+        #expect(second.top == 0)
+        #expect(abs(second.height - 60.0 / 1440) < 0.0001)
+        #expect(Rules.timedSegment(e, on: "2026-10-03") == nil)
+    }
+
+    @Test func totalMinutesExtended() {
+        #expect(Rules.totalMinutes(start: "29:00", end: "36:00") == 420)
+        #expect(Rules.totalMinutes(start: "22:00", end: "25:00") == 180)
+    }
+
     @Test func timedSegmentIgnoresAllDay() {
         #expect(Rules.timedSegment(ev("a", "2026-10-24"), on: "2026-10-24") == nil)
     }
