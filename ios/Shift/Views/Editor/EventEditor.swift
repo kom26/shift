@@ -29,7 +29,7 @@ struct EventEditor: View {
     @State private var workplaceCountBeforeAdd = 0
     @FocusState private var focusedField: Field?
 
-    enum Field: Hashable { case title, memo, breakMinutes, timeEntry }
+    enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime }
     enum TimePanel: Hashable { case start, end }
 
     init(original: ShiftEvent, isNew: Bool) {
@@ -71,8 +71,11 @@ struct EventEditor: View {
         Rules.workHours(start: startTime, end: endTime, allDay: allDay, breakMinutes: effectiveBreak)
     }
     private var showsNightPicker: Bool {
-        !allDay && selectedWorkplace != nil && effectiveBreak >= 1
+        !allDay && effectiveBreak >= 1
             && PayCalculator.nightMinutes(startTime: startTime, endTime: endTime) > 0
+    }
+    private var breakInNightNoWorkplace: Binding<Bool> {
+        Binding(get: { breakInNight ?? true }, set: { breakInNight = $0 })
     }
     private var payBreakdown: PayBreakdown? {
         guard let w = selectedWorkplace, !allDay else { return nil }
@@ -82,6 +85,7 @@ struct EventEditor: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 Section {
                     TextField("タイトル", text: $title)
@@ -119,6 +123,11 @@ struct EventEditor: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .onChange(of: openPanel) { _, new in
+                guard let new else { return }
+                scrollToPanelBottom(new, proxy: proxy)
+            }
+            }
             .navigationTitle(isNew ? "予定を追加" : "予定を編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -142,7 +151,8 @@ struct EventEditor: View {
                 if let b = Int(breakText), b == defaultBreak { breakText = "" }
             }
             .onChange(of: focusedField) { old, new in
-                if old == .timeEntry && new != .timeEntry && openPanel != nil { closeTimePanel() }
+                guard let old, let oldPanel = panel(for: old), openPanel == oldPanel else { return }
+                if new == nil || panel(for: new!) == nil { closeTimePanel() }
             }
             .onChange(of: start) { normalizeEnd() }
             .onChange(of: end) { normalizeEnd() }
@@ -238,7 +248,29 @@ struct EventEditor: View {
         typed = ""
         let next: TimePanel? = openPanel == p ? nil : p
         withAnimation(.easeInOut(duration: 0.2)) { openPanel = next }
-        focusedField = next == nil ? nil : .timeEntry
+        focusedField = next.map(field(for:))
+    }
+
+    private func field(for p: TimePanel) -> Field { p == .start ? .startTime : .endTime }
+
+    private func panel(for f: Field) -> TimePanel? {
+        switch f {
+        case .startTime: return .start
+        case .endTime: return .end
+        default: return nil
+        }
+    }
+
+    private func panelBottomId(_ p: TimePanel) -> String { p == .start ? "startPanelBottom" : "endPanelBottom" }
+
+    /// パネル下端が見えるようスクロール(キーボード表示後にもう一度)
+    private func scrollToPanelBottom(_ p: TimePanel, proxy: ScrollViewProxy) {
+        let id = panelBottomId(p)
+        withAnimation { proxy.scrollTo(id, anchor: .bottom) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            guard openPanel == p else { return }
+            withAnimation { proxy.scrollTo(id, anchor: .bottom) }
+        }
     }
 
     /// チップの表示。入力途中なら打鍵中の数字を時刻の形で見せる
@@ -325,7 +357,19 @@ struct EventEditor: View {
             if p == .start { startDateControl } else { endDateControl }
             timeChip(p)
         }
-        if openPanel == p { wheelPanel(p) }
+        if openPanel == p {
+            VStack(spacing: 0) {
+                wheelPanel(p)
+                TextField("", text: typedBinding)
+                    .keyboardType(.numberPad)
+                    .focused($focusedField, equals: field(for: p))
+                    .frame(width: 1, height: 1)
+                    .opacity(0.02)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            .id(panelBottomId(p))
+        }
     }
 
     private func wheelPanel(_ p: TimePanel) -> some View {
@@ -371,15 +415,6 @@ struct EventEditor: View {
     @ViewBuilder
     private var timeRows: some View {
         timeRow(.start)
-            .overlay(alignment: .leading) {
-                TextField("", text: typedBinding)
-                    .keyboardType(.numberPad)
-                    .focused($focusedField, equals: .timeEntry)
-                    .frame(width: 1, height: 1)
-                    .opacity(0.02)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
         timeRow(.end)
         if let sm = Rules.minutes(startTime), let em = Rules.minutes(endTime), em <= sm, em < 1440,
            let ext = Rules.extendedEndText(endTime) {
@@ -406,12 +441,20 @@ struct EventEditor: View {
             }
         }
         if showsNightPicker {
-            Picker("休憩を引く時間帯", selection: $breakInNight) {
-                Text("職場設定に従う(\(selectedWorkplace?.breakFromNight == false ? "深夜帯以外から" : "深夜帯から"))").tag(Bool?.none)
-                Text("深夜帯から").tag(Bool?.some(true))
-                Text("深夜帯以外から").tag(Bool?.some(false))
+            if let w = selectedWorkplace {
+                Picker("休憩を引く時間帯", selection: $breakInNight) {
+                    Text("職場設定に従う(\(w.breakFromNight == false ? "深夜帯以外から" : "深夜帯から"))").tag(Bool?.none)
+                    Text("深夜帯から").tag(Bool?.some(true))
+                    Text("深夜帯以外から").tag(Bool?.some(false))
+                }
+                .pickerStyle(.menu)
+            } else {
+                Picker("休憩を引く時間帯", selection: breakInNightNoWorkplace) {
+                    Text("深夜帯から").tag(true)
+                    Text("深夜帯以外から").tag(false)
+                }
+                .pickerStyle(.menu)
             }
-            .pickerStyle(.menu)
         }
         if let hours {
             LabeledContent("実労働", value: Rules.formatHours(hours))
