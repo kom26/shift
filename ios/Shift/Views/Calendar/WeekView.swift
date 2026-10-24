@@ -172,7 +172,7 @@ struct WeekView: View {
                         .frame(width: max(0, colW - 2), height: h)
                         .onTapGesture { onSelectEvent(ev) }
                         .eventMenu(for: ev, store: store, onEdit: onSelectEvent) {
-                            blockPreview(ev)
+                            blockPreview(ev, w: max(0, colW - 2), h: h)
                         }
                         .draggable(ev.id)
                         .offset(x: 1, y: H * CGFloat(seg.top))
@@ -193,7 +193,7 @@ struct WeekView: View {
         }
     }
 
-    private func blockPreview(_ ev: ShiftEvent) -> some View {
+    private func blockPreview(_ ev: ShiftEvent, w: CGFloat, h: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: 3)
         let time = Rules.timeLabel(ev)
         return VStack(alignment: .leading, spacing: 0) {
@@ -211,6 +211,7 @@ struct WeekView: View {
         .foregroundStyle(EventColor.text(ev.color))
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
+        .frame(minWidth: w, minHeight: h, alignment: .topLeading)
         .background(EventColor.fill(ev.color), in: shape)
         .background(Color(.systemBackground), in: shape)
         .clipShape(shape)

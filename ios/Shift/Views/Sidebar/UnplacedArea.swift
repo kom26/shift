@@ -210,7 +210,7 @@ struct UnplacedArea: View {
         return HStack(spacing: 4) {
             Text(ev.title).font(.bar(11, weight: .semibold)).foregroundStyle(EventColor.text(ev.color)).lineLimit(1)
             if !time.isEmpty {
-                Text(time).font(.bar(9)).foregroundStyle(EventColor.text(ev.color).opacity(0.85))
+                Text(time).font(.bar(9)).foregroundStyle(EventColor.text(ev.color))
             }
         }
         .padding(.horizontal, 8)
@@ -230,7 +230,7 @@ struct UnplacedArea: View {
         return HStack(spacing: 4) {
             Text(ev.title).font(.bar(11, weight: .semibold)).foregroundStyle(EventColor.text(ev.color))
             if !time.isEmpty {
-                Text(time).font(.bar(9)).foregroundStyle(EventColor.text(ev.color).opacity(0.85))
+                Text(time).font(.bar(9)).foregroundStyle(EventColor.text(ev.color))
             }
         }
         .lineLimit(1)

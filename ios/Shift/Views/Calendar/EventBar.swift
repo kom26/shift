@@ -42,6 +42,8 @@ struct EventBarPreview: View {
     let event: ShiftEvent
     let height: CGFloat
     var fontSize: CGFloat = 10
+    /// 元のバーの幅。文字がこれより長いときだけ文字幅まで伸ばす
+    var minWidth: CGFloat = 0
 
     var body: some View {
         let label = (event.allDay || event.startTime == nil) ? event.title : Rules.timeLabel(event)
@@ -51,6 +53,7 @@ struct EventBarPreview: View {
             .lineLimit(1)
             .fixedSize()
             .padding(.horizontal, 8)
+            .frame(minWidth: minWidth, alignment: .leading)
             .frame(height: height)
             .foregroundStyle(EventColor.text(event.color))
             .background(EventColor.fill(event.color), in: shape)
@@ -78,7 +81,7 @@ struct SpanBars: View {
                         .frame(width: max(0, colW * CGFloat(s.span) - 2), height: barH)
                         .onTapGesture { onSelect(s.event) }
                         .eventMenu(for: s.event, store: store, onEdit: onSelect) {
-                            EventBarPreview(event: s.event, height: barH, fontSize: compactFont ? (barH <= 13 ? 8.5 : 9) : (barH >= 16 ? 10 : 9))
+                            EventBarPreview(event: s.event, height: barH, fontSize: compactFont ? (barH <= 13 ? 8.5 : 9) : (barH >= 16 ? 10 : 9), minWidth: max(0, colW * CGFloat(s.span) - 2))
                         }
                         .draggable(s.event.id)
                         .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + gap))

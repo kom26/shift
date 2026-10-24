@@ -21,6 +21,7 @@ struct EventEditor: View {
     @State private var hasDate: Bool
     @State private var confirmDelete = false
     @State private var openPanel: TimePanel?
+    @State private var shiftOpen = false
     @State private var typed = ""
     @State private var workplaceId: String?
     @State private var breakInNight: Bool?
@@ -251,7 +252,10 @@ struct EventEditor: View {
 
     private func setTime(_ p: TimePanel, _ t: String) {
         if p == .start { startTime = t } else { endTime = t }
+        typed = Self.digits(of: t)
     }
+
+    private static func digits(of time: String) -> String { time.filter { $0.isASCII && $0.isNumber } }
 
     private func closeTimePanel() {
         typed = ""
@@ -260,8 +264,9 @@ struct EventEditor: View {
     }
 
     private func toggleTimePanel(_ p: TimePanel) {
-        typed = ""
+        shiftOpen = false
         let next: TimePanel? = openPanel == p ? nil : p
+        typed = next == nil ? "" : Self.digits(of: timeValue(p))
         withAnimation(.easeInOut(duration: 0.2)) { openPanel = next }
         focusedField = next.map(field(for:))
     }
@@ -290,7 +295,7 @@ struct EventEditor: View {
 
     /// チップの表示。入力途中なら打鍵中の数字を時刻の形で見せる
     private func chipText(_ p: TimePanel) -> String {
-        guard openPanel == p, !typed.isEmpty else { return timeValue(p) }
+        guard openPanel == p, !typed.isEmpty, typed.count < 4 else { return timeValue(p) }
         return typed.count <= 2 ? typed : String(typed.prefix(2)) + ":" + String(typed.dropFirst(2))
     }
 
@@ -299,14 +304,19 @@ struct EventEditor: View {
             get: { typed },
             set: { input in
                 guard let p = openPanel else { return }
-                let digits = String(input.filter { $0.isASCII && $0.isNumber }.prefix(4))
-                if digits.count == 4 {
+                var digits = Self.digits(of: input)
+                // 4桁そろった後の打鍵は、次の4桁の入力開始として受け付ける
+                if digits.count > 4 { digits = String(digits.dropFirst(4).prefix(4)) }
+                if digits.isEmpty {
+                    setTime(p, "00:00")
+                    typed = ""
+                } else if digits.count == 4 {
                     if let t = Rules.parseTimeDigits(digits, maxMinutes: maxMinutes(p)) {
                         setTime(p, t)
                     } else {
                         UINotificationFeedbackGenerator().notificationOccurred(.error)
+                        typed = Self.digits(of: timeValue(p))
                     }
-                    typed = ""
                 } else {
                     typed = digits
                 }
@@ -440,15 +450,7 @@ struct EventEditor: View {
     private var timeRows: some View {
         timeRow(.start)
         timeRow(.end)
-        if let sm = Rules.minutes(startTime), let em = Rules.minutes(endTime), em <= sm, em < 1440,
-           let ext = Rules.extendedEndText(endTime) {
-            HStack(spacing: 6) {
-                Image(systemName: "questionmark.circle")
-                Text("\(ext)とすると同日の予定として表記")
-            }
-            .font(.app(13))
-            .foregroundStyle(.secondary)
-        }
+        endNotationHints
         HStack {
             Text("休憩")
             Spacer()
@@ -480,9 +482,120 @@ struct EventEditor: View {
                 .pickerStyle(.menu)
             }
         }
+        if let total { shiftDurationRow(total) }
         if let hours {
             LabeledContent("実労働", value: Rules.formatHours(hours))
         }
+    }
+
+    // MARK: 終了の表記切り替え
+
+    private var endDaysFromStart: Int {
+        hasDate ? Rules.daysBetween(Rules.format(start), Rules.format(end)) : 1
+    }
+
+    /// 終了を一括で置き換える。lastValid を先に揃えて、終了の検証(validateEndEdit)を発火させない
+    private func applyEnd(date: Date, time: String) {
+        lastValidEndDate = date
+        lastValidEndTime = time
+        end = date
+        endTime = time
+        breakText = ""
+    }
+
+    @ViewBuilder
+    private var endNotationHints: some View {
+        if let sm = Rules.minutes(startTime), let em = Rules.minutes(endTime) {
+            if em <= sm, em < 1440, endDaysFromStart == 1, let ext = Rules.extendedEndText(endTime) {
+                notationHint("\(ext)とすると同日の予定として表記") {
+                    applyEnd(date: start, time: ext)
+                }
+            } else if em >= 1440 {
+                let normal = String(format: "%02d:%02d", (em - 1440) / 60, (em - 1440) % 60)
+                notationHint("\(normal)とすると日跨ぎ予定として表記") {
+                    let next = hasDate ? (Rules.parse(Rules.addDays(Rules.format(end), 1)) ?? end) : end
+                    applyEnd(date: next, time: normal)
+                }
+            }
+        }
+    }
+
+    private func notationHint(_ text: String, change: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "questionmark.circle")
+            Text(text)
+            Spacer()
+            Button("変更", action: change)
+                .buttonStyle(.borderless)
+                .foregroundStyle(Theme.accent)
+        }
+        .font(.app(13))
+        .foregroundStyle(.secondary)
+    }
+
+    // MARK: シフト時間
+
+    private func shiftText(_ minutes: Int) -> String {
+        minutes % 60 == 0 ? "\(minutes / 60)時間" : "\(minutes / 60)時間\(minutes % 60)分"
+    }
+
+    /// 開始は動かさず、終了(日付と時刻)をシフト時間に合わせる
+    private func setShiftMinutes(_ dur: Int) {
+        guard let sm = Rules.minutes(startTime) else { return }
+        let abs = sm + dur
+        let time = String(format: "%02d:%02d", (abs % 1440) / 60, abs % 60)
+        let date = hasDate ? (Rules.parse(Rules.addDays(Rules.format(start), abs / 1440)) ?? end) : end
+        applyEnd(date: date, time: time)
+    }
+
+    @ViewBuilder
+    private func shiftDurationRow(_ total: Int) -> some View {
+        HStack(spacing: 8) {
+            Text("シフト時間")
+            Spacer()
+            Button {
+                if shiftOpen {
+                    shiftOpen = false
+                } else {
+                    closeTimePanel()
+                    shiftOpen = true
+                }
+            } label: {
+                Text(shiftText(total))
+                    .font(.app(17).monospacedDigit())
+                    .foregroundStyle(shiftOpen ? Theme.onAccent : Color.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(shiftOpen ? Theme.accent : Color(.secondarySystemFill)))
+            }
+            .buttonStyle(.borderless)
+        }
+        if shiftOpen { shiftWheel(total) }
+    }
+
+    private func shiftWheel(_ total: Int) -> some View {
+        let h = min(total / 60, 48), m = total % 60
+        var minuteItems = Rules.minuteOptions
+        if !minuteItems.contains(m) { minuteItems.append(m); minuteItems.sort() }
+        let hourBinding = Binding<Int>(get: { h }, set: { setShiftMinutes($0 * 60 + m) })
+        let minuteBinding = Binding<Int>(get: { m }, set: { setShiftMinutes(h * 60 + $0) })
+        return HStack(spacing: 0) {
+            Picker("時間", selection: hourBinding) {
+                ForEach(0...48, id: \.self) { Text("\($0)").tag($0) }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            Text("時間").font(.app(15))
+            Picker("分", selection: minuteBinding) {
+                ForEach(minuteItems, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            Text("分").font(.app(15))
+        }
+        .frame(height: 140)
+        .compositingGroup()
+        .clipped()
     }
 
     private func paySection(_ p: PayBreakdown) -> some View {
