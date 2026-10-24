@@ -407,9 +407,9 @@ struct EventEditor: View {
         }
         if showsNightPicker {
             Picker("休憩を引く時間帯", selection: $breakInNight) {
-                Text("職場の既定に従う").tag(Bool?.none)
+                Text("職場設定に従う(\(selectedWorkplace?.breakFromNight == false ? "深夜帯以外から" : "深夜帯から"))").tag(Bool?.none)
                 Text("深夜帯から").tag(Bool?.some(true))
-                Text("深夜以外から").tag(Bool?.some(false))
+                Text("深夜帯以外から").tag(Bool?.some(false))
             }
             .pickerStyle(.menu)
         }

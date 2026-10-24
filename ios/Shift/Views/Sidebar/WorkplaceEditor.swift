@@ -163,7 +163,7 @@ struct WorkplaceEditor: View {
                 Section("休憩を引く時間帯の既定") {
                     Picker("休憩を引く時間帯", selection: $breakFromNight) {
                         Text("深夜帯から引く").tag(true)
-                        Text("深夜以外から引く").tag(false)
+                        Text("深夜帯以外から引く").tag(false)
                     }
                     .pickerStyle(.menu)
                 }
