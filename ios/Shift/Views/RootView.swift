@@ -30,6 +30,9 @@ struct RootView: View {
     @State private var paydayTarget: PaydayTarget?
     @State private var dragX: CGFloat = 0
     @State private var pagerWidth: CGFloat = 0
+    @State private var lockFrames: [CGRect] = []
+    @State private var dragStart: CGPoint?
+    @State private var dragBlocked = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -135,12 +138,21 @@ struct RootView: View {
             .clipped()
             .contentShape(Rectangle())
             .simultaneousGesture(
-                DragGesture(minimumDistance: 16)
+                DragGesture(minimumDistance: 16, coordinateSpace: .named("pager"))
                     .onChanged { v in
+                        if dragStart != v.startLocation {
+                            dragStart = v.startLocation
+                            dragBlocked = lockFrames.contains { $0.contains(v.startLocation) }
+                        }
+                        guard !dragBlocked else { return }
                         guard abs(v.translation.width) > abs(v.translation.height) else { return }
                         dragX = v.translation.width
                     }
                     .onEnded { v in
+                        let wasBlocked = dragBlocked
+                        dragStart = nil
+                        dragBlocked = false
+                        guard !wasBlocked else { return }
                         let dx = v.translation.width
                         let horizontal = abs(dx) > abs(v.translation.height)
                         if horizontal && (abs(dx) > w * 0.25 || abs(v.predictedEndTranslation.width) > w * 0.5) {
@@ -152,6 +164,8 @@ struct RootView: View {
             .onAppear { pagerWidth = w }
             .onChange(of: w) { _, new in pagerWidth = new }
         }
+        .coordinateSpace(name: "pager")
+        .onPreferenceChange(ScrollLockFramesKey.self) { lockFrames = $0 }
     }
 
     @ViewBuilder

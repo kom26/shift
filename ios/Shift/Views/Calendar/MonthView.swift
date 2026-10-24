@@ -22,6 +22,9 @@ struct MonthView: View {
     var body: some View {
         let ym = Rules.ymd(anchor)
         let weeks = Rules.monthGrid(year: ym.year, month: ym.month, startMonday: startMonday)
+        let monthBounds = Rules.monthBounds(of: anchor)
+        let monthTotals = store.totals(from: monthBounds.first, to: monthBounds.last, isHoliday: { holidays.name(on: $0) != nil })
+        let monthOrder = monthTotals.map(\.color)
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(Array(Rules.weekdayLabels(startMonday: startMonday).enumerated()), id: \.offset) { i, label in
@@ -46,7 +49,7 @@ struct MonthView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
-                            weekBlock(weeks[i], rows: weekRows[i], rowH: rowH, barH: barH)
+                            weekBlock(weeks[i], rows: weekRows[i], rowH: rowH, barH: barH, monthOrder: monthOrder)
                             Divider()
                         }
                     }
@@ -54,8 +57,7 @@ struct MonthView: View {
                 .scrollBounceBehavior(.basedOnSize)
             }
             Divider()
-            let b = Rules.monthBounds(of: anchor)
-            SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
+            SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし")
                 .frame(height: stripH)
                 .background(Color(.secondarySystemBackground))
         }
@@ -67,14 +69,14 @@ struct MonthView: View {
         }
     }
 
-    private func weekBlock(_ cells: [String], rows: [[BarSpan]], rowH: CGFloat, barH: CGFloat) -> some View {
+    private func weekBlock(_ cells: [String], rows: [[BarSpan]], rowH: CGFloat, barH: CGFloat, monthOrder: [String]) -> some View {
         VStack(spacing: 0) {
             weekCells(cells, rows: rows, barH: barH)
                 .frame(height: summaryOn ? rowH - stripH : rowH)
                 .clipped()
             if summaryOn {
                 SummaryStrip(label: "週計",
-                             totals: store.totals(from: cells[0], to: cells[6], isHoliday: { holidays.name(on: $0) != nil }),
+                             totals: store.totals(from: cells[0], to: cells[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthOrder),
                              emptyText: "-")
                     .frame(height: stripH)
                     .frame(maxWidth: .infinity)

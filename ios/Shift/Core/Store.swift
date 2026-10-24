@@ -65,7 +65,7 @@ final class Store {
     }
 
     /// 開始日が from...to に入る予定を色ごとに合計する
-    func totals(from: String, to: String, isHoliday: (String) -> Bool = { _ in false }) -> [ColorTotal] {
+    func totals(from: String, to: String, isHoliday: (String) -> Bool = { _ in false }, orderBy: [String]? = nil) -> [ColorTotal] {
         var order: [String] = []
         var map: [String: ColorTotal] = [:]
         for ev in visibleEvents {
@@ -82,7 +82,16 @@ final class Store {
                 map[ev.color]!.pay += p.total
             }
         }
-        return order.compactMap { map[$0] }
+        let base = order.compactMap { map[$0] }
+        // 時間の降順(同値は初出順を維持)。orderBy があればその並びを優先し、無いものは後ろへ
+        let byHours = base.enumerated().sorted {
+            $0.element.hours != $1.element.hours ? $0.element.hours > $1.element.hours : $0.offset < $1.offset
+        }.map(\.element)
+        guard let orderBy else { return byHours }
+        let ranked = byHours.enumerated().map { (idx: orderBy.firstIndex(of: $0.element.color), pos: $0.offset, t: $0.element) }
+        let inList = ranked.filter { $0.idx != nil }.sorted { $0.idx! < $1.idx! }
+        let rest = ranked.filter { $0.idx == nil }
+        return (inList + rest).map(\.t)
     }
 
     struct PaymentRow: Identifiable {

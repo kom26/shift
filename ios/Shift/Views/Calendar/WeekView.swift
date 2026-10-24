@@ -30,13 +30,14 @@ struct WeekView: View {
             Divider()
             grid(days)
             let b = Rules.monthBounds(of: anchor)
+            let monthTotals = store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil })
             if summaryOn {
                 Divider()
-                SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
+                SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthTotals.map(\.color)), emptyText: "データなし")
                     .frame(height: 24)
             }
             Divider()
-            SummaryStrip(label: "月計", totals: store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil }), emptyText: "データなし")
+            SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし")
                 .frame(height: 24)
         }
         .background { MonthWatermark(number: Rules.ymd(days[3]).month) }
