@@ -7,7 +7,9 @@ struct ColorTotal: Identifiable {
     var hours: Double
     var count: Int
     var pay: Double = 0
-    var id: String { color }
+    /// グループキー: 職場ID、職場なしの予定は予定の色
+    var key: String = ""
+    var id: String { key }
 }
 
 @Observable
@@ -21,14 +23,14 @@ final class Store {
     }
 
     private(set) var events: [ShiftEvent] = []
-    private(set) var checkedColors: Set<String>
+    private(set) var checkedWorkplaces: Set<String>
     private(set) var customColors: [String]
     private(set) var workplaces: [Workplace]
 
     @ObservationIgnored private let fileURL: URL
     @ObservationIgnored private let defaults: UserDefaults
     private enum Keys {
-        static let checked = "shift-checked-colors"
+        static let checked = "shift-checked-workplaces"
         static let custom = "shift-custom-colors"
         static let workplaces = "shift-workplaces"
     }
@@ -36,7 +38,7 @@ final class Store {
     init(fileURL: URL = Store.defaultFileURL, defaults: UserDefaults = .standard) {
         self.fileURL = fileURL
         self.defaults = defaults
-        checkedColors = Set(defaults.stringArray(forKey: Keys.checked) ?? [])
+        checkedWorkplaces = Set(defaults.stringArray(forKey: Keys.checked) ?? [])
         customColors = defaults.stringArray(forKey: Keys.custom) ?? []
         workplaces = defaults.data(forKey: Keys.workplaces)
             .flatMap { try? JSONDecoder().decode([Workplace].self, from: $0) } ?? []
@@ -54,32 +56,35 @@ final class Store {
 
     // MARK: 参照
 
-    /// 配置済みで、色フィルタを通る予定(フィルタが空なら全色)
+    /// 「指定なし」(職場に結びつかない予定)を表すフィルタ用の番兵ID
+    static let noWorkplaceKey = ""
+
+    /// 配置済みで、職場フィルタを通る予定(フィルタが空なら全て)
     var visibleEvents: [ShiftEvent] {
-        events.filter { $0.placed && $0.startDate != nil && (checkedColors.isEmpty || checkedColors.contains($0.color)) }
+        events.filter {
+            $0.placed && $0.startDate != nil
+                && (checkedWorkplaces.isEmpty || checkedWorkplaces.contains(workplace(for: $0)?.id ?? Store.noWorkplaceKey))
+        }
     }
 
-    var colorsInUse: [String] {
-        var seen = Set<String>()
-        return events.map(\.color).filter { seen.insert($0).inserted }
-    }
-
-    /// 開始日が from...to に入る予定を色ごとに合計する
+    /// 開始日が from...to に入る予定を職場ごとに合計する(職場なしは色ごと)
     func totals(from: String, to: String, isHoliday: (String) -> Bool = { _ in false }, orderBy: [String]? = nil) -> [ColorTotal] {
         var order: [String] = []
         var map: [String: ColorTotal] = [:]
         for ev in visibleEvents {
             guard let sd = ev.startDate, sd >= from, sd <= to,
                   let h = ev.effectiveHours, h > 0 else { continue }
-            if map[ev.color] == nil {
-                order.append(ev.color)
-                map[ev.color] = ColorTotal(color: ev.color, title: ev.title, hours: 0, count: 0)
+            let w = workplace(for: ev)
+            let key = w?.id ?? ev.color
+            if map[key] == nil {
+                order.append(key)
+                map[key] = ColorTotal(color: w?.color ?? ev.color, title: w?.name ?? ev.title,
+                                      hours: 0, count: 0, key: key)
             }
-            map[ev.color]!.hours += h
-            map[ev.color]!.count += 1
-            if let w = workplace(for: ev),
-               let p = PayCalculator.pay(event: ev, workplace: w, isHoliday: isHoliday(sd)) {
-                map[ev.color]!.pay += p.total
+            map[key]!.hours += h
+            map[key]!.count += 1
+            if let w, let p = PayCalculator.pay(event: ev, workplace: w, isHoliday: isHoliday(sd)) {
+                map[key]!.pay += p.total
             }
         }
         let base = order.compactMap { map[$0] }
@@ -88,7 +93,7 @@ final class Store {
             $0.element.hours != $1.element.hours ? $0.element.hours > $1.element.hours : $0.offset < $1.offset
         }.map(\.element)
         guard let orderBy else { return byHours }
-        let ranked = byHours.enumerated().map { (idx: orderBy.firstIndex(of: $0.element.color), pos: $0.offset, t: $0.element) }
+        let ranked = byHours.enumerated().map { (idx: orderBy.firstIndex(of: $0.element.key), pos: $0.offset, t: $0.element) }
         let inList = ranked.filter { $0.idx != nil }.sorted { $0.idx! < $1.idx! }
         let rest = ranked.filter { $0.idx == nil }
         return (inList + rest).map(\.t)
@@ -220,13 +225,13 @@ final class Store {
         return recalled.count
     }
 
-    func toggleColor(_ color: String) {
-        if checkedColors.contains(color) { checkedColors.remove(color) } else { checkedColors.insert(color) }
-        defaults.set(Array(checkedColors), forKey: Keys.checked)
+    func toggleWorkplaceFilter(_ id: String) {
+        if checkedWorkplaces.contains(id) { checkedWorkplaces.remove(id) } else { checkedWorkplaces.insert(id) }
+        defaults.set(Array(checkedWorkplaces), forKey: Keys.checked)
     }
 
-    func clearColors() {
-        checkedColors = []
+    func clearWorkplaceFilter() {
+        checkedWorkplaces = []
         defaults.set([String](), forKey: Keys.checked)
     }
 

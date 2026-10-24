@@ -36,4 +36,34 @@ struct SummaryTests {
         let t2 = store.totals(from: "2026-10-04", to: "2026-10-10", orderBy: ["#bbbbbb", "#aaaaaa"])
         #expect(t2.map(\.color) == ["#bbbbbb", "#aaaaaa", "#cccccc"])
     }
+
+    @Test func totalsGroupByWorkplaceEvenWithSameColor() {
+        let store = make()
+        store.addWorkplace(Workplace(id: "w1", name: "A店", color: "#111111"))
+        store.addWorkplace(Workplace(id: "w2", name: "B店", color: "#111111"))
+        var a = ev("x", "2026-10-05", color: "#111111", allDay: false, st: "09:00", et: "12:00"); a.workplaceId = "w1"
+        var b = ev("y", "2026-10-06", color: "#111111", allDay: false, st: "09:00", et: "14:00"); b.workplaceId = "w2"
+        store.save(a)
+        store.save(b)
+        let t = store.totals(from: "2026-10-01", to: "2026-10-31")
+        #expect(t.map(\.title) == ["B店", "A店"])
+        #expect(t.map(\.key) == ["w2", "w1"])
+        #expect(t[0].color == "#111111")
+        #expect(Set(t.map(\.id)).count == 2)
+        let ordered = store.totals(from: "2026-10-01", to: "2026-10-31", orderBy: ["w1", "w2"])
+        #expect(ordered.map(\.key) == ["w1", "w2"])
+    }
+
+    @Test func unlinkedEventsFallBackPerColor() {
+        let store = make()
+        store.addWorkplace(Workplace(id: "w1", name: "A店", color: "#111111"))
+        var a = ev("x", "2026-10-05", color: "#111111", allDay: false, st: "09:00", et: "12:00"); a.workplaceId = "w1"
+        store.save(a)
+        store.save(ev("p", "2026-10-06", color: "#222222", allDay: false, st: "09:00", et: "10:00"))
+        store.save(ev("q", "2026-10-07", color: "#333333", allDay: false, st: "09:00", et: "10:00"))
+        let t = store.totals(from: "2026-10-01", to: "2026-10-31")
+        #expect(t.count == 3)
+        #expect(t[0].title == "A店")
+        #expect(Set(t.map(\.color)) == ["#111111", "#222222", "#333333"])
+    }
 }

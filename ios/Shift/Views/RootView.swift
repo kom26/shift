@@ -94,15 +94,15 @@ struct RootView: View {
                         .contentShape(Rectangle())
                 }
                 Button { showFilter = true } label: {
-                    Image(systemName: store.checkedColors.isEmpty
+                    Image(systemName: store.checkedWorkplaces.isEmpty
                           ? "line.3.horizontal.decrease.circle"
                           : "line.3.horizontal.decrease.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(store.checkedColors.isEmpty ? Color.primary : Theme.accent)
+                        .foregroundStyle(store.checkedWorkplaces.isEmpty ? Color.primary : Theme.accent)
                         .frame(minWidth: 36, minHeight: 36)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel("色フィルタ")
+                .accessibilityLabel("職場フィルタ")
             }
         }
         .padding(.horizontal, 12)

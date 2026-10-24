@@ -20,20 +20,21 @@ struct WeekView: View {
     var body: some View {
         let start = Rules.weekStart(of: anchor, startMonday: startMonday)
         let days = (0..<7).map { Rules.addDays(start, $0) }
+        let conflictDays = Conflicts.days(events: store.events)
         let allDayRows = SpanLayout.rows(events: store.visibleEvents.filter(\.allDay), weekCells: days.map { Optional($0) })
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 Color.clear.frame(width: timeW, height: 0)
-                ForEach(days, id: \.self) { header($0) }
+                ForEach(days, id: \.self) { header($0, conflict: conflictDays.contains($0)) }
             }
             allDayRow(days: days, rows: allDayRows)
             Divider()
-            grid(days)
+            grid(days, conflictDays: conflictDays)
             let b = Rules.monthBounds(of: anchor)
             let monthTotals = store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil })
             if summaryOn {
                 Divider()
-                SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthTotals.map(\.color)), emptyText: "データなし")
+                SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthTotals.map(\.key)), emptyText: "データなし")
                     .frame(height: 24)
             }
             Divider()
@@ -43,7 +44,7 @@ struct WeekView: View {
         .background { MonthWatermark(number: Rules.ymd(days[3]).month) }
     }
 
-    private func header(_ ds: String) -> some View {
+    private func header(_ ds: String, conflict: Bool) -> some View {
         let holiday = holidays.name(on: ds)
         let type = Rules.dayType(ds, isHoliday: holiday != nil)
         let isToday = ds == Rules.today()
@@ -67,7 +68,7 @@ struct WeekView: View {
                 PaydayCoinButton { onSelectPayday(ds) }
             }
         }
-        .background(isToday ? Theme.accentSoft : Color.clear)
+        .background(conflict ? Color.red.opacity(0.16) : (isToday ? Theme.accentSoft : Color.clear))
     }
 
     @ViewBuilder
@@ -101,7 +102,7 @@ struct WeekView: View {
         }
     }
 
-    private func grid(_ days: [String]) -> some View {
+    private func grid(_ days: [String], conflictDays: Set<String>) -> some View {
         GeometryReader { geo in
             let colW = (geo.size.width - timeW) / 7
             let H = geo.size.height
@@ -123,7 +124,7 @@ struct WeekView: View {
                     let ds = days[i]
                     column(ds, colW: colW, H: H)
                         .frame(width: colW, height: H, alignment: .topLeading)
-                        .background(dropTarget == ds ? Theme.accentSoft : Color.clear)
+                        .background(dropTarget == ds ? Theme.accentSoft : (conflictDays.contains(ds) ? Color.red.opacity(0.10) : Color.clear))
                         .overlay(alignment: .leading) {
                             Rectangle().fill(Color(.separator).opacity(0.5)).frame(width: 0.5)
                         }

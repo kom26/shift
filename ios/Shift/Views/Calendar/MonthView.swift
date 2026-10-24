@@ -24,7 +24,8 @@ struct MonthView: View {
         let weeks = Rules.monthGrid(year: ym.year, month: ym.month, startMonday: startMonday)
         let monthBounds = Rules.monthBounds(of: anchor)
         let monthTotals = store.totals(from: monthBounds.first, to: monthBounds.last, isHoliday: { holidays.name(on: $0) != nil })
-        let monthOrder = monthTotals.map(\.color)
+        let monthOrder = monthTotals.map(\.key)
+        let conflictDays = Conflicts.days(events: store.events)
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(Array(Rules.weekdayLabels(startMonday: startMonday).enumerated()), id: \.offset) { i, label in
@@ -49,7 +50,7 @@ struct MonthView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
-                            weekBlock(weeks[i], rows: weekRows[i], rowH: rowH, barH: barH, monthOrder: monthOrder)
+                            weekBlock(weeks[i], rows: weekRows[i], rowH: rowH, barH: barH, monthOrder: monthOrder, conflictDays: conflictDays)
                             Divider()
                         }
                     }
@@ -69,9 +70,9 @@ struct MonthView: View {
         }
     }
 
-    private func weekBlock(_ cells: [String], rows: [[BarSpan]], rowH: CGFloat, barH: CGFloat, monthOrder: [String]) -> some View {
+    private func weekBlock(_ cells: [String], rows: [[BarSpan]], rowH: CGFloat, barH: CGFloat, monthOrder: [String], conflictDays: Set<String>) -> some View {
         VStack(spacing: 0) {
-            weekCells(cells, rows: rows, barH: barH)
+            weekCells(cells, rows: rows, barH: barH, conflictDays: conflictDays)
                 .frame(height: summaryOn ? rowH - stripH : rowH)
                 .clipped()
             if summaryOn {
@@ -88,13 +89,13 @@ struct MonthView: View {
         }
     }
 
-    private func weekCells(_ cells: [String], rows: [[BarSpan]], barH: CGFloat) -> some View {
+    private func weekCells(_ cells: [String], rows: [[BarSpan]], barH: CGFloat, conflictDays: Set<String>) -> some View {
         GeometryReader { geo in
             let w = geo.size.width / 7
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(0..<7, id: \.self) { i in
-                        dayCell(cells[i])
+                        dayCell(cells[i], conflict: conflictDays.contains(cells[i]))
                             .frame(width: w, height: geo.size.height)
                             .overlay(alignment: .leading) {
                                 Rectangle().fill(Color(.separator).opacity(0.5)).frame(width: 0.5)
@@ -114,13 +115,16 @@ struct MonthView: View {
         }
     }
 
-    private func dayCell(_ ds: String) -> some View {
+    private func dayCell(_ ds: String, conflict: Bool) -> some View {
         let inMonth = Rules.isSameMonth(ds, as: anchor)
         let holiday = holidays.name(on: ds)
         let type = Rules.dayType(ds, isHoliday: holiday != nil)
         let isToday = inMonth && ds == Rules.today()
         let isDrop = dropTarget == ds
-        let bg: Color = isDrop || isToday ? Theme.accentSoft : (inMonth ? Color.clear : Color(.tertiarySystemFill))
+        let bg: Color = isDrop ? Theme.accentSoft
+            : conflict ? Color.red.opacity(0.16)
+            : isToday ? Theme.accentSoft
+            : (inMonth ? Color.clear : Color(.tertiarySystemFill))
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
                 Text("\(Rules.ymd(ds).day)")

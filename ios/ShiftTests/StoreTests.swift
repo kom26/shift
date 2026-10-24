@@ -48,31 +48,33 @@ struct StoreTests {
         #expect(store.events[1].title == "edited")
     }
 
-    @Test func visibleEventsExcludeUnplacedAndFilteredColors() {
+    @Test func visibleEventsExcludeUnplacedAndFilteredWorkplaces() {
         let (store, _, _, _) = make()
-        store.save(ev("red", "2026-10-20", color: "#ef4444"))
-        store.save(ev("blue", "2026-10-20", color: "#3b82f6"))
+        store.addWorkplace(Workplace(id: "w1", name: "A", color: "#ef4444"))
+        store.addWorkplace(Workplace(id: "w2", name: "B", color: "#3b82f6"))
+        var a = ev("a", "2026-10-20"); a.workplaceId = "w1"
+        var b = ev("b", "2026-10-20"); b.workplaceId = "w2"
+        store.save(a)
+        store.save(b)
+        store.save(ev("loose", "2026-10-20"))
         store.save(ev("un", nil, placed: false))
-        #expect(store.visibleEvents.map(\.id) == ["red", "blue"])
-        store.toggleColor("#ef4444")
-        #expect(store.visibleEvents.map(\.id) == ["red"])
-        store.clearColors()
-        #expect(store.visibleEvents.count == 2)
+        #expect(store.visibleEvents.map(\.id) == ["a", "b", "loose"])
+        store.toggleWorkplaceFilter("w1")
+        #expect(store.visibleEvents.map(\.id) == ["a"])
+        store.toggleWorkplaceFilter(Store.noWorkplaceKey)
+        #expect(store.visibleEvents.map(\.id) == ["a", "loose"])
+        store.toggleWorkplaceFilter("w1")
+        #expect(store.visibleEvents.map(\.id) == ["loose"])
+        store.clearWorkplaceFilter()
+        #expect(store.visibleEvents.count == 3)
     }
 
-    @Test func checkedColorsPersist() {
+    @Test func checkedWorkplacesPersist() {
         let (store, url, defaults, _) = make()
-        store.toggleColor("#ef4444")
+        store.toggleWorkplaceFilter("w1")
+        store.toggleWorkplaceFilter(Store.noWorkplaceKey)
         let reloaded = Store(fileURL: url, defaults: defaults)
-        #expect(reloaded.checkedColors == ["#ef4444"])
-    }
-
-    @Test func colorsInUseKeepsFirstSeenOrderWithoutDuplicates() {
-        let (store, _, _, _) = make()
-        store.save(ev("a", "2026-10-20", color: "#111111"))
-        store.save(ev("b", "2026-10-20", color: "#222222"))
-        store.save(ev("c", "2026-10-20", color: "#111111"))
-        #expect(store.colorsInUse == ["#111111", "#222222"])
+        #expect(reloaded.checkedWorkplaces == ["w1", ""])
     }
 
     @Test func rememberColorSkipsPresetsAndKeepsEightMostRecent() {
