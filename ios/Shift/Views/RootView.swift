@@ -30,8 +30,10 @@ struct RootView: View {
     @State private var dragX: CGFloat = 0
     @State private var pagerWidth: CGFloat = 0
     @State private var lockFrames: [CGRect] = []
-    @State private var dragStart: CGPoint?
-    @State private var dragBlocked = false
+    @State private var committing = false
+    @GestureState private var touchStart: Date? = nil
+    /// この秒数以内に横へ動き出したタッチだけを月/週スワイプとみなす
+    private static let pagerSwipeMaxHold: TimeInterval = 0.2
 
     var body: some View {
         VStack(spacing: 0) {
@@ -137,29 +139,40 @@ struct RootView: View {
             .clipped()
             .contentShape(Rectangle())
             .simultaneousGesture(
-                DragGesture(minimumDistance: 16, coordinateSpace: .named("pager"))
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("pager"))
+                    .updating($touchStart) { v, state, _ in
+                        if state == nil { state = v.time }
+                    }
                     .onChanged { v in
-                        if dragStart != v.startLocation {
-                            dragStart = v.startLocation
-                            dragBlocked = lockFrames.contains { $0.contains(v.startLocation) }
+                        let t0 = touchStart ?? v.time
+                        let held = v.time.timeIntervalSince(t0)
+                        let blocked = lockFrames.contains { $0.contains(v.startLocation) }
+                        if blocked { return }
+                        let dx = v.translation.width
+                        let dy = v.translation.height
+                        if dragX == 0 {
+                            if abs(dx) < 16 { return }
+                            if held > Self.pagerSwipeMaxHold { return }
+                            if abs(dx) <= abs(dy) { return }
+                            dragX = dx
+                        } else {
+                            dragX = dx
                         }
-                        guard !dragBlocked else { return }
-                        guard abs(v.translation.width) > abs(v.translation.height) else { return }
-                        dragX = v.translation.width
                     }
                     .onEnded { v in
-                        let wasBlocked = dragBlocked
-                        dragStart = nil
-                        dragBlocked = false
-                        guard !wasBlocked else { return }
+                        guard dragX != 0, !committing else { return }
                         let dx = v.translation.width
-                        let horizontal = abs(dx) > abs(v.translation.height)
-                        if horizontal && (abs(dx) > w * 0.25 || abs(v.predictedEndTranslation.width) > w * 0.5) {
+                        if abs(dx) > w * 0.25 || abs(v.predictedEndTranslation.width) > w * 0.5 {
                             slide(dx < 0 ? 1 : -1, width: w)
                         } else {
                             withAnimation(.snappy(duration: 0.25)) { dragX = 0 }
                         }
                     })
+            .onChange(of: touchStart) { _, new in
+                if new == nil && dragX != 0 && !committing {
+                    withAnimation(.snappy) { dragX = 0 }
+                }
+            }
             .onAppear { pagerWidth = w }
             .onChange(of: w) { _, new in pagerWidth = new }
         }
@@ -188,6 +201,7 @@ struct RootView: View {
     /// direction: +1 = 次の期間 (左へスライド), -1 = 前の期間
     private func slide(_ direction: Int, width: CGFloat) {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        committing = true
         let newAnchor = mode == .month ? Rules.addMonths(anchor, direction) : Rules.addDays(anchor, 7 * direction)
         withAnimation(.snappy(duration: 0.25), completionCriteria: .logicallyComplete) {
             dragX = direction > 0 ? -width : width
@@ -197,6 +211,7 @@ struct RootView: View {
             withTransaction(t) {
                 anchor = newAnchor
                 dragX = 0
+                committing = false
             }
         }
     }
