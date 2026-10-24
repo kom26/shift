@@ -111,6 +111,11 @@ struct EventEditor: View {
                 .multilineTextAlignment(.trailing)
                 .frame(width: 60)
             Text("分")
+            if !breakText.isEmpty && breakText != String(defaultBreak) {
+                Button("リセット") { breakText = "" }
+                    .font(.footnote)
+                    .buttonStyle(.borderless)
+            }
         }
         if let hours {
             LabeledContent("実労働", value: Rules.formatHours(hours))

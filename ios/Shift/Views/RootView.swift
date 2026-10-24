@@ -14,21 +14,6 @@ struct CSVFile: Identifiable {
     var id: URL { url }
 }
 
-/// 一括取り込み画面ができるまでの仮の表示(次のタスクで BulkImportSheet に置き換える)
-private struct BulkImportPlaceholder: View {
-    @Environment(\.dismiss) private var dismiss
-    var body: some View {
-        NavigationStack {
-            Text("準備中")
-                .navigationTitle("一括取り込み")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) { Button("閉じる") { dismiss() } }
-                }
-        }
-    }
-}
-
 struct RootView: View {
     @Environment(Store.self) private var store
     @Environment(Holidays.self) private var holidays
@@ -72,7 +57,7 @@ struct RootView: View {
                 onSettings: { fromDrawer { showSettings = true } })
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
-        .sheet(isPresented: $showBulkImport) { BulkImportPlaceholder() }
+        .sheet(isPresented: $showBulkImport) { BulkImportSheet() }
         .sheet(item: $csvFile) { ShareSheet(items: [$0.url]) }
     }
 
@@ -81,6 +66,9 @@ struct RootView: View {
             HStack(spacing: 8) {
                 Button { showDrawer = true } label: {
                     Image(systemName: "line.3.horizontal").font(.title3)
+                        .padding(.horizontal, 6)
+                        .frame(minHeight: 36)
+                        .contentShape(Rectangle())
                 }
                 Spacer(minLength: 0)
                 Button { step(-1) } label: { Image(systemName: "chevron.left") }
@@ -103,10 +91,12 @@ struct RootView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 110)
-                Button("今日") { withAnimation(.snappy) { anchor = Rules.today() } }
-                    .font(.subheadline)
-                Button(startMonday ? "月始" : "日始") { startMonday.toggle() }
-                    .font(.subheadline)
+                Button { withAnimation(.snappy) { anchor = Rules.today() } } label: {
+                    Text("今日").font(.subheadline).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
+                }
+                Button { startMonday.toggle() } label: {
+                    Text(startMonday ? "月始" : "日始").font(.subheadline).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
+                }
                 Spacer(minLength: 0)
                 Button { showSummary = (showSummary + 1) % 3 } label: {
                     Text(["集計", "週計", "月計"][showSummary])
@@ -115,9 +105,12 @@ struct RootView: View {
                         .padding(.vertical, 4)
                         .background(showSummary > 0 ? Theme.accentSoft : Color.clear, in: Capsule())
                         .overlay(Capsule().stroke(showSummary > 0 ? Theme.accent : Color.secondary.opacity(0.4)))
+                        .frame(minHeight: 36)
+                        .contentShape(Rectangle())
                 }
-                Button("CSV") { exportCSV() }
-                    .font(.caption.weight(.medium))
+                Button { exportCSV() } label: {
+                    Text("CSV").font(.caption.weight(.medium)).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -175,7 +168,9 @@ struct RootView: View {
         do {
             try Data(text.utf8).write(to: url, options: .atomic)
             csvFile = CSVFile(url: url)
-        } catch {}
+        } catch {
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+        }
     }
 
     private func drop(id: String, on date: String) {
