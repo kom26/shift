@@ -13,7 +13,7 @@ struct WorkplaceEditor: View {
     @State private var transport: String
     @State private var bonus: [String]
     @State private var holidayBonus: String
-    @State private var rules: [BreakRule]
+    @State private var rules: [BreakRuleDraft]
     @State private var breakFromNight: Bool
     @State private var closingDay: Int
     @State private var paydayOn: Bool
@@ -33,7 +33,7 @@ struct WorkplaceEditor: View {
         let b = workplace?.weekdayBonus ?? []
         _bonus = State(initialValue: (0..<7).map { Self.text($0 < b.count ? b[$0] : 0) })
         _holidayBonus = State(initialValue: Self.text(workplace?.holidayBonus))
-        _rules = State(initialValue: workplace?.breakRules ?? [])
+        _rules = State(initialValue: (workplace?.breakRules ?? []).map { BreakRuleDraft(rule: $0) })
         _breakFromNight = State(initialValue: workplace?.breakFromNight ?? true)
         _closingDay = State(initialValue: workplace?.closingDay ?? 0)
         _paydayOn = State(initialValue: workplace?.paydayDay != nil)
@@ -108,7 +108,10 @@ struct WorkplaceEditor: View {
                 }
                 Section("給与") {
                     moneyRow("時給", $wage, key: "wage")
-                    moneyRow("交通費(1予定ごと)", $transport, key: "transport")
+                    moneyRow("交通費(片道)", $transport, key: "transport")
+                    Text("1予定ごとに往復(×2)で計算します")
+                        .font(.app(12))
+                        .foregroundStyle(.secondary)
                 }
                 Section("曜日別の加給(円/時)") {
                     ForEach(0..<7, id: \.self) { i in
@@ -126,7 +129,7 @@ struct WorkplaceEditor: View {
                     }
                     .onDelete { rules.remove(atOffsets: $0) }
                     Button("＋ 休憩ルールを追加") {
-                        rules.append(BreakRule(id: UUID().uuidString, hours: 6, comparison: .over, minutes: 45))
+                        rules.append(BreakRuleDraft())
                     }
                     if rules.isEmpty {
                         Text("設定がなければ法定(6時間超45分、8時間超60分)")
@@ -210,7 +213,7 @@ struct WorkplaceEditor: View {
                   transport: Int(transport) ?? 0,
                   weekdayBonus: bonus.map { Int($0) ?? 0 },
                   holidayBonus: Int(holidayBonus) ?? 0,
-                  breakRules: rules,
+                  breakRules: BreakRuleDraft.clean(rules),
                   breakFromNight: breakFromNight,
                   closingDay: closingDay,
                   paydayDay: paydayOn ? paydayDay : nil,
@@ -229,34 +232,21 @@ struct WorkplaceEditor: View {
 }
 
 private struct BreakRuleRow: View {
-    @Binding var rule: BreakRule
+    @Binding var rule: BreakRuleDraft
     var focus: FocusState<String?>.Binding
     let onDelete: () -> Void
 
-    @State private var hoursText: String
-    @State private var minutesText: String
-
-    init(rule: Binding<BreakRule>, focus: FocusState<String?>.Binding, onDelete: @escaping () -> Void) {
-        _rule = rule
-        self.focus = focus
-        self.onDelete = onDelete
-        let h = rule.wrappedValue.hours
-        _hoursText = State(initialValue: h == h.rounded() ? String(Int(h)) : String(h))
-        _minutesText = State(initialValue: String(rule.wrappedValue.minutes))
-    }
-
     var body: some View {
         HStack(spacing: 6) {
-            TextField("0", text: Binding(
-                get: { hoursText },
+            TextField("00", text: Binding(
+                get: { rule.hours },
                 set: { input in
                     var seenDot = false
                     let cleaned = input.filter { ch in
                         if ch == "." && !seenDot { seenDot = true; return true }
                         return ch.isASCII && ch.isNumber
                     }
-                    hoursText = String(cleaned.prefix(5))
-                    rule.hours = Double(hoursText) ?? 0
+                    rule.hours = String(cleaned.prefix(5))
                 }))
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
@@ -270,11 +260,10 @@ private struct BreakRuleRow: View {
             .pickerStyle(.menu)
             .labelsHidden()
             Spacer(minLength: 0)
-            TextField("0", text: Binding(
-                get: { minutesText },
+            TextField("00", text: Binding(
+                get: { rule.minutes },
                 set: { input in
-                    minutesText = String(input.filter { $0.isASCII && $0.isNumber }.prefix(3))
-                    rule.minutes = Int(minutesText) ?? 0
+                    rule.minutes = String(input.filter { $0.isASCII && $0.isNumber }.prefix(3))
                 }))
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)

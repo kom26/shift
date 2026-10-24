@@ -7,12 +7,20 @@ struct PayCalculatorTests {
     private func wp(holiday: Int = 0, sunday: Int = 0, fromNight: Bool = true) -> Workplace {
         var bonus = [0, 0, 0, 0, 0, 0, 0]
         bonus[0] = sunday
-        return Workplace(id: "w1", name: "A", color: "#111111", hourlyWage: 1000, transport: 500,
+        return Workplace(id: "w1", name: "A", color: "#111111", hourlyWage: 1000, transport: 250,
                          weekdayBonus: bonus, holidayBonus: holiday, breakRules: [], breakFromNight: fromNight)
     }
 
     private func timed(_ date: String, _ st: String, _ et: String) -> ShiftEvent {
         ev("x", date, date, allDay: false, st: st, et: et)
+    }
+
+    @Test func transportIsRoundTrip() throws {
+        let w = Workplace(id: "w2", name: "A", color: "#111111", hourlyWage: 1000, transport: 500)
+        let e = ev("x", "2026-10-20", "2026-10-20", allDay: false, st: "09:00", et: "18:00", wh: 8)
+        let p = try #require(PayCalculator.pay(event: e, workplace: w, isHoliday: false))
+        #expect(close(p.transport, 1000))
+        #expect(close(p.total, 9000))
     }
 
     @Test func daytime() throws {

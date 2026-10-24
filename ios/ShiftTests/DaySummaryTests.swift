@@ -46,7 +46,7 @@ struct DaySummaryTests {
         store.addWorkplace(name: "A", color: "#111111")
         var w = store.workplaces[0]
         w.hourlyWage = 1000
-        w.transport = 500
+        w.transport = 250
         w.closingDay = 0
         w.paydayDay = 25
         w.paydayMonthOffset = 1

@@ -73,7 +73,7 @@ enum PayCalculator {
         let night = Double(nn) / 60 * wage * 0.25
         let ot = Double(overtime) / 60 * wage * 0.25
         let bonus = Double(net) / 60 * Double(bonusRate)
-        let transport = Double(workplace.transport)
+        let transport = Double(workplace.transport) * 2  // 片道 × 2(往復)
         return PayBreakdown(base: base, night: night, overtime: ot, bonus: bonus, transport: transport,
                             total: base + night + ot + bonus + transport,
                             netMinutes: net, nightMinutes: nn, overtimeMinutes: overtime)

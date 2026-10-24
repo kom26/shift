@@ -10,7 +10,7 @@ struct StorePayTests {
         store.addWorkplace(name: "A", color: "#111111")
         var w = store.workplaces[0]
         w.hourlyWage = 1000
-        w.transport = 500
+        w.transport = 250
         w.holidayBonus = holidayBonus
         store.updateWorkplaceDetails(w)
         return store
@@ -20,6 +20,13 @@ struct StorePayTests {
         var e = ev(id, date, allDay: false, st: "09:00", et: "18:00", wh: 8)
         e.title = title
         return e
+    }
+
+    @Test func oneWayTransportIsDoubledInStorePay() {
+        let store = make()
+        store.save(shift("e1", "A", "2026-10-20"))
+        let t = store.totals(from: "2026-10-18", to: "2026-10-24")
+        #expect(abs(t[0].pay - 8500) < 0.0001)
     }
 
     @Test func totalsIncludePay() {

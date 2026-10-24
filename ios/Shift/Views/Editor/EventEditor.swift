@@ -429,7 +429,7 @@ struct EventEditor: View {
             payRow("深夜割増", p.night)
             payRow("残業割増", p.overtime)
             payRow("加給", p.bonus)
-            payRow("交通費", p.transport)
+            payRow("交通費(往復)", p.transport)
             LabeledContent("実労働", value: Rules.formatHours(Double(p.netMinutes) / 60))
                 .font(.app(13))
         }
