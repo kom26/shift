@@ -85,6 +85,33 @@ final class Store {
         return order.compactMap { map[$0] }
     }
 
+    struct PaymentRow: Identifiable {
+        let workplace: Workplace
+        let start: String
+        let end: String
+        let amount: Double
+        var id: String { workplace.id }
+    }
+
+    func hasPayday(on ds: String) -> Bool {
+        workplaces.contains { PayCycle.isPayday(ds, workplace: $0) }
+    }
+
+    /// ds が給料日の職場ごとに、締め期間内の給与合計を返す(色フィルタは無視)
+    func payments(onPayday ds: String, isHoliday: (String) -> Bool = { _ in false }) -> [PaymentRow] {
+        workplaces.compactMap { w in
+            guard let period = PayCycle.period(forPayday: ds, workplace: w) else { return nil }
+            var amount = 0.0
+            for ev in events where ev.placed {
+                guard let sd = ev.startDate, sd >= period.start, sd <= period.end,
+                      let ew = workplace(for: ev), ew.id == w.id,
+                      let p = PayCalculator.pay(event: ev, workplace: w, isHoliday: isHoliday(sd)) else { continue }
+                amount += p.total
+            }
+            return PaymentRow(workplace: w, start: period.start, end: period.end, amount: amount)
+        }
+    }
+
     /// workplaceId が一致する職場、なければタイトルが職場名と一致する職場
     func workplace(for event: ShiftEvent) -> Workplace? {
         if let id = event.workplaceId, let w = workplaces.first(where: { $0.id == id }) { return w }

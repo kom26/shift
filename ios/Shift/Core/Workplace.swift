@@ -23,12 +23,19 @@ struct Workplace: Codable, Identifiable, Equatable {
     var holidayBonus: Int
     var breakRules: [BreakRule]
     var breakFromNight: Bool
+    /// 締め日。0 = 末日、1...31(月の日数で丸める)
+    var closingDay: Int
+    /// 給料日。nil = 未設定、0 = 末日、1...31(月の日数で丸める)
+    var paydayDay: Int?
+    /// 締め月から何か月後が給料日か。0 = 当月、1 = 翌月、2 = 翌々月
+    var paydayMonthOffset: Int
 
     init(id: String, name: String, color: String,
          hourlyWage: Int = 0, transport: Int = 0,
          weekdayBonus: [Int] = [0, 0, 0, 0, 0, 0, 0],
          holidayBonus: Int = 0, breakRules: [BreakRule] = [],
-         breakFromNight: Bool = true) {
+         breakFromNight: Bool = true,
+         closingDay: Int = 0, paydayDay: Int? = nil, paydayMonthOffset: Int = 1) {
         self.id = id
         self.name = name
         self.color = color
@@ -38,10 +45,14 @@ struct Workplace: Codable, Identifiable, Equatable {
         self.holidayBonus = holidayBonus
         self.breakRules = breakRules
         self.breakFromNight = breakFromNight
+        self.closingDay = closingDay
+        self.paydayDay = paydayDay
+        self.paydayMonthOffset = min(max(paydayMonthOffset, 0), 2)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, color, hourlyWage, transport, weekdayBonus, holidayBonus, breakRules, breakFromNight
+        case closingDay, paydayDay, paydayMonthOffset
     }
 
     init(from decoder: Decoder) throws {
@@ -55,6 +66,9 @@ struct Workplace: Codable, Identifiable, Equatable {
         holidayBonus = try c.decodeIfPresent(Int.self, forKey: .holidayBonus) ?? 0
         breakRules = try c.decodeIfPresent([BreakRule].self, forKey: .breakRules) ?? []
         breakFromNight = try c.decodeIfPresent(Bool.self, forKey: .breakFromNight) ?? true
+        closingDay = try c.decodeIfPresent(Int.self, forKey: .closingDay) ?? 0
+        paydayDay = try c.decodeIfPresent(Int.self, forKey: .paydayDay)
+        paydayMonthOffset = min(max(try c.decodeIfPresent(Int.self, forKey: .paydayMonthOffset) ?? 1, 0), 2)
     }
 
     /// 7要素(0=日曜)に揃える

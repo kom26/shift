@@ -66,3 +66,22 @@ struct WorkplaceCompatTests {
         #expect(reloaded.workplaces == [w])
     }
 }
+
+struct WorkplacePayCycleCompatTests {
+    @Test func oldJSONGetsPayCycleDefaults() throws {
+        let json = ##"{"id":"w","name":"A","color":"#111"}"##
+        let w = try JSONDecoder().decode(Workplace.self, from: Data(json.utf8))
+        #expect(w.closingDay == 0)
+        #expect(w.paydayDay == nil)
+        #expect(w.paydayMonthOffset == 1)
+    }
+
+    @Test func payCycleRoundTripsAndClampsOffset() throws {
+        let w = Workplace(id: "w", name: "A", color: "#111", closingDay: 15, paydayDay: 25, paydayMonthOffset: 2)
+        let back = try JSONDecoder().decode(Workplace.self, from: JSONEncoder().encode(w))
+        #expect(back == w)
+        let bad = ##"{"id":"w","name":"A","color":"#111","paydayMonthOffset":9}"##
+        let c = try JSONDecoder().decode(Workplace.self, from: Data(bad.utf8))
+        #expect(c.paydayMonthOffset == 2)
+    }
+}
