@@ -4,7 +4,7 @@ import Testing
 
 struct WorkplaceCompatTests {
     @Test func oldWorkplaceJSONGetsDefaults() throws {
-        let json = #"{"id":"w","name":"ドンキ","color":"#f59e0b"}"#
+        let json = ##"{"id":"w","name":"ドンキ","color":"#f59e0b"}"##
         let w = try JSONDecoder().decode(Workplace.self, from: Data(json.utf8))
         #expect(w.id == "w")
         #expect(w.name == "ドンキ")
@@ -17,16 +17,16 @@ struct WorkplaceCompatTests {
     }
 
     @Test func weekdayBonusIsPaddedAndTruncated() throws {
-        let short = #"{"id":"w","name":"A","color":"#111","weekdayBonus":[1,2]}"#
+        let short = ##"{"id":"w","name":"A","color":"#111","weekdayBonus":[1,2]}"##
         let w1 = try JSONDecoder().decode(Workplace.self, from: Data(short.utf8))
         #expect(w1.weekdayBonus == [1, 2, 0, 0, 0, 0, 0])
-        let long = #"{"id":"w","name":"A","color":"#111","weekdayBonus":[1,2,3,4,5,6,7,8,9]}"#
+        let long = ##"{"id":"w","name":"A","color":"#111","weekdayBonus":[1,2,3,4,5,6,7,8,9]}"##
         let w2 = try JSONDecoder().decode(Workplace.self, from: Data(long.utf8))
         #expect(w2.weekdayBonus == [1, 2, 3, 4, 5, 6, 7])
     }
 
     @Test func oldEventJSONHasNilNewFields() throws {
-        let json = #"{"id":"e","title":"A","memo":"","color":"#111","startDate":"2026-10-20","endDate":"2026-10-20","placed":true,"allDay":true}"#
+        let json = ##"{"id":"e","title":"A","memo":"","color":"#111","startDate":"2026-10-20","endDate":"2026-10-20","placed":true,"allDay":true}"##
         let e = try JSONDecoder().decode(ShiftEvent.self, from: Data(json.utf8))
         #expect(e.workplaceId == nil)
         #expect(e.breakInNight == nil)
