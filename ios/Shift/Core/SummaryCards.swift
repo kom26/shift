@@ -9,6 +9,9 @@ struct SummaryCardsData {
     let prevMonthHours: Double
     let monthPay: Double
     let prevMonthPay: Double
+    let weekLabel: String
+    let monthLabel: String
+    let payLabel: String
 }
 
 extension Store {
@@ -19,6 +22,7 @@ extension Store {
     }
 
     func summaryCards(selectedDate: String?, today: String, anchor: String, startMonday: Bool,
+                      payBasis: PayBasis = .work,
                       isHoliday: (String) -> Bool = { _ in false }) -> SummaryCardsData {
         let ws = Rules.weekStart(of: selectedDate ?? today, startMonday: startMonday)
         let we = Rules.addDays(ws, 6)
@@ -30,9 +34,16 @@ extension Store {
         let pw = periodTotals(from: pws, to: pwe, isHoliday: isHoliday)
         let m = periodTotals(from: mb.first, to: mb.last, isHoliday: isHoliday)
         let pm = periodTotals(from: pmb.first, to: pmb.last, isHoliday: isHoliday)
+        let mp = monthlyPay(anchor: anchor, basis: payBasis, isHoliday: isHoliday)
+        let pmp = monthlyPay(anchor: Rules.addMonths(anchor, -1), basis: payBasis, isHoliday: isHoliday)
+        let labels = Rules.weekdayLabels(startMonday: false)
+        let wsd = Rules.ymd(ws), wed = Rules.ymd(we), am = Rules.ymd(anchor)
+        let endPart = wsd.month == wed.month ? "\(wed.day)日" : "\(wed.month)月\(wed.day)日"
+        let weekLabel = "\(wsd.month)月\(wsd.day)日(\(labels[Rules.weekday(ws)]))〜\(endPart)(\(labels[Rules.weekday(we)]))"
         return SummaryCardsData(weekStart: ws, weekEnd: we, weekHours: w.hours, prevWeekHours: pw.hours,
                                 monthHours: m.hours, prevMonthHours: pm.hours,
-                                monthPay: m.pay, prevMonthPay: pm.pay)
+                                monthPay: mp.amount, prevMonthPay: pmp.amount,
+                                weekLabel: weekLabel, monthLabel: "\(am.year)年\(am.month)月", payLabel: mp.label)
     }
 }
 

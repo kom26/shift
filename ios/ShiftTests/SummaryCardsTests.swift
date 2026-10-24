@@ -54,4 +54,24 @@ struct SummaryCardsTests {
         #expect(s.weekEnd == "2026-10-17")
         #expect(s.weekHours == 5)
     }
+
+    @Test func weekLabelSundayStart() {
+        let s = seeded().summaryCards(selectedDate: "2026-10-21", today: "2026-10-14",
+                                      anchor: "2026-10-15", startMonday: false)
+        #expect(s.weekLabel == "10月18日(日)〜24日(土)")
+        #expect(s.monthLabel == "2026年10月")
+        #expect(s.payLabel == "2026年10月勤務分")
+    }
+
+    @Test func weekLabelMondayStart() {
+        let s = seeded().summaryCards(selectedDate: "2026-10-21", today: "2026-10-14",
+                                      anchor: "2026-10-15", startMonday: true)
+        #expect(s.weekLabel == "10月19日(月)〜25日(日)")
+    }
+
+    @Test func weekLabelCrossMonth() {
+        let s = seeded().summaryCards(selectedDate: "2026-09-30", today: "2026-10-14",
+                                      anchor: "2026-10-15", startMonday: false)
+        #expect(s.weekLabel == "9月27日(日)〜10月3日(土)")
+    }
 }
