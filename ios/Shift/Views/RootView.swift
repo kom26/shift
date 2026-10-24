@@ -61,7 +61,7 @@ struct RootView: View {
                 Button { addUnplaced() } label: {
                     Text("＋ 予定追加")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(Theme.accent, in: Capsule())

@@ -79,6 +79,7 @@ struct UnplacedArea: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
+                    .contentMargins(.bottom, 8, for: .scrollContent)
                     .onDrop(of: [.plainText], delegate: unplaceDelegate)
                     backZone
                 }
@@ -144,7 +145,10 @@ struct UnplacedArea: View {
         .foregroundStyle(backTargeted ? Theme.accent : Color.secondary)
         .frame(width: 72)
         .frame(maxHeight: .infinity)
-        .background(backTargeted ? Theme.accent.opacity(0.12) : Color(.tertiarySystemFill))
+        .background {
+            (backTargeted ? Theme.accent.opacity(0.12) : Color(.tertiarySystemFill))
+                .ignoresSafeArea(edges: .bottom)
+        }
         .onDrop(of: [.plainText], delegate: unplaceDelegate)
     }
 }

@@ -48,10 +48,13 @@ enum EventColor {
 
 enum Theme {
     static let accent = Color(UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(Color(hex: "#818cf8")) : UIColor(Color(hex: "#4f46e5"))
+        trait.userInterfaceStyle == .dark ? UIColor(Color(hex: "#b9a6f2")) : UIColor(Color(hex: "#7a62d9"))
     })
     static let accentSoft = Color(UIColor { trait in
-        trait.userInterfaceStyle == .dark ? UIColor(Color(hex: "#1e1d3a")) : UIColor(Color(hex: "#eef2ff"))
+        trait.userInterfaceStyle == .dark ? UIColor(Color(hex: "#2a2540")) : UIColor(Color(hex: "#efe9fd"))
+    })
+    static let onAccent = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark ? UIColor(Color(hex: "#1f1a33")) : UIColor.white
     })
     static let saturday = Color(hex: "#3b82f6")
     static let sunday = Color(hex: "#ef4444")

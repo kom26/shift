@@ -271,7 +271,7 @@ struct EventEditor: View {
         return Button { toggleTimePanel(p) } label: {
             Text(chipText(p))
                 .font(.body.monospacedDigit())
-                .foregroundStyle(open ? Color.white : Color.primary)
+                .foregroundStyle(open ? Theme.onAccent : Color.primary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(RoundedRectangle(cornerRadius: 8).fill(open ? Theme.accent : Color(.secondarySystemFill)))
