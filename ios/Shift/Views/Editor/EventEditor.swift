@@ -134,9 +134,12 @@ struct EventEditor: View {
             .onChange(of: focusedField) { old, new in
                 if old == .timeEntry && new != .timeEntry && openPanel != nil { closeTimePanel() }
             }
-            .onChange(of: start) { _, new in if end < new { end = new } }
-            .onChange(of: startTime) { breakText = "" }
-            .onChange(of: endTime) { breakText = "" }
+            .onChange(of: start) { normalizeEnd() }
+            .onChange(of: end) { normalizeEnd() }
+            .onChange(of: startTime) { breakText = ""; normalizeEnd() }
+            .onChange(of: endTime) { breakText = ""; normalizeEnd() }
+            .onChange(of: hasDate) { normalizeEnd() }
+            .onChange(of: allDay) { normalizeEnd() }
             .confirmationDialog("この予定を削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("削除", role: .destructive) {
                     store.delete(id: original.id)
@@ -313,10 +316,14 @@ struct EventEditor: View {
                     .accessibilityHidden(true)
             }
         timeRow(.end)
-        if let sm = Rules.minutes(startTime), let em = Rules.minutes(endTime), em <= sm, em < 1440 {
-            Label("翌日またぎ → 終了日を自動で翌日にします", systemImage: "moon.stars")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+        if let sm = Rules.minutes(startTime), let em = Rules.minutes(endTime), em <= sm, em < 1440,
+           let ext = Rules.extendedEndText(endTime) {
+            HStack(spacing: 6) {
+                Image(systemName: "questionmark.circle")
+                Text("\(ext)とすると同日の予定として表記")
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
         HStack {
             Text("休憩")
@@ -369,6 +376,19 @@ struct EventEditor: View {
             LabeledContent(label, value: Money.yen(amount))
                 .font(.footnote)
         }
+    }
+
+    /// 終了が開始より前になったら終了日を進める(終日は 終了日 >= 開始日)
+    private func normalizeEnd() {
+        guard hasDate else { return }
+        if allDay {
+            if end < start { end = start }
+            return
+        }
+        let next = Rules.normalizedEndDate(
+            startDate: Rules.format(start), startTime: startTime,
+            endDate: Rules.format(end), endTime: endTime)
+        if next != Rules.format(end), let d = Rules.parse(next) { end = d }
     }
 
     private func build() -> ShiftEvent {

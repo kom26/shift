@@ -182,4 +182,29 @@ struct RulesTests {
         #expect(e.placed == false)
         #expect(e.startTime == "22:00")
     }
+
+    @Test func extendedEndTextShiftsBy24h() {
+        #expect(Rules.extendedEndText("02:00") == "26:00")
+        #expect(Rules.extendedEndText("05:30") == "29:30")
+        #expect(Rules.extendedEndText("12:00") == "36:00")
+        #expect(Rules.extendedEndText("12:05") == nil)
+        #expect(Rules.extendedEndText("25:00") == nil)
+        #expect(Rules.extendedEndText("abc") == nil)
+        #expect(Rules.extendedEndText("") == nil)
+    }
+
+    @Test func normalizedEndDateAddsDaysWhenEndBeforeStart() {
+        func n(_ sd: String, _ st: String, _ ed: String, _ et: String) -> String {
+            Rules.normalizedEndDate(startDate: sd, startTime: st, endDate: ed, endTime: et)
+        }
+        #expect(n("2026-10-01", "22:00", "2026-10-01", "06:00") == "2026-10-02")
+        #expect(n("2026-10-01", "09:00", "2026-10-01", "18:00") == "2026-10-01")
+        #expect(n("2026-10-01", "09:00", "2026-10-01", "09:00") == "2026-10-01")
+        #expect(n("2026-10-03", "09:00", "2026-10-01", "18:00") == "2026-10-03")
+        #expect(n("2026-10-01", "22:00", "2026-10-01", "25:00") == "2026-10-01")
+        #expect(n("2026-10-01", "29:00", "2026-10-01", "25:00") == "2026-10-02")
+        #expect(n("2026-10-01", "22:00", "2026-10-02", "01:00") == "2026-10-02")
+        #expect(n("bad", "22:00", "2026-10-01", "06:00") == "2026-10-01")
+        #expect(n("2026-10-01", "xx", "2026-10-01", "06:00") == "2026-10-01")
+    }
 }

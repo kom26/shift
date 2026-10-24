@@ -148,6 +148,25 @@ enum Rules {
         return sd
     }
 
+    /// 終了時刻に24時間を足した表記("02:00" → "26:00")。24:00以上・36:00超・不正は nil
+    static func extendedEndText(_ endTime: String) -> String? {
+        guard let m = minutes(endTime), m >= 0, m < 1440 else { return nil }
+        let ext = m + 1440
+        guard ext <= maxEndMinutes else { return nil }
+        return String(format: "%02d:%02d", ext / 60, ext % 60)
+    }
+
+    /// 終了が開始より前なら、終了日を必要な日数(通常1日)だけ進める。それ以外・不正入力は endDate のまま
+    static func normalizedEndDate(startDate: String, startTime: String, endDate: String, endTime: String) -> String {
+        guard parse(startDate) != nil, parse(endDate) != nil,
+              let sm = minutes(startTime), let em = minutes(endTime) else { return endDate }
+        let startAbs = sm
+        let endAbs = daysBetween(startDate, endDate) * 1440 + em
+        guard endAbs < startAbs else { return endDate }
+        let n = (startAbs - endAbs + 1439) / 1440
+        return addDays(endDate, n)
+    }
+
     static func minutes(_ t: String?) -> Int? {
         guard let t = t.nonEmpty else { return nil }
         let p = t.split(separator: ":").compactMap { Int($0) }
