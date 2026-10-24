@@ -157,7 +157,7 @@ struct EventEditor: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .sheet(isPresented: $addingWorkplace, onDismiss: selectNewWorkplace) {
             WorkplaceEditor(workplace: nil)
         }
@@ -175,6 +175,8 @@ struct EventEditor: View {
             HStack(spacing: 8) {
                 Button {
                     workplaceId = nil
+                    title = ""
+                    color = Store.defaultColors[0]
                 } label: {
                     Text("指定なし").font(.footnote).foregroundStyle(.primary)
                         .padding(.horizontal, 10)

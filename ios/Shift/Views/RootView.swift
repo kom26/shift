@@ -61,7 +61,7 @@ struct RootView: View {
                 Button { slide(1, width: pagerWidth) } label: { Image(systemName: "chevron.right") }
                 Spacer(minLength: 0)
                 Button { addUnplaced() } label: {
-                    Text("＋ 追加")
+                    Text("＋ 予定追加")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
