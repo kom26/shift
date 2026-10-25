@@ -469,7 +469,7 @@ struct EventEditor: View {
         if showsNightPicker {
             if let w = selectedWorkplace {
                 Picker("休憩を引く時間帯", selection: $breakInNight) {
-                    Text("職場設定に従う(\(w.breakFromNight == false ? "深夜帯以外から" : "深夜帯から"))").tag(Bool?.none)
+                    Text("職場設定に従う").tag(Bool?.none)
                     Text("深夜帯から").tag(Bool?.some(true))
                     Text("深夜帯以外から").tag(Bool?.some(false))
                 }
@@ -750,7 +750,7 @@ private struct ColorRow: View {
     private func swatches(_ list: [String]) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(list, id: .self) { c in
+                ForEach(list, id: \.self) { c in
                 ColorDot(hex: c, size: 24)
                     .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
                     .onTapGesture { color = c }
