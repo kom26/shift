@@ -188,7 +188,7 @@ struct UnplacedArea: View {
 
     private func trendColor(_ t: DeltaFormat.Trend) -> Color {
         switch t {
-        case .up: return Theme.monthText
+        case .up: return Theme.deltaUp
         case .down: return Theme.deltaDown
         case .flat: return Color.secondary
         }

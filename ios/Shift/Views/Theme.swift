@@ -59,10 +59,12 @@ enum Theme {
     static let onAccent = Color(UIColor { trait in
         trait.userInterfaceStyle == .dark ? UIColor(Color(hex: "#1f1a33")) : UIColor.white
     })
-    static let weekFill = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#2a2540")) : UIColor(Color(hex: "#efe9fd")) })
-    static let weekText = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#c9bbf6")) : UIColor(Color(hex: "#6a54c8")) })
-    static let monthFill = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#1e3a33")) : UIColor(Color(hex: "#e3f5ef")) })
-    static let monthText = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#8fd9c3")) : UIColor(Color(hex: "#2c8a73")) })
+    // 週のカードはピンク系、月のカードは薄紫
+    static let weekFill = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#3a2230")) : UIColor(Color(hex: "#fde9f1")) })
+    static let weekText = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#f2a6c8")) : UIColor(Color(hex: "#c04a7c")) })
+    static let monthFill = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#2a2540")) : UIColor(Color(hex: "#efe9fd")) })
+    static let monthText = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#c9bbf6")) : UIColor(Color(hex: "#6a54c8")) })
+    static let deltaUp = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#8fd9c3")) : UIColor(Color(hex: "#2c8a73")) })
     static let payFill = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#3a3320")) : UIColor(Color(hex: "#fdf3d8")) })
     static let payText = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#f7d77b")) : UIColor(Color(hex: "#9a7000")) })
     static let deltaDown = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#f19a9a")) : UIColor(Color(hex: "#d9695f")) })
