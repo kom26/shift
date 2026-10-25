@@ -162,7 +162,6 @@ struct RootView: View {
     private func toggleSummary() {
         withAnimation(.snappy) {
             summaryOn.toggle()
-            unplacedCollapsed = true
         }
     }
 

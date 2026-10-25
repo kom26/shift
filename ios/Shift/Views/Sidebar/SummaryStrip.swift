@@ -62,6 +62,7 @@ struct SummaryStrip: View {
                 .onAppear { containerWidth = g.size.width }
                 .onChange(of: g.size.width) { _, new in containerWidth = new }
         })
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(fill)
     }
 }

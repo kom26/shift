@@ -40,13 +40,13 @@ struct WeekView: View {
             if summaryOn {
                 Divider()
                 SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthTotals.map(\.key)), emptyText: "データなし",
-                             fill: Color.clear, labelColor: Color.secondary)
+                             fill: Color(.systemBackground), labelColor: Color.secondary)
                     .frame(height: 18)
             } else {
                 Divider()
             }
             SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
-                         fill: Color(.secondarySystemBackground), labelColor: Color.secondary)
+                         fill: Theme.accentSoft, labelColor: Color.secondary)
                 .frame(height: 20)
         }
         .background { MonthWatermark(number: Rules.ymd(days[3]).month) }
