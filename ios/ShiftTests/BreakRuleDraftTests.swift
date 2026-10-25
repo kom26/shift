@@ -18,3 +18,14 @@ struct BreakRuleDraftTests {
         #expect(BreakRuleDraft.clean([("", ""), ("0", "0")], comparison: .over).isEmpty)
     }
 }
+
+struct BreakRuleDuplicateTests {
+    @Test func duplicateThresholdDetected() {
+        let a = BreakRuleDraft(hours: "6", minutes: "60", comparison: .atLeast)
+        let b = BreakRuleDraft(hours: "6", minutes: "75", comparison: .atLeast)
+        let c = BreakRuleDraft(hours: "8", minutes: "90", comparison: .over)
+        #expect(BreakRuleDraft.hasDuplicateThreshold([a, b]))
+        #expect(!BreakRuleDraft.hasDuplicateThreshold([a, c]))
+        #expect(!BreakRuleDraft.hasDuplicateThreshold([BreakRuleDraft(), BreakRuleDraft()]))
+    }
+}

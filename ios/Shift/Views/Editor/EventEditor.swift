@@ -742,7 +742,7 @@ private struct ColorRow: View {
                 }
             }
             ColorPicker("カスタム色",
-                        selection: Binding(get: { Color(hex: color) }, set: { color = $0.toHex() }),
+                        selection: EventColor.pickerBinding($color),
                         supportsOpacity: false)
         }
     }

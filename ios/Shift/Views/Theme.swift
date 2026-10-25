@@ -35,6 +35,13 @@ enum EventColor {
         })
     }
 
+    /// カスタム色ピッカー用。画面に見える色(白地に薄塗りした色)で選ばせ、保存は元の色に戻す
+    static func pickerBinding(_ hex: Binding<String>) -> Binding<Color> {
+        Binding(
+            get: { Color(hex: ColorMath.visible(hex.wrappedValue)) },
+            set: { hex.wrappedValue = ColorMath.base(fromVisible: $0.toHex()) })
+    }
+
     static func fill(_ hex: String) -> Color {
         Color(UIColor { trait in
             UIColor(Color(hex: hex)).withAlphaComponent(trait.userInterfaceStyle == .dark ? 0.22 : 0.30)

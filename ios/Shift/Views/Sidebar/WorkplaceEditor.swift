@@ -105,7 +105,7 @@ struct WorkplaceEditor: View {
                         .padding(.vertical, 5)
                     }
                     ColorPicker("カスタム色",
-                                selection: Binding(get: { Color(hex: color) }, set: { color = $0.toHex() }),
+                                selection: EventColor.pickerBinding($color),
                                 supportsOpacity: false)
                 }
                 Section("給与") {
@@ -132,6 +132,11 @@ struct WorkplaceEditor: View {
                     .onDelete { rules.remove(atOffsets: $0) }
                     Button("＋ 独自の休憩ルールを追加") {
                         rules.append(BreakRuleDraft())
+                    }
+                    if BreakRuleDraft.hasDuplicateThreshold(rules) {
+                        Label("時間(しきい値)が同じルールがあります。一番下の行が使われます", systemImage: "exclamationmark.triangle")
+                            .font(.app(12))
+                            .foregroundStyle(Color.orange)
                     }
                     if rules.isEmpty {
                         Text("設定がなければ法定(6時間超45分、8時間超60分)")
