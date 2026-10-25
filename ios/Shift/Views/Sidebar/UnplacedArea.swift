@@ -65,19 +65,20 @@ struct UnplacedArea: View {
 
             if !collapsed {
                 Divider()
+                toolbar(count: items.count)
                 ZStack {
                     TabView(selection: $page) {
                         chipsPage(items, hidden: dragging).tag(0)
                         cardsPage
-                            .frame(height: LayoutMath.minUnplacedBody)
+                            .frame(height: LayoutMath.minUnplacedBody - LayoutMath.unplacedToolbarH)
                             .frame(maxHeight: .infinity, alignment: .top)
                             .tag(1)
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     if dragging { dropPrompt(over: over) }
                 }
-                .frame(minHeight: LayoutMath.minUnplacedBody,
-                       maxHeight: fillHeight ? .infinity : LayoutMath.minUnplacedBody)
+                .frame(minHeight: LayoutMath.minUnplacedBody - LayoutMath.unplacedToolbarH,
+                       maxHeight: fillHeight ? .infinity : LayoutMath.minUnplacedBody - LayoutMath.unplacedToolbarH)
                 .onDrop(of: [.plainText], delegate: unplaceDelegate)
             }
         }
@@ -110,19 +111,25 @@ struct UnplacedArea: View {
                 }
             }
             .contentMargins(.bottom, 8, for: .scrollContent)
-            VStack(spacing: 8) {
-                sideButton("\(anchorMonthShort)を回収") { confirmRecall = true }
-                sideButton("並び替え") {
-                    withAnimation(.snappy) { store.sortUnplaced() }
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(width: 84)
-            .padding(.trailing, 8)
-            .padding(.vertical, 8)
         }
         .opacity(hidden ? 0 : 1)
         .allowsHitTesting(!hidden)
+    }
+
+    /// 件数と「回収」「並べ替え」。矢印の行の下に置く
+    private func toolbar(count: Int) -> some View {
+        HStack(spacing: 8) {
+            Text("未配置 \(count)件")
+                .font(.app(12))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            sideButton("\(anchorMonthShort)の予定を全て回収") { confirmRecall = true }
+            sideButton("並べ替え") {
+                withAnimation(.snappy) { store.sortUnplaced() }
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: LayoutMath.unplacedToolbarH)
     }
 
     private func sideButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -132,8 +139,8 @@ struct UnplacedArea: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundStyle(Color.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 7)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
                 .background(Color(.secondarySystemFill), in: Capsule())
                 .contentShape(Capsule())
         }

@@ -11,6 +11,8 @@ enum LayoutMath {
     static let monthStripH: CGFloat = 20
     static let unplacedHeaderH: CGFloat = 24
     static let minUnplacedBody: CGFloat = 92
+    /// 未配置エリアの本体(minUnplacedBody)の上端にある、件数と回収・並べ替えの行
+    static let unplacedToolbarH: CGFloat = 26
 
     /// available = ヘッダーより下 (カレンダー + 未配置エリア) の高さ
     static func monthCalendarHeight(available: CGFloat, weeks: Int) -> CGFloat {
