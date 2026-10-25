@@ -42,13 +42,14 @@ struct RootView: View {
             Divider()
             GeometryReader { geo in
                 VStack(spacing: 0) {
-                    if mode == .month && !unplacedCollapsed {
-                        pager.frame(height: LayoutMath.monthCalendarHeight(available: geo.size.height, weeks: monthWeekCount))
+                    if !unplacedCollapsed {
+                        // 未配置エリアの高さは月(5週)基準で固定。6週の月でも週表示でも変えない
+                        pager.frame(height: LayoutMath.monthCalendarHeight(available: geo.size.height, weeks: 5))
                     } else {
                         pager
                     }
                     UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday,
-                                 fillHeight: mode == .month, onSelectEvent: edit)
+                                 fillHeight: true, onSelectEvent: edit)
                 }
             }
         }
@@ -123,11 +124,6 @@ struct RootView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-    }
-
-    private var monthWeekCount: Int {
-        let p = Rules.ymd(anchor)
-        return Rules.monthGrid(year: p.year, month: p.month, startMonday: startMonday).count
     }
 
     private var title: String {
