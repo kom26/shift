@@ -158,13 +158,11 @@ struct WeekView: View {
         .clipped()
     }
 
-    /// 開始が24:00以降の予定は、保存上の開始日の翌日以降の列に表示される。
-    /// 指のある列に表示されるよう、その分だけ開始日を前にずらした保存日を返す
+    /// 日をまたぐ予定・24:00以降に始まる予定は、つかんだ側の列(開始日から何日目か)を基準に置く。
+    /// 指のある列につかんだセグメントが来るよう、保存上の開始日をその日数だけ前にずらして返す
     private func storageDate(_ ds: String) -> String {
-        guard let id = DragState.shared.draggingId,
-              let e = store.events.first(where: { $0.id == id }), !e.allDay,
-              let sm = Rules.minutes(e.startTime), sm >= 1440 else { return ds }
-        return Rules.addDays(ds, -(sm / 1440))
+        let k = DragState.shared.grabOffsetDays
+        return k == 0 ? ds : Rules.addDays(ds, -k)
     }
 
     /// ドラッグ中の予定を dropTarget に置いたときの姿
@@ -205,7 +203,7 @@ struct WeekView: View {
                         .eventMenu(for: ev, store: store, onEdit: onSelectEvent) {
                             blockPreview(ev, w: max(0, colW - 2), h: h)
                         }
-                        .draggable(DragState.shared.begin(ev.id))
+                        .draggable(DragState.shared.begin(ev.id, grabOffsetDays: Rules.daysBetween(ev.startDate ?? ds, ds)))
                         .offset(x: 1, y: H * CGFloat(seg.top))
                 }
             }

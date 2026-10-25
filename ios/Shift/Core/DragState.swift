@@ -11,13 +11,16 @@ final class DragState {
     var isOverUnplaced = false
     /// ドラッグ中の予定の id(ドラッグ開始時に設定)
     var draggingId: String?
+    /// 週表示で、つかんだ側のセグメントが開始日から何日目か(日をまたぐ予定の基準日)
+    var grabOffsetDays = 0
 
     @ObservationIgnored private var safetyItem: DispatchWorkItem?
     @ObservationIgnored private var exitItem: DispatchWorkItem?
 
     /// ドラッグ開始時(draggable のペイロード評価時)に呼ぶ。id をそのまま返す
-    func begin(_ id: String) -> String {
+    func begin(_ id: String, grabOffsetDays: Int = 0) -> String {
         draggingId = id
+        self.grabOffsetDays = grabOffsetDays
         return id
     }
 
@@ -53,5 +56,6 @@ final class DragState {
         if isDragging { isDragging = false }
         if isOverUnplaced { isOverUnplaced = false }
         if draggingId != nil { draggingId = nil }
+        grabOffsetDays = 0
     }
 }
