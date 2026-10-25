@@ -50,7 +50,8 @@ struct MonthView: View {
                 let n = CGFloat(max(1, weeks.count))
                 let strip: CGFloat = summaryOn ? stripH : 0
                 let minRow = (geo.size.height - (n - 1)) / n
-                let barH = min(16, max(11, floor((minRow - stripH - numH - bottomPad) / 4) - 1))
+                // 予定3本+週計行が入る高さを基準にバーを太くする(増えたら縦スクロール)
+                let barH = min(20, max(11, floor((minRow - stripH - numH - bottomPad) / 3) - 1))
                 let needed = weekRows.map { numH + CGFloat($0.count) * (barH + barGap) + bottomPad + strip }
                 let rowH = max(minRow, needed.max() ?? 0)
                 ScrollView(.vertical, showsIndicators: false) {
