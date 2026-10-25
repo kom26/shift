@@ -93,12 +93,16 @@ struct WorkplaceEditor: View {
                         .focused($focus, equals: "name")
                 }
                 Section("色") {
-                    HStack(spacing: 10) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
                         ForEach(Store.defaultColors, id: \.self) { c in
                             ColorDot(hex: c, size: 24)
                                 .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
                                 .onTapGesture { color = c }
                         }
+                        }
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 5)
                     }
                     ColorPicker("カスタム色",
                                 selection: Binding(get: { Color(hex: color) }, set: { color = $0.toHex() }),

@@ -748,12 +748,16 @@ private struct ColorRow: View {
     }
 
     private func swatches(_ list: [String]) -> some View {
-        HStack(spacing: 10) {
-            ForEach(list, id: \.self) { c in
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(list, id: .self) { c in
                 ColorDot(hex: c, size: 24)
                     .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
                     .onTapGesture { color = c }
+                }
             }
+            .padding(.horizontal, 5)
+            .padding(.vertical, 5)
         }
     }
 }
