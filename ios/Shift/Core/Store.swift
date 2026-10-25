@@ -150,7 +150,7 @@ final class Store {
     /// 予定を、指定した複数の日付へコピーする(日数・時刻はそのまま、新しいIDで配置済みとして追加)
     func copy(id: String, to dates: [String]) {
         guard let src = events.first(where: { $0.id == id }), !dates.isEmpty else { return }
-        var placed = events.filter(.placed)
+        var placed = events.filter { $0.placed }
         let unplaced = events.filter { !$0.placed }
         for d in dates {
             var c = moved(src, on: d)
