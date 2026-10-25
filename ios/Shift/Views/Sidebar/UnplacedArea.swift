@@ -13,6 +13,7 @@ struct UnplacedArea: View {
 
     @AppStorage("unplacedCollapsed") private var collapsed = false
     @State private var confirmRecall = false
+    @State private var showPayBasis = false
     @State private var page = 0
     @AppStorage("payBasis") private var payBasisRaw = PayBasis.work.rawValue
 
@@ -82,6 +83,7 @@ struct UnplacedArea: View {
         }
         .frame(maxHeight: (fillHeight && !collapsed) ? .infinity : nil, alignment: .top)
         .background(Color(.secondarySystemBackground).ignoresSafeArea(edges: .bottom))
+        .sheet(isPresented: $showPayBasis) { PayBasisSheet() }
         .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置に戻しますか?",
                             isPresented: $confirmRecall, titleVisibility: .visible) {
             Button("未配置に戻す", role: .destructive) {
@@ -178,7 +180,7 @@ struct UnplacedArea: View {
             card(title: "月の労働時間", titleColor: Theme.monthText, period: d.monthLabel, value: Rules.formatHours(d.monthHours),
                  delta: "先月比 " + md.text, trend: md.trend, fill: Theme.monthFill)
             card(title: "見込み給料", titleColor: Theme.payText, period: d.payLabel, value: Money.yen(d.monthPay),
-                 delta: "先月比 " + pd.text, trend: pd.trend, fill: Theme.payFill)
+                 delta: "先月比 " + pd.text, trend: pd.trend, fill: Theme.payFill, onGear: { showPayBasis = true })
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
@@ -194,7 +196,7 @@ struct UnplacedArea: View {
     }
 
     private func card(title: String, titleColor: Color, period: String, value: String, delta: String,
-                      trend: DeltaFormat.Trend, fill: Color) -> some View {
+                      trend: DeltaFormat.Trend, fill: Color, onGear: (() -> Void)? = nil) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title).font(.app(11)).foregroundStyle(titleColor)
                 .lineLimit(1).minimumScaleFactor(0.7)
@@ -209,6 +211,19 @@ struct UnplacedArea: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(fill, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(alignment: .topTrailing) {
+            if let onGear {
+                Button(action: onGear) {
+                    Image(systemName: "gearshape")
+                        .font(.app(13))
+                        .foregroundStyle(titleColor)
+                        .padding(8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("見込み給料の設定")
+            }
+        }
     }
 
     private func chip(_ ev: ShiftEvent) -> some View {
@@ -216,7 +231,7 @@ struct UnplacedArea: View {
         return HStack(spacing: 4) {
             Text(ev.title).font(.bar(11, weight: .semibold)).foregroundStyle(EventColor.text(ev.color)).lineLimit(1)
             if !time.isEmpty {
-                Text(time).font(.bar(9)).foregroundStyle(EventColor.text(ev.color))
+                Text(time).font(.bar(10, weight: .bold)).foregroundStyle(EventColor.text(ev.color))
             }
         }
         .padding(.horizontal, 8)
@@ -236,7 +251,7 @@ struct UnplacedArea: View {
         return HStack(spacing: 4) {
             Text(ev.title).font(.bar(11, weight: .semibold)).foregroundStyle(EventColor.text(ev.color))
             if !time.isEmpty {
-                Text(time).font(.bar(9)).foregroundStyle(EventColor.text(ev.color))
+                Text(time).font(.bar(10, weight: .bold)).foregroundStyle(EventColor.text(ev.color))
             }
         }
         .lineLimit(1)
