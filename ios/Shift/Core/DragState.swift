@@ -16,16 +16,24 @@ final class DragState {
 
     @ObservationIgnored private var safetyItem: DispatchWorkItem?
     @ObservationIgnored private var exitItem: DispatchWorkItem?
+    @ObservationIgnored private var beginItem: DispatchWorkItem?
 
     /// ドラッグ開始時(draggable のペイロード評価時)に呼ぶ。id をそのまま返す
     func begin(_ id: String, grabOffsetDays: Int = 0) -> String {
         draggingId = id
         self.grabOffsetDays = grabOffsetDays
+        // ドロップ先に入らずに終わったドラッグでも、元の予定が半透明のまま残らないようにする
+        beginItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in self?.clear() }
+        beginItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: item)
         return id
     }
 
     /// ドラッグ中の活動を記録する。8 秒間なにも無ければ自動で解除する。
     func touch() {
+        beginItem?.cancel()
+        beginItem = nil
         exitItem?.cancel()
         exitItem = nil
         if !isDragging { isDragging = true }
@@ -53,6 +61,8 @@ final class DragState {
         safetyItem = nil
         exitItem?.cancel()
         exitItem = nil
+        beginItem?.cancel()
+        beginItem = nil
         if isDragging { isDragging = false }
         if isOverUnplaced { isOverUnplaced = false }
         if draggingId != nil { draggingId = nil }

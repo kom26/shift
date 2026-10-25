@@ -5,12 +5,14 @@ struct EventMenu<Preview: View>: ViewModifier {
     let store: Store
     let onEdit: (ShiftEvent) -> Void
     let preview: Preview
+    @State private var showCopy = false
 
     func body(content: Content) -> some View {
         content
             .contextMenu {
                 Button { onEdit(event) } label: { Label("編集", systemImage: "pencil") }
                 Button { store.duplicate(id: event.id) } label: { Label("複製", systemImage: "plus.square.on.square") }
+                Button { showCopy = true } label: { Label("日付を選択して一括コピー", systemImage: "calendar.badge.plus") }
                 if event.placed {
                     Button { store.unplace(id: event.id) } label: { Label("未配置に戻す", systemImage: "tray.and.arrow.down") }
                 }
@@ -18,6 +20,7 @@ struct EventMenu<Preview: View>: ViewModifier {
             } preview: {
                 preview
             }
+            .sheet(isPresented: $showCopy) { CopyDatesSheet(event: event) }
     }
 }
 

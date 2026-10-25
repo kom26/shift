@@ -204,6 +204,7 @@ struct WeekView: View {
                             blockPreview(ev, w: max(0, colW - 2), h: h)
                         }
                         .draggable(DragState.shared.begin(ev.id, grabOffsetDays: Rules.daysBetween(ev.startDate ?? ds, ds)))
+                        .opacity(DragState.shared.draggingId == ev.id ? 0.35 : 1)
                         .offset(x: 1, y: H * CGFloat(seg.top))
                 }
             }

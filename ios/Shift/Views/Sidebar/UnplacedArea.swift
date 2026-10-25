@@ -198,7 +198,7 @@ struct UnplacedArea: View {
     private func card(title: String, titleColor: Color, period: String, value: String, delta: String,
                       trend: DeltaFormat.Trend, fill: Color, onGear: (() -> Void)? = nil) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title).font(.app(11)).foregroundStyle(titleColor)
+            Text(title).font(.app(13, weight: .semibold)).foregroundStyle(titleColor)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(period).font(.app(10)).foregroundStyle(Color.secondary)
                 .lineLimit(1).minimumScaleFactor(0.7)
@@ -244,6 +244,7 @@ struct UnplacedArea: View {
             chipPreview(ev)
         }
         .draggable(DragState.shared.begin(ev.id))
+        .opacity(DragState.shared.draggingId == ev.id ? 0.35 : 1)
     }
 
     private func chipPreview(_ ev: ShiftEvent) -> some View {

@@ -177,3 +177,17 @@ struct StoreFilterRevealTests {
         #expect(store.checkedWorkplaces.isEmpty)
     }
 }
+
+struct StoreCopyTests {
+    @Test func copyToDatesAddsPlacedCopiesWithNewIds() {
+        let name = UUID().uuidString
+        let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: "\(name).json"),
+                          defaults: UserDefaults(suiteName: name)!)
+        store.save(ev("a", "2026-10-20"))
+        store.copy(id: "a", to: ["2026-10-22", "2026-10-25"])
+        #expect(store.events.count == 3)
+        #expect(Set(store.events.map(\.id)).count == 3)
+        #expect(store.events.map(\.startDate) == ["2026-10-20", "2026-10-22", "2026-10-25"])
+        #expect(store.events.allSatisfy(\.placed))
+    }
+}

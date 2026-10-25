@@ -84,6 +84,7 @@ struct SpanBars: View {
                             EventBarPreview(event: s.event, height: barH, fontSize: compactFont ? (barH <= 13 ? 8.5 : barH >= 17 ? 10 : 9) : (barH >= 16 ? 10 : 9), minWidth: max(0, colW * CGFloat(s.span) - 2))
                         }
                         .draggable(DragState.shared.begin(s.event.id))
+                        .opacity(DragState.shared.draggingId == s.event.id ? 0.35 : 1)
                         .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + gap))
                 }
             }
