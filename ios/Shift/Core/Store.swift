@@ -149,12 +149,20 @@ final class Store {
 
     // MARK: 変更
 
+    /// 職場フィルタ中に、フィルタで隠れる予定が配置された(追加・編集・ドラッグ)ら、見えるようにフィルタを外す
+    private func revealIfFiltered(_ event: ShiftEvent) {
+        guard !checkedWorkplaces.isEmpty, event.placed, event.startDate != nil,
+              !checkedWorkplaces.contains(workplace(for: event)?.id ?? Store.noWorkplaceKey) else { return }
+        clearWorkplaceFilter()
+    }
+
     func save(_ event: ShiftEvent) {
         if let i = events.firstIndex(where: { $0.id == event.id }) {
             events[i] = event
         } else {
             events.append(event)
         }
+        revealIfFiltered(event)
         persist()
     }
 
@@ -196,6 +204,7 @@ final class Store {
     func place(id: String, on date: String) {
         guard let i = events.firstIndex(where: { $0.id == id }) else { return }
         events[i] = moved(events[i], on: date)
+        revealIfFiltered(events[i])
         persist()
     }
 

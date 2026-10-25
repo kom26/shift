@@ -139,3 +139,41 @@ struct StoreTests {
         #expect(names.contains { $0.hasPrefix("\(url.deletingPathExtension().lastPathComponent).corrupt-") })
     }
 }
+
+struct StoreFilterRevealTests {
+    private func make() -> Store {
+        let name = UUID().uuidString
+        let url = FileManager.default.temporaryDirectory.appending(path: "\(name).json")
+        return Store(fileURL: url, defaults: UserDefaults(suiteName: name)!)
+    }
+
+    @Test func savingHiddenPlacedEventClearsFilter() {
+        let store = make()
+        store.toggleWorkplaceFilter("w-visible")
+        store.save(ev("a", "2026-10-20"))
+        #expect(store.checkedWorkplaces.isEmpty)
+    }
+
+    @Test func savingUnplacedEventKeepsFilter() {
+        let store = make()
+        store.toggleWorkplaceFilter("w-visible")
+        var e = ev("a", "2026-10-20")
+        e.placed = false
+        e.startDate = nil
+        e.endDate = nil
+        store.save(e)
+        #expect(store.checkedWorkplaces == ["w-visible"])
+    }
+
+    @Test func placingHiddenEventClearsFilter() {
+        let store = make()
+        var e = ev("a", "2026-10-20")
+        e.placed = false
+        e.startDate = nil
+        e.endDate = nil
+        store.save(e)
+        store.toggleWorkplaceFilter("w-visible")
+        store.place(id: "a", on: "2026-10-21")
+        #expect(store.checkedWorkplaces.isEmpty)
+    }
+}
