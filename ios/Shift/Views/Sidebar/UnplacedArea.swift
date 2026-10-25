@@ -190,13 +190,13 @@ struct UnplacedArea: View {
     private func card(title: String, titleColor: Color, period: String, value: String, delta: String,
                       trend: DeltaFormat.Trend, fill: Color) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(title).font(.bar(11)).foregroundStyle(titleColor)
+            Text(title).font(.card(11)).foregroundStyle(titleColor)
                 .lineLimit(1).minimumScaleFactor(0.7)
-            Text(period).font(.bar(10)).foregroundStyle(Color.secondary)
+            Text(period).font(.card(10)).foregroundStyle(Color.secondary)
                 .lineLimit(1).minimumScaleFactor(0.7)
-            Text(value).font(.bar(20, weight: .bold)).foregroundStyle(Color.primary)
+            Text(value).font(.card(20, weight: .bold)).foregroundStyle(Color.primary)
                 .lineLimit(1).minimumScaleFactor(0.7)
-            Text(delta).font(.bar(11)).foregroundStyle(trendColor(trend))
+            Text(delta).font(.card(11)).foregroundStyle(trendColor(trend))
                 .lineLimit(1).minimumScaleFactor(0.7)
         }
         .padding(.horizontal, 8)

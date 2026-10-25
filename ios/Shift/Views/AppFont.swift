@@ -35,3 +35,10 @@ extension Font {
         .system(size: size, weight: weight)
     }
 }
+
+extension Font {
+    /// 未配置エリアの集計カード専用の丸ゴシック(予定バーとは別枠)
+    static func card(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .custom(AppFont.name(for: weight), size: size)
+    }
+}

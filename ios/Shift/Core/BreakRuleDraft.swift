@@ -37,7 +37,7 @@ struct BreakRuleDraft: Identifiable, Equatable {
 
     /// 有効な行(時間か分が入っている)のうち、時間(しきい値)が同じ行が2つ以上あるか
     static func hasDuplicateThreshold(_ drafts: [BreakRuleDraft]) -> Bool {
-        let hours = clean(drafts).map(.hours)
+        let hours = clean(drafts).map { $0.hours }
         return Set(hours).count != hours.count
     }
 
