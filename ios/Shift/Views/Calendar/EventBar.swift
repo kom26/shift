@@ -83,7 +83,7 @@ struct SpanBars: View {
                         .eventMenu(for: s.event, store: store, onEdit: onSelect) {
                             EventBarPreview(event: s.event, height: barH, fontSize: compactFont ? (barH <= 13 ? 8.5 : 9) : (barH >= 16 ? 10 : 9), minWidth: max(0, colW * CGFloat(s.span) - 2))
                         }
-                        .draggable(s.event.id)
+                        .draggable(DragState.shared.begin(s.event.id))
                         .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + gap))
                 }
             }

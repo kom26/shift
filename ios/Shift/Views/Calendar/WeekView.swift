@@ -95,7 +95,7 @@ struct WeekView: View {
                     HStack(spacing: 0) {
                         Color.clear.frame(width: timeW)
                         ForEach(0..<7, id: \.self) { i in
-                            (dropTarget == days[i] ? Theme.accentSoft : Color.clear)
+                            (dropTarget == days[i] && !(dropMoved?.isTimedDrop ?? false) ? Theme.accentSoft : Color.clear)
                                 .contentShape(Rectangle())
                                 .onTapGesture { onSelectDay(days[i]) }
                                 .onLongPressGesture(minimumDuration: 0.45) {
@@ -142,7 +142,8 @@ struct WeekView: View {
                     let ds = days[i]
                     column(ds, events: timed, colW: colW, H: H)
                         .frame(width: colW, height: H, alignment: .topLeading)
-                        .background(dropTarget == ds ? Theme.accentSoft : (conflictDays.contains(ds) ? Color.red.opacity(0.10) : Color.clear))
+                        .background(dropTarget == ds && !(dropMoved?.isTimedDrop ?? false) ? Theme.accentSoft : (conflictDays.contains(ds) ? Color.red.opacity(0.10) : Color.clear))
+                        .overlay(alignment: .topLeading) { dropSegment(ds, colW: colW, H: H) }
                         .overlay(alignment: .leading) {
                             Rectangle().fill(Color(.separator).opacity(0.5)).frame(width: 0.5)
                         }
@@ -155,6 +156,27 @@ struct WeekView: View {
             }
         }
         .clipped()
+    }
+
+    /// ドラッグ中の予定を dropTarget に置いたときの姿
+    private var dropMoved: ShiftEvent? {
+        guard let t = dropTarget, let id = DragState.shared.draggingId else { return nil }
+        return store.dropPreview(id: id, on: t)
+    }
+
+    /// 予定がハマる時間帯だけを点線と塗りで示す(他の予定と重なるなら赤)
+    @ViewBuilder
+    private func dropSegment(_ ds: String, colW: CGFloat, H: CGFloat) -> some View {
+        if let m = dropMoved, m.isTimedDrop, let seg = Rules.timedSegment(m, on: ds) {
+            let bad = DropCheck.overlaps(moved: m, others: store.events)
+            let tint: Color = bad ? .red : Theme.accent
+            let shape = RoundedRectangle(cornerRadius: 3)
+            shape.fill(bad ? Color.red.opacity(0.22) : Theme.accentSoft)
+                .overlay(shape.strokeBorder(tint, style: StrokeStyle(lineWidth: 2, dash: [4, 3])))
+                .frame(width: max(0, colW - 2), height: H * CGFloat(seg.height))
+                .offset(x: 1, y: H * CGFloat(seg.top))
+                .allowsHitTesting(false)
+        }
     }
 
     private func column(_ ds: String, events: [ShiftEvent], colW: CGFloat, H: CGFloat) -> some View {
@@ -174,7 +196,7 @@ struct WeekView: View {
                         .eventMenu(for: ev, store: store, onEdit: onSelectEvent) {
                             blockPreview(ev, w: max(0, colW - 2), h: h)
                         }
-                        .draggable(ev.id)
+                        .draggable(DragState.shared.begin(ev.id))
                         .offset(x: 1, y: H * CGFloat(seg.top))
                 }
             }

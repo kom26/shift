@@ -174,17 +174,28 @@ final class Store {
 
     var unplacedEvents: [ShiftEvent] { events.filter { !$0.placed } }
 
-    /// 日付へ配置する。配置済みなら元の日数(終了日−開始日)を保つ
-    func place(id: String, on date: String) {
-        guard let i = events.firstIndex(where: { $0.id == id }) else { return }
-        var e = events[i]
+    /// 日付へ配置した後の姿。配置済みなら元の日数(終了日−開始日)を保つ
+    func moved(_ event: ShiftEvent, on date: String) -> ShiftEvent {
+        var e = event
         let duration: Int
         if let sd = e.startDate, let ed = e.endDate { duration = Rules.daysBetween(sd, ed) } else { duration = 0 }
         let baseEnd = duration > 0 ? Rules.addDays(date, duration) : date
         e.startDate = date
         e.endDate = Rules.resolveEndDate(start: date, end: baseEnd, allDay: e.allDay, startTime: e.startTime, endTime: e.endTime)
         e.placed = true
-        events[i] = e
+        return e
+    }
+
+    /// ドラッグ中の予定を date に置いたときの姿(ハイライト用)。見つからなければ nil
+    func dropPreview(id: String, on date: String) -> ShiftEvent? {
+        guard let e = events.first(where: { $0.id == id }) else { return nil }
+        return moved(e, on: date)
+    }
+
+    /// 日付へ配置する
+    func place(id: String, on date: String) {
+        guard let i = events.firstIndex(where: { $0.id == id }) else { return }
+        events[i] = moved(events[i], on: date)
         persist()
     }
 

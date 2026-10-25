@@ -222,7 +222,7 @@ struct UnplacedArea: View {
         .eventMenu(for: ev, store: store, onEdit: onSelectEvent) {
             chipPreview(ev)
         }
-        .draggable(ev.id)
+        .draggable(DragState.shared.begin(ev.id))
     }
 
     private func chipPreview(_ ev: ShiftEvent) -> some View {

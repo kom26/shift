@@ -123,13 +123,20 @@ struct MonthView: View {
         }
     }
 
+    /// ドラッグ中の予定を ds に置くと、時間つきの他の予定と重なるか
+    private func dropConflicts(_ ds: String) -> Bool {
+        guard let id = DragState.shared.draggingId, let m = store.dropPreview(id: id, on: ds) else { return false }
+        return DropCheck.overlaps(moved: m, others: store.events)
+    }
+
     private func dayCell(_ ds: String, conflict: Bool) -> some View {
         let inMonth = Rules.isSameMonth(ds, as: anchor)
         let holiday = holidays.name(on: ds)
         let type = Rules.dayType(ds, isHoliday: holiday != nil)
         let isToday = inMonth && ds == Rules.today()
         let isDrop = dropTarget == ds
-        let bg: Color = isDrop ? Theme.accentSoft
+        let dropBad = isDrop && dropConflicts(ds)
+        let bg: Color = isDrop ? (dropBad ? Color.red.opacity(0.18) : Theme.accentSoft)
             : conflict ? Color.red.opacity(0.16)
             : isToday ? Theme.accentSoft
             : (inMonth ? Color.clear : Color(.tertiarySystemFill))
@@ -158,7 +165,7 @@ struct MonthView: View {
         .overlay {
             if isDrop {
                 Rectangle()
-                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
+                    .strokeBorder(dropBad ? Color.red : Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
             }
         }
         .contentShape(Rectangle())

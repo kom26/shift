@@ -9,9 +9,17 @@ final class DragState {
 
     var isDragging = false
     var isOverUnplaced = false
+    /// ドラッグ中の予定の id(ドラッグ開始時に設定)
+    var draggingId: String?
 
     @ObservationIgnored private var safetyItem: DispatchWorkItem?
     @ObservationIgnored private var exitItem: DispatchWorkItem?
+
+    /// ドラッグ開始時(draggable のペイロード評価時)に呼ぶ。id をそのまま返す
+    func begin(_ id: String) -> String {
+        draggingId = id
+        return id
+    }
 
     /// ドラッグ中の活動を記録する。8 秒間なにも無ければ自動で解除する。
     func touch() {
@@ -44,5 +52,6 @@ final class DragState {
         exitItem = nil
         if isDragging { isDragging = false }
         if isOverUnplaced { isOverUnplaced = false }
+        if draggingId != nil { draggingId = nil }
     }
 }

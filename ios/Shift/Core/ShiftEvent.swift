@@ -62,3 +62,8 @@ extension Optional where Wrapped == String {
         return s
     }
 }
+
+extension ShiftEvent {
+    /// 時間つき(終日でなく開始時刻がある)か。週ビューのドロップ表示の出し分けに使う
+    var isTimedDrop: Bool { !allDay && startTime != nil }
+}
