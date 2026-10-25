@@ -5,12 +5,7 @@ workflows:
     max_build_duration: 30
     environment:
       xcode: latest
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: 'feat/ios-*'
-          include: true
+    # 従量課金のため push では自動ビルドしない(単体テストは GitHub Actions が実行)。必要なときだけ手動で起動
     scripts:
       - name: Install xcodegen
         script: brew install xcodegen
