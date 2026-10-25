@@ -126,7 +126,7 @@ struct WorkplaceEditor: View {
                         }
                     }
                     .onDelete { rules.remove(atOffsets: $0) }
-                    Button("＋ 休憩ルールを追加") {
+                    Button("＋ 独自の休憩ルールを追加") {
                         rules.append(BreakRuleDraft())
                     }
                     if rules.isEmpty {
@@ -135,7 +135,7 @@ struct WorkplaceEditor: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("休憩ルール")
+                    Text("独自の休憩ルール")
                 }
                 Section {
                     Picker("締め日", selection: $closingDay) {
@@ -236,7 +236,7 @@ private struct BreakRuleRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            TextField("00", text: Binding(
+            TextField("0", text: Binding(
                 get: { rule.hours },
                 set: { input in
                     var seenDot = false
@@ -258,7 +258,7 @@ private struct BreakRuleRow: View {
             .pickerStyle(.menu)
             .labelsHidden()
             Spacer(minLength: 0)
-            TextField("00", text: Binding(
+            TextField("0", text: Binding(
                 get: { rule.minutes },
                 set: { input in
                     rule.minutes = String(input.filter { $0.isASCII && $0.isNumber }.prefix(3))
