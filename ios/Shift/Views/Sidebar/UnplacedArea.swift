@@ -65,20 +65,18 @@ struct UnplacedArea: View {
 
             if !collapsed {
                 Divider()
-                toolbar(count: items.count)
                 ZStack {
                     TabView(selection: $page) {
                         chipsPage(items, hidden: dragging).tag(0)
                         cardsPage
-                            .frame(height: LayoutMath.minUnplacedBody - LayoutMath.unplacedToolbarH)
-                            .frame(maxHeight: .infinity, alignment: .top)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .tag(1)
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     if dragging { dropPrompt(over: over) }
                 }
-                .frame(minHeight: LayoutMath.minUnplacedBody - LayoutMath.unplacedToolbarH,
-                       maxHeight: fillHeight ? .infinity : LayoutMath.minUnplacedBody - LayoutMath.unplacedToolbarH)
+                .frame(minHeight: LayoutMath.minUnplacedBody,
+                       maxHeight: fillHeight ? .infinity : LayoutMath.minUnplacedBody)
                 .onDrop(of: [.plainText], delegate: unplaceDelegate)
             }
         }
@@ -94,7 +92,8 @@ struct UnplacedArea: View {
     }
 
     private func chipsPage(_ items: [ShiftEvent], hidden: Bool) -> some View {
-        HStack(spacing: 0) {
+        VStack(spacing: 0) {
+            toolbar(count: items.count)
             ScrollView {
                 if items.isEmpty {
                     Text("すべて配置済みです 🎉")
@@ -116,17 +115,17 @@ struct UnplacedArea: View {
         .allowsHitTesting(!hidden)
     }
 
-    /// 件数と「回収」「並べ替え」。矢印の行の下に置く
+    /// 件数と「回収」「並べ替え」(未配置ページの上端。スワイプで一緒に流れる)
     private func toolbar(count: Int) -> some View {
         HStack(spacing: 8) {
             Text("未配置 \(count)件")
                 .font(.app(12))
                 .foregroundStyle(.secondary)
-            Spacer(minLength: 4)
             sideButton("\(anchorMonthShort)の予定を全て回収") { confirmRecall = true }
             sideButton("並べ替え") {
                 withAnimation(.snappy) { store.sortUnplaced() }
             }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .frame(height: LayoutMath.unplacedToolbarH)
@@ -182,7 +181,7 @@ struct UnplacedArea: View {
                  delta: "先月比 " + pd.text, trend: pd.trend, fill: Theme.payFill)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -196,18 +195,18 @@ struct UnplacedArea: View {
 
     private func card(title: String, titleColor: Color, period: String, value: String, delta: String,
                       trend: DeltaFormat.Trend, fill: Color) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(title).font(.app(11)).foregroundStyle(titleColor)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(period).font(.app(10)).foregroundStyle(Color.secondary)
                 .lineLimit(1).minimumScaleFactor(0.7)
-            Text(value).font(.app(20, weight: .bold)).foregroundStyle(Color.primary)
+            Text(value).font(.app(22, weight: .bold)).foregroundStyle(Color.primary)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(delta).font(.app(11)).foregroundStyle(trendColor(trend))
                 .lineLimit(1).minimumScaleFactor(0.7)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(fill, in: RoundedRectangle(cornerRadius: 12))
     }
