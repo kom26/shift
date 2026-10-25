@@ -34,8 +34,9 @@ struct EventDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        DragState.shared.ended()
+        // ended() は draggingId を消すので、先に置き先を解決する
         let date = resolve(info.location)
+        DragState.shared.ended()
         guard let provider = info.itemProviders(for: [.plainText]).first, let date else {
             target = nil
             return false

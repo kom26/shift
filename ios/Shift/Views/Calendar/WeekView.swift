@@ -109,7 +109,7 @@ struct WeekView: View {
                 .onDrop(of: [.plainText], delegate: EventDropDelegate(
                     resolve: { p in
                         guard colW > 0 else { return nil }
-                        return days[min(6, max(0, Int((p.x - timeW) / colW)))]
+                        return storageDate(days[min(6, max(0, Int((p.x - timeW) / colW)))])
                     },
                     target: $dropTarget,
                     onDrop: onDropEvent))
@@ -148,7 +148,7 @@ struct WeekView: View {
                             Rectangle().fill(Color(.separator).opacity(0.5)).frame(width: 0.5)
                         }
                         .onDrop(of: [.plainText], delegate: EventDropDelegate(
-                            resolve: { _ in ds },
+                            resolve: { _ in storageDate(ds) },
                             target: $dropTarget,
                             onDrop: onDropEvent))
                         .offset(x: timeW + colW * CGFloat(i))
@@ -156,6 +156,15 @@ struct WeekView: View {
             }
         }
         .clipped()
+    }
+
+    /// 開始が24:00以降の予定は、保存上の開始日の翌日以降の列に表示される。
+    /// 指のある列に表示されるよう、その分だけ開始日を前にずらした保存日を返す
+    private func storageDate(_ ds: String) -> String {
+        guard let id = DragState.shared.draggingId,
+              let e = store.events.first(where: { $0.id == id }), !e.allDay,
+              let sm = Rules.minutes(e.startTime), sm >= 1440 else { return ds }
+        return Rules.addDays(ds, -(sm / 1440))
     }
 
     /// ドラッグ中の予定を dropTarget に置いたときの姿
