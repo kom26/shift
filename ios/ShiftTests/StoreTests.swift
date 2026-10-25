@@ -186,8 +186,11 @@ struct StoreCopyTests {
         store.save(ev("a", "2026-10-20"))
         store.copy(id: "a", to: ["2026-10-22", "2026-10-25"])
         #expect(store.events.count == 3)
-        #expect(Set(store.events.map(\.id)).count == 3)
-        #expect(store.events.map(\.startDate) == ["2026-10-20", "2026-10-22", "2026-10-25"])
-        #expect(store.events.allSatisfy(\.placed))
+        let ids = Set(store.events.map { $0.id })
+        let starts = store.events.map { $0.startDate ?? "" }
+        let allPlaced = store.events.allSatisfy { $0.placed }
+        #expect(ids.count == 3)
+        #expect(starts == ["2026-10-20", "2026-10-22", "2026-10-25"])
+        #expect(allPlaced)
     }
 }
