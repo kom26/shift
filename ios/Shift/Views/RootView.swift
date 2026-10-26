@@ -56,7 +56,6 @@ struct RootView: View {
                                  onEditFavorite: { editing = EditorTarget(event: $0, isNew: false, favorite: true) },
                                  onNewFavorite: { editing = EditorTarget(event: .newUnplaced(), isNew: true, favorite: true) })
                 }
-                .overlay(alignment: .top) { stampBanner }
             }
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
@@ -74,25 +73,40 @@ struct RootView: View {
     private var header: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                Button { showSettings = true } label: {
-                    Image(systemName: "gearshape").font(.title3)
-                        .padding(.horizontal, 6)
-                        .frame(minHeight: 36)
-                        .contentShape(Rectangle())
+                if let fav = stampFavorite {
+                    stampChip(fav)
+                } else {
+                    Button { showSettings = true } label: {
+                        Image(systemName: "gearshape").font(.title3)
+                            .padding(.horizontal, 6)
+                            .frame(minHeight: 36)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("設定")
                 }
-                .accessibilityLabel("設定")
                 Spacer(minLength: 0)
                 Button { pagerCommand = PagerCommand(direction: -1, id: UUID()) } label: { Image(systemName: "chevron.left") }
                 Text(title).font(.app(17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
                 Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
                 Spacer(minLength: 0)
-                Button { addUnplaced() } label: {
-                    Text("＋ 予定追加")
-                        .font(.app(15, weight: .semibold))
-                        .foregroundStyle(Theme.onAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Theme.accent, in: Capsule())
+                if stampFavorite != nil {
+                    Button { withAnimation(.snappy) { stampId = nil } } label: {
+                        Text("完了")
+                            .font(.app(15, weight: .semibold))
+                            .foregroundStyle(Theme.onAccent)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 5)
+                            .background(Theme.accent, in: Capsule())
+                    }
+                } else {
+                    Button { addUnplaced() } label: {
+                        Text("＋ 予定追加")
+                            .font(.app(15, weight: .semibold))
+                            .foregroundStyle(Theme.onAccent)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Theme.accent, in: Capsule())
+                    }
                 }
             }
             HStack(spacing: 10) {
@@ -132,6 +146,29 @@ struct RootView: View {
         .padding(.vertical, 8)
     }
 
+    private var stampFavorite: ShiftEvent? {
+        stampId.flatMap { store.favorite(id: $0) }
+    }
+
+    /// スタンプモード中、設定ボタンの代わりに出す表示(どの予定を置くか)
+    private func stampChip(_ fav: ShiftEvent) -> some View {
+        let time = Rules.timeLabel(fav)
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("スタンプ: \(fav.title)")
+                .font(.app(11, weight: .bold))
+                .lineLimit(1)
+            if !time.isEmpty {
+                Text(time).font(.app(9, weight: .medium)).lineLimit(1)
+            }
+        }
+        .foregroundStyle(Theme.accent)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .frame(maxWidth: 104, minHeight: 36, alignment: .leading)
+        .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+    }
+
     private var title: String {
         if mode == .month {
             let p = Rules.ymd(anchor)
@@ -168,34 +205,6 @@ struct RootView: View {
     private func toggleSummary() {
         withAnimation(.snappy) {
             summaryOn.toggle()
-        }
-    }
-
-    /// スタンプモード中に出す帯(カレンダーの上端に重ねる)
-    @ViewBuilder
-    private var stampBanner: some View {
-        if let id = stampId, let fav = store.favorite(id: id) {
-            let time = Rules.timeLabel(fav)
-            HStack(spacing: 8) {
-                Text("「\(fav.title)\(time.isEmpty ? "" : " " + time)」を置く日をタップ")
-                    .font(.app(12, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 4)
-                Button { withAnimation(.snappy) { stampId = nil } } label: {
-                    Text("完了")
-                        .font(.app(12, weight: .bold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.25), in: Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-            .foregroundStyle(Theme.onAccent)
-            .padding(.horizontal, 12)
-            .frame(height: 30)
-            .background(Theme.accent)
-            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
