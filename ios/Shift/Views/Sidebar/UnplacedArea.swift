@@ -18,7 +18,9 @@ struct UnplacedArea: View {
     @State private var confirmRecall = false
     @State private var showPayBasis = false
     @State private var favFilter: String?
-    @State private var page = 0
+    /// 0..4。1〜3が実ページ、0と4は端から端へ循環するための複製(止まったら実ページへ瞬間移動)
+    @State private var tab = 1
+    private var page: Int { (tab - 1 + 3) % 3 }
     @AppStorage("payBasis") private var payBasisRaw = PayBasis.work.rawValue
 
     private var anchorMonthShort: String {
@@ -44,6 +46,7 @@ struct UnplacedArea: View {
         let over = drag.isOverUnplaced
         VStack(spacing: 0) {
             ZStack {
+                Color.clear.contentShape(Rectangle())
                 if !collapsed {
                     HStack(spacing: 4) {
                         ForEach(0..<3, id: \.self) { i in
@@ -67,16 +70,29 @@ struct UnplacedArea: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
             .frame(minHeight: LayoutMath.unplacedHeaderH)
+            .gesture(DragGesture(minimumDistance: 12).onEnded { v in
+                guard !collapsed else { return }
+                if v.translation.width < -30 { go(1) } else if v.translation.width > 30 { go(-1) }
+            })
 
             if !collapsed {
                 Divider()
                 ZStack {
-                    TabView(selection: $page) {
-                        favoritesPage.tag(0)
-                        chipsPage(items, hidden: dragging).tag(1)
-                        cardsPage
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .tag(2)
+                    TabView(selection: $tab) {
+                        pageContent(2, items: items, dragging: dragging).tag(0)
+                        pageContent(0, items: items, dragging: dragging).tag(1)
+                        pageContent(1, items: items, dragging: dragging).tag(2)
+                        pageContent(2, items: items, dragging: dragging).tag(3)
+                        pageContent(0, items: items, dragging: dragging).tag(4)
+                    }
+                    .onChange(of: tab) { _, new in
+                        guard new == 0 || new == 4 else { return }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            guard tab == new else { return }
+                            var t = Transaction()
+                            t.disablesAnimations = true
+                            withTransaction(t) { tab = new == 0 ? 3 : 1 }
+                        }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     if dragging && !(drag.draggingId?.hasPrefix(Store.favoritePrefix) ?? false) { dropPrompt(over: over) }
@@ -98,14 +114,30 @@ struct UnplacedArea: View {
         }
     }
 
+    /// ヘッダーのスワイプで隣のページへ(端からは反対側へ循環)
+    private func go(_ delta: Int) {
+        guard (1...3).contains(tab) else { return }
+        withAnimation(.snappy) { tab += delta }
+    }
+
+    @ViewBuilder
+    private func pageContent(_ logical: Int, items: [ShiftEvent], dragging: Bool) -> some View {
+        switch logical {
+        case 0: favoritesPage
+        case 1: chipsPage(items, hidden: dragging)
+        default:
+            cardsPage.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
     // MARK: よく使う予定
 
     private var favoritesPage: some View {
-        let list = store.favorites(workplaceFilter: favFilter)
+        let list = Rules.sortUnplaced(store.favorites(workplaceFilter: favFilter))
         let suggestions = favFilter == nil ? store.favoriteSuggestions() : []
         return VStack(alignment: .leading, spacing: 4) {
             if !store.workplaces.isEmpty { favoriteFilterRow }
-            favoriteGuide
+            if stampId != nil { favoriteGuide }
             ScrollView {
                 FlowLayout(spacing: 8) {
                     Button(action: onNewFavorite) {
@@ -212,7 +244,6 @@ struct UnplacedArea: View {
         .onTapGesture { withAnimation(.snappy) { stampId = selected ? nil : f.id } }
         .contextMenu {
             Button { onEditFavorite(f) } label: { Label("編集", systemImage: "pencil") }
-            Button { store.moveFavoriteToFront(id: f.id) } label: { Label("先頭へ移動", systemImage: "arrow.up.to.line") }
             Button(role: .destructive) {
                 if stampId == f.id { stampId = nil }
                 store.removeFavorite(id: f.id)
@@ -394,7 +425,7 @@ struct UnplacedArea: View {
             chipPreview(ev)
         }
         .draggable(DragState.shared.begin(ev.id))
-        .opacity(DragState.shared.draggingId == ev.id ? 0.35 : 1)
+        .opacity(DragState.shared.isDragging && DragState.shared.draggingId == ev.id ? 0.35 : 1)
     }
 
     private func chipPreview(_ ev: ShiftEvent) -> some View {
