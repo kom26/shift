@@ -6,6 +6,7 @@ enum CalendarMode: String { case week, month }
 struct EditorTarget: Identifiable {
     let event: ShiftEvent
     let isNew: Bool
+    var favorite = false
     var id: String { event.id }
 }
 
@@ -35,6 +36,8 @@ struct RootView: View {
     @State private var dayTarget: DayTarget?
     @State private var pagerCommand: PagerCommand?
     @State private var selectedDate: String?
+    /// スタンプモード中のよく使う予定のID
+    @State private var stampId: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,12 +52,15 @@ struct RootView: View {
                         pager
                     }
                     UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday,
-                                 fillHeight: true, onSelectEvent: edit)
+                                 fillHeight: true, stampId: $stampId, onSelectEvent: edit,
+                                 onEditFavorite: { editing = EditorTarget(event: $0, isNew: false, favorite: true) },
+                                 onNewFavorite: { editing = EditorTarget(event: .newUnplaced(), isNew: true, favorite: true) })
                 }
+                .overlay(alignment: .top) { stampBanner }
             }
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
-        .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew) }
+        .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew, favoriteMode: $0.favorite) }
         .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
         .sheet(item: $dayTarget) { t in
             DaySheet(date: t.date, onSelectEvent: { ev in
@@ -165,7 +171,44 @@ struct RootView: View {
         }
     }
 
+    /// スタンプモード中に出す帯(カレンダーの上端に重ねる)
+    @ViewBuilder
+    private var stampBanner: some View {
+        if let id = stampId, let fav = store.favorite(id: id) {
+            let time = Rules.timeLabel(fav)
+            HStack(spacing: 8) {
+                Text("「(fav.title)(time.isEmpty ? "" : " " + time)」を置く日をタップ")
+                    .font(.app(12, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
+                Button { withAnimation(.snappy) { stampId = nil } } label: {
+                    Text("完了")
+                        .font(.app(12, weight: .bold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 3)
+                        .background(Color.white.opacity(0.25), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .foregroundStyle(Theme.onAccent)
+            .padding(.horizontal, 12)
+            .frame(height: 30)
+            .background(Theme.accent)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
     private func addEvent(on date: String) {
+        if let id = stampId {
+            // スタンプモード: 日付のタップで配置、同じ日にもう一度タップで削除
+            if let r = store.stampToggle(favoriteId: id, on: date) {
+                UIImpactFeedbackGenerator(style: r == .placed ? .medium : .light).impactOccurred()
+            } else {
+                stampId = nil
+            }
+            return
+        }
         selectedDate = date
         editing = EditorTarget(event: .new(on: date), isNew: true)
     }
@@ -179,6 +222,11 @@ struct RootView: View {
     }
 
     private func drop(id: String, on date: String) {
+        if id.hasPrefix(Store.favoritePrefix) {
+            withAnimation(.snappy) { store.stampCopy(favoriteId: String(id.dropFirst(Store.favoritePrefix.count)), on: date) }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            return
+        }
         withAnimation(.snappy) { store.place(id: id, on: date) }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }

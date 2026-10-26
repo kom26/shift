@@ -8,6 +8,8 @@ struct EventEditor: View {
 
     let original: ShiftEvent
     let isNew: Bool
+    /// よく使う予定のテンプレートを編集する(日付なし。保存先はよく使う予定)
+    var favoriteMode = false
 
     @State private var title: String
     @State private var memo: String
@@ -22,6 +24,7 @@ struct EventEditor: View {
     @State private var confirmDelete = false
     @State private var openPanel: TimePanel?
     @State private var shiftOpen = false
+    @State private var registerFavorite = false
     @State private var typed = ""
     @State private var workplaceId: String?
     @State private var breakInNight: Bool?
@@ -37,9 +40,10 @@ struct EventEditor: View {
     enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime }
     enum TimePanel: Hashable { case start, end }
 
-    init(original: ShiftEvent, isNew: Bool) {
+    init(original: ShiftEvent, isNew: Bool, favoriteMode: Bool = false) {
         self.original = original
         self.isNew = isNew
+        self.favoriteMode = favoriteMode
         _title = State(initialValue: original.title)
         _memo = State(initialValue: original.memo)
         _color = State(initialValue: original.color)
@@ -131,8 +135,15 @@ struct EventEditor: View {
                     TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
                         .focused($focusedField, equals: .memo)
                 }
+                if !favoriteMode {
+                    Section {
+                        Toggle("よく使う予定にも登録", isOn: $registerFavorite)
+                    }
+                }
                 Section {
-                    Button("複製保存") { commit(duplicate: true) }.disabled(!canSave)
+                    if !favoriteMode {
+                        Button("複製保存") { commit(duplicate: true) }.disabled(!canSave)
+                    }
                     if !isNew {
                         Button("削除", role: .destructive) { confirmDelete = true }
                     }
@@ -144,7 +155,7 @@ struct EventEditor: View {
                 scrollToPanelBottom(new, proxy: proxy)
             }
             }
-            .navigationTitle(isNew ? "予定を追加" : "予定を編集")
+            .navigationTitle(favoriteMode ? (isNew ? "よく使う予定を追加" : "よく使う予定を編集") : (isNew ? "予定を追加" : "予定を編集"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
@@ -161,6 +172,7 @@ struct EventEditor: View {
             .onAppear {
                 guard !didSetup else { return }
                 didSetup = true
+                registerFavorite = !favoriteMode && store.isFavorite(original)
                 if selectedWorkplace == nil {
                     workplaceId = store.workplace(for: original)?.id
                 }
@@ -178,7 +190,7 @@ struct EventEditor: View {
             .onChange(of: allDay) { normalizeEnd() }
             .confirmationDialog("この予定を削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("削除", role: .destructive) {
-                    store.delete(id: original.id)
+                    if favoriteMode { store.removeFavorite(id: original.id) } else { store.delete(id: original.id) }
                     dismiss()
                 }
             }
@@ -353,7 +365,9 @@ struct EventEditor: View {
 
     @ViewBuilder
     private var startDateControl: some View {
-        if hasDate {
+        if favoriteMode {
+            EmptyView()
+        } else if hasDate {
             DatePicker("", selection: $start, displayedComponents: .date).labelsHidden()
         } else {
             datePlaceholderChip(enabled: true) {
@@ -368,7 +382,9 @@ struct EventEditor: View {
 
     @ViewBuilder
     private var endDateControl: some View {
-        if hasDate {
+        if favoriteMode {
+            EmptyView()
+        } else if hasDate {
             DatePicker("", selection: $end, in: start..., displayedComponents: .date).labelsHidden()
         } else {
             datePlaceholderChip(enabled: false) {}
@@ -722,7 +738,12 @@ struct EventEditor: View {
     private func commit(duplicate: Bool) {
         let e = build()
         store.rememberColor(e.color)
-        if duplicate { store.saveAndDuplicate(e) } else { store.save(e) }
+        if favoriteMode {
+            store.saveFavorite(e)
+        } else {
+            if duplicate { store.saveAndDuplicate(e) } else { store.save(e) }
+            if registerFavorite && !store.isFavorite(e) { store.addFavorite(from: e) }
+        }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         dismiss()
     }

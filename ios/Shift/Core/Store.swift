@@ -28,22 +28,32 @@ final class Store {
     private(set) var checkedWorkplaces: Set<String>
     private(set) var customColors: [String]
     private(set) var workplaces: [Workplace]
+    /// よく使う予定(日付なしのテンプレート)
+    var favorites: [ShiftEvent] = []
+    /// 自動候補から非表示にした予定のキー
+    var hiddenSuggestions: Set<String>
 
-    @ObservationIgnored private let fileURL: URL
-    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored let fileURL: URL
+    @ObservationIgnored let defaults: UserDefaults
     private enum Keys {
         static let checked = "shift-checked-workplaces"
         static let custom = "shift-custom-colors"
         static let workplaces = "shift-workplaces"
+        static let hiddenSuggestions = "shift-hidden-suggestions"
     }
 
     init(fileURL: URL = Store.defaultFileURL, defaults: UserDefaults = .standard) {
         self.fileURL = fileURL
         self.defaults = defaults
         checkedWorkplaces = Set(defaults.stringArray(forKey: Keys.checked) ?? [])
+        hiddenSuggestions = Set(defaults.stringArray(forKey: Keys.hiddenSuggestions) ?? [])
         customColors = defaults.stringArray(forKey: Keys.custom) ?? []
         workplaces = defaults.data(forKey: Keys.workplaces)
             .flatMap { try? JSONDecoder().decode([Workplace].self, from: $0) } ?? []
+        if let data = try? Data(contentsOf: Self.favoritesURL(for: fileURL)),
+           let list = try? JSONDecoder().decode([ShiftEvent].self, from: data) {
+            favorites = list
+        }
         if let data = try? Data(contentsOf: fileURL),
            let list = try? JSONDecoder().decode([ShiftEvent].self, from: data) {
             events = list
@@ -210,6 +220,9 @@ final class Store {
 
     /// ドラッグ中の予定を date に置いたときの姿(ハイライト用)。見つからなければ nil
     func dropPreview(id: String, on date: String) -> ShiftEvent? {
+        if id.hasPrefix(Store.favoritePrefix) {
+            return favorite(id: String(id.dropFirst(Store.favoritePrefix.count))).map { moved($0, on: date) }
+        }
         guard let e = events.first(where: { $0.id == id }) else { return nil }
         return moved(e, on: date)
     }
@@ -351,6 +364,12 @@ final class Store {
 
     private func persistWorkplaces() {
         if let data = try? JSONEncoder().encode(workplaces) { defaults.set(data, forKey: Keys.workplaces) }
+    }
+
+    /// 末尾に1件足す(スタンプ配置など、他ファイルの拡張から使う)
+    func appendEvent(_ event: ShiftEvent) {
+        events.append(event)
+        persist()
     }
 
     private func persist() {

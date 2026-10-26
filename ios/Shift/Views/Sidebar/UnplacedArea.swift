@@ -9,11 +9,15 @@ struct UnplacedArea: View {
     let selectedDate: String?
     let startMonday: Bool
     var fillHeight: Bool = false
+    @Binding var stampId: String?
     let onSelectEvent: (ShiftEvent) -> Void
+    var onEditFavorite: (ShiftEvent) -> Void = { _ in }
+    var onNewFavorite: () -> Void = {}
 
     @AppStorage("unplacedCollapsed") private var collapsed = false
     @State private var confirmRecall = false
     @State private var showPayBasis = false
+    @State private var favFilter: String?
     @State private var page = 0
     @AppStorage("payBasis") private var payBasisRaw = PayBasis.work.rawValue
 
@@ -42,7 +46,7 @@ struct UnplacedArea: View {
             ZStack {
                 if !collapsed {
                     HStack(spacing: 4) {
-                        ForEach(0..<2, id: \.self) { i in
+                        ForEach(0..<3, id: \.self) { i in
                             Circle()
                                 .fill(i == page ? Theme.accent : Color.secondary.opacity(0.35))
                                 .frame(width: 6, height: 6)
@@ -68,13 +72,14 @@ struct UnplacedArea: View {
                 Divider()
                 ZStack {
                     TabView(selection: $page) {
-                        chipsPage(items, hidden: dragging).tag(0)
+                        favoritesPage.tag(0)
+                        chipsPage(items, hidden: dragging).tag(1)
                         cardsPage
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .tag(1)
+                            .tag(2)
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
-                    if dragging { dropPrompt(over: over) }
+                    if dragging && !(drag.draggingId?.hasPrefix(Store.favoritePrefix) ?? false) { dropPrompt(over: over) }
                 }
                 .frame(minHeight: LayoutMath.minUnplacedBody,
                        maxHeight: fillHeight ? .infinity : LayoutMath.minUnplacedBody)
@@ -91,6 +96,151 @@ struct UnplacedArea: View {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
         }
+    }
+
+    // MARK: よく使う予定
+
+    private var favoritesPage: some View {
+        let list = store.favorites(workplaceFilter: favFilter)
+        let suggestions = favFilter == nil ? store.favoriteSuggestions() : []
+        return VStack(alignment: .leading, spacing: 4) {
+            if !store.workplaces.isEmpty { favoriteFilterRow }
+            favoriteGuide
+            ScrollView {
+                FlowLayout(spacing: 8) {
+                    Button(action: onNewFavorite) {
+                        Text("＋ 新規")
+                            .font(.bar(11, weight: .bold))
+                            .foregroundStyle(Theme.accent)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .overlay(RoundedRectangle(cornerRadius: 6)
+                                .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+                    }
+                    .buttonStyle(.plain)
+                    ForEach(list) { favoriteBar($0) }
+                    ForEach(suggestions) { suggestionBar($0) }
+                }
+                .padding(.horizontal, 4)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 4)
+    }
+
+    private var favoriteFilterRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                filterChip(title: "すべて", color: nil, key: nil)
+                ForEach(store.workplaces) { w in filterChip(title: w.name, color: w.color, key: w.id) }
+                filterChip(title: "指定なし", color: nil, key: Store.noWorkplaceKey)
+            }
+            .padding(.horizontal, 3)
+            .padding(.vertical, 3)
+        }
+    }
+
+    private func filterChip(title: String, color: String?, key: String?) -> some View {
+        let on = favFilter == key
+        return HStack(spacing: 4) {
+            if let color { ColorDot(hex: color, size: 8) }
+            Text(title).font(.app(11, weight: on ? .semibold : .regular)).lineLimit(1)
+        }
+        .foregroundStyle(on ? Theme.accent : Color.secondary)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 3)
+        .background(on ? Theme.accentSoft : Color(.secondarySystemFill), in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.accent, lineWidth: on ? 1 : 0))
+        .contentShape(Capsule())
+        .onTapGesture { favFilter = key }
+    }
+
+    private func guideTag(_ text: String) -> some View {
+        Text(text)
+            .font(.app(9.5, weight: .semibold))
+            .foregroundStyle(Theme.monthText)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Theme.monthFill, in: RoundedRectangle(cornerRadius: 4))
+    }
+
+    private var favoriteGuide: some View {
+        HStack(spacing: 12) {
+            if stampId == nil {
+                HStack(spacing: 4) { guideTag("ドラッグ"); Text("コピーして配置") }
+                HStack(spacing: 4) { guideTag("選択"); Text("スタンプモード") }
+            } else {
+                HStack(spacing: 4) { guideTag("タップ"); Text("配置") }
+                HStack(spacing: 4) { guideTag("もう一度タップ"); Text("削除") }
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.app(10))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 3)
+    }
+
+    private func favoriteBar(_ f: ShiftEvent) -> some View {
+        let selected = stampId == f.id
+        let time = Rules.timeLabel(f)
+        let shape = RoundedRectangle(cornerRadius: 6)
+        return HStack(spacing: 5) {
+            Text(f.title).font(.bar(11, weight: .bold)).lineLimit(1)
+            if !time.isEmpty { Text(time).font(.bar(10, weight: .bold)) }
+        }
+        .foregroundStyle(EventColor.text(f.color))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(EventColor.fill(f.color))
+        .background(Color(.systemBackground))
+        .clipShape(shape)
+        .overlay { if selected { shape.stroke(Theme.accent, lineWidth: 2).padding(-1) } }
+        .overlay(alignment: .topTrailing) {
+            if selected {
+                Text("選択中")
+                    .font(.app(8, weight: .bold))
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, 5)
+                    .background(Theme.accent, in: Capsule())
+                    .offset(x: 2, y: -8)
+            }
+        }
+        .opacity(stampId != nil && !selected ? 0.45 : 1)
+        .onTapGesture { withAnimation(.snappy) { stampId = selected ? nil : f.id } }
+        .contextMenu {
+            Button { onEditFavorite(f) } label: { Label("編集", systemImage: "pencil") }
+            Button { store.moveFavoriteToFront(id: f.id) } label: { Label("先頭へ移動", systemImage: "arrow.up.to.line") }
+            Button(role: .destructive) {
+                if stampId == f.id { stampId = nil }
+                store.removeFavorite(id: f.id)
+            } label: { Label("削除", systemImage: "trash") }
+        }
+        .draggable(DragState.shared.begin(Store.favoritePrefix + f.id))
+    }
+
+    private func suggestionBar(_ e: ShiftEvent) -> some View {
+        let time = Rules.timeLabel(e)
+        return HStack(spacing: 6) {
+            Button { store.addFavorite(from: e) } label: {
+                Text("＋ \(e.title)\(time.isEmpty ? "" : " " + time)")
+                    .font(.bar(11))
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            Button { store.hideSuggestion(e) } label: {
+                Image(systemName: "xmark").font(.app(9, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("候補を非表示")
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .overlay(RoundedRectangle(cornerRadius: 6)
+            .strokeBorder(Color.secondary, style: StrokeStyle(lineWidth: 1.2, dash: [4, 3])))
     }
 
     private func chipsPage(_ items: [ShiftEvent], hidden: Bool) -> some View {
