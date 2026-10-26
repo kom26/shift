@@ -177,7 +177,7 @@ struct RootView: View {
         if let id = stampId, let fav = store.favorite(id: id) {
             let time = Rules.timeLabel(fav)
             HStack(spacing: 8) {
-                Text("「(fav.title)(time.isEmpty ? "" : " " + time)」を置く日をタップ")
+                Text("「\(fav.title)\(time.isEmpty ? "" : " " + time)」を置く日をタップ")
                     .font(.app(12, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
