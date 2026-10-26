@@ -83,7 +83,15 @@ final class AlarmService {
     private func schedule(id: String, at date: Date, spec: AlarmPreset) async -> Bool {
         #if canImport(AlarmKit)
         if #available(iOS 26.0, *), let uuid = UUID(uuidString: id) {
-            let alert = AlarmPresentation.Alert(title: LocalizedStringResource(stringLiteral: "シフト(\(spec.label))"))
+            let title = LocalizedStringResource(stringLiteral: "シフト(\(spec.label))")
+            let alert: AlarmPresentation.Alert
+            if #available(iOS 26.1, *) {
+                alert = AlarmPresentation.Alert(title: title)
+            } else {
+                let stop = AlarmButton(text: LocalizedStringResource(stringLiteral: "停止"),
+                                       textColor: Color.white, systemImageName: "stop.circle")
+                alert = AlarmPresentation.Alert(title: title, stopButton: stop)
+            }
             let attributes = AlarmAttributes<ShiftAlarmMetadata>(
                 presentation: AlarmPresentation(alert: alert),
                 metadata: ShiftAlarmMetadata(),
