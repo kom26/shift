@@ -46,7 +46,6 @@ struct UnplacedArea: View {
         let over = drag.isOverUnplaced
         VStack(spacing: 0) {
             ZStack {
-                Color.clear.contentShape(Rectangle())
                 if !collapsed {
                     HStack(spacing: 4) {
                         ForEach(0..<3, id: \.self) { i in
@@ -70,6 +69,7 @@ struct UnplacedArea: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
             .frame(minHeight: LayoutMath.unplacedHeaderH)
+            .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 12).onEnded { v in
                 guard !collapsed else { return }
                 if v.translation.width < -30 { go(1) } else if v.translation.width > 30 { go(-1) }
