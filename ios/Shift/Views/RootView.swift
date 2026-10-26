@@ -41,14 +41,13 @@ struct RootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            stampBanner
             header
             Divider()
             GeometryReader { geo in
                 VStack(spacing: 0) {
                     if !unplacedCollapsed {
                         // 未配置エリアの高さは月(5週)基準で固定。6週の月でも週表示でも変えない
-                        pager.frame(height: LayoutMath.monthCalendarHeight(available: geo.size.height + (stampFavorite != nil ? Self.stampBannerH : 0), weeks: 5) - (stampFavorite != nil ? Self.stampBannerH : 0))
+                        pager.frame(height: LayoutMath.monthCalendarHeight(available: geo.size.height, weeks: 5))
                     } else {
                         pager
                     }
@@ -73,26 +72,30 @@ struct RootView: View {
 
     private var header: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Button { showSettings = true } label: {
-                    Image(systemName: "gearshape").font(.title3)
-                        .padding(.horizontal, 6)
-                        .frame(minHeight: 36)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("設定")
-                Spacer(minLength: 0)
-                Button { pagerCommand = PagerCommand(direction: -1, id: UUID()) } label: { Image(systemName: "chevron.left") }
-                Text(title).font(.app(17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
-                Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
-                Spacer(minLength: 0)
-                Button { addUnplaced() } label: {
-                    Text("＋ 予定追加")
-                        .font(.app(15, weight: .semibold))
-                        .foregroundStyle(Theme.onAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Theme.accent, in: Capsule())
+            if stampFavorite != nil {
+                stampBanner
+            } else {
+                HStack(spacing: 8) {
+                    Button { showSettings = true } label: {
+                        Image(systemName: "gearshape").font(.title3)
+                            .padding(.horizontal, 6)
+                            .frame(minHeight: 36)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("設定")
+                    Spacer(minLength: 0)
+                    Button { pagerCommand = PagerCommand(direction: -1, id: UUID()) } label: { Image(systemName: "chevron.left") }
+                    Text(title).font(.app(17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+                    Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
+                    Spacer(minLength: 0)
+                    Button { addUnplaced() } label: {
+                        Text("＋ 予定追加")
+                            .font(.app(15, weight: .semibold))
+                            .foregroundStyle(Theme.onAccent)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Theme.accent, in: Capsule())
+                    }
                 }
             }
             HStack(spacing: 10) {
@@ -136,9 +139,7 @@ struct RootView: View {
         stampId.flatMap { store.favorite(id: $0) }
     }
 
-    private static let stampBannerH: CGFloat = 30
-
-    /// スタンプモード中、画面最上部に出す帯
+    /// スタンプモード中、ヘッダー1行目(設定・年月・予定追加)の代わりに出す帯
     @ViewBuilder
     private var stampBanner: some View {
         if let fav = stampFavorite {
@@ -160,9 +161,8 @@ struct RootView: View {
             }
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 12)
-            .frame(height: Self.stampBannerH)
-            .background(Theme.accent)
-            .transition(.move(edge: .top).combined(with: .opacity))
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .background(Theme.accent, in: RoundedRectangle(cornerRadius: 10))
         }
     }
 
