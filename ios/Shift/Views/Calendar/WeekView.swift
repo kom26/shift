@@ -71,9 +71,19 @@ struct WeekView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: store.hasAlarm(on: ds) ? .topLeading : .topTrailing) {
             if store.hasPayday(on: ds) {
                 PaydayCoinButton { onSelectPayday(ds) }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if store.hasAlarm(on: ds) {
+                Image(systemName: "bell.fill")
+                    .font(.app(10))
+                    .foregroundStyle(Theme.alarm)
+                    .padding(.top, 5)
+                    .padding(.trailing, 5)
+                    .accessibilityLabel("アラーム")
             }
         }
         .background(conflict ? Color.red.opacity(0.16) : (isToday ? Theme.accentSoft : Color.clear))
@@ -207,6 +217,19 @@ struct WeekView: View {
                         .opacity(DragState.shared.isDragging && DragState.shared.draggingId == ev.id ? 0.35 : 1)
                         .offset(x: 1, y: H * CGFloat(seg.top))
                 }
+            }
+            ForEach(store.alarmFireMinutes(on: ds), id: \.self) { m in
+                ZStack(alignment: .leading) {
+                    Rectangle().fill(Theme.alarm).frame(width: colW, height: 2)
+                    Image(systemName: "bell.fill")
+                        .font(.app(8))
+                        .foregroundStyle(Theme.alarm)
+                        .padding(2)
+                        .background(Color(.systemBackground), in: Circle())
+                        .offset(x: 1, y: -7)
+                }
+                .offset(y: H * CGFloat(m) / 1440 - 1)
+                .allowsHitTesting(false)
             }
             if ds == Rules.today() {
                 TimelineView(.everyMinute) { ctx in

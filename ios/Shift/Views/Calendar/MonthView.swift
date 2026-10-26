@@ -151,6 +151,13 @@ struct MonthView: View {
                 if store.hasPayday(on: ds) {
                     PaydayCoinButton { onSelectPayday(ds) }
                 }
+                if store.hasAlarm(on: ds) {
+                    Image(systemName: "bell.fill")
+                        .font(.app(9))
+                        .foregroundStyle(Theme.alarm)
+                        .padding(.trailing, 3)
+                        .accessibilityLabel("アラーム")
+                }
             }
             .frame(height: numH)
             Spacer(minLength: 0)

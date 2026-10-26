@@ -10,6 +10,7 @@ struct UnplacedArea: View {
     let startMonday: Bool
     var fillHeight: Bool = false
     @Binding var stampId: String?
+    @Binding var alarmStamp: AlarmPreset?
     let onSelectEvent: (ShiftEvent) -> Void
     var onEditFavorite: (ShiftEvent) -> Void = { _ in }
     var onNewFavorite: () -> Void = {}
@@ -18,9 +19,10 @@ struct UnplacedArea: View {
     @State private var confirmRecall = false
     @State private var showPayBasis = false
     @State private var favFilter: String?
-    /// 0..4。1〜3が実ページ、0と4は端から端へ循環するための複製(止まったら実ページへ瞬間移動)
+    /// 0..5。1〜4が実ページ、0と5は端から端へ循環するための複製(止まったら実ページへ瞬間移動)
     @State private var tab = 1
-    private var page: Int { (tab - 1 + 3) % 3 }
+    private static let pageCount = 4
+    private var page: Int { (tab - 1 + Self.pageCount) % Self.pageCount }
     @AppStorage("payBasis") private var payBasisRaw = PayBasis.work.rawValue
 
     private var anchorMonthShort: String {
@@ -48,7 +50,7 @@ struct UnplacedArea: View {
             ZStack {
                 if !collapsed {
                     HStack(spacing: 4) {
-                        ForEach(0..<3, id: \.self) { i in
+                        ForEach(0..<Self.pageCount, id: \.self) { i in
                             Circle()
                                 .fill(i == page ? Theme.accent : Color.secondary.opacity(0.35))
                                 .frame(width: 6, height: 6)
@@ -79,21 +81,24 @@ struct UnplacedArea: View {
                 Divider()
                 ZStack {
                     TabView(selection: $tab) {
-                        pageContent(2, items: items, dragging: dragging).tag(0)
+                        pageContent(3, items: items, dragging: dragging).tag(0)
                         pageContent(0, items: items, dragging: dragging).tag(1)
                         pageContent(1, items: items, dragging: dragging).tag(2)
                         pageContent(2, items: items, dragging: dragging).tag(3)
-                        pageContent(0, items: items, dragging: dragging).tag(4)
+                        pageContent(3, items: items, dragging: dragging).tag(4)
+                        pageContent(0, items: items, dragging: dragging).tag(5)
                     }
                     .onChange(of: tab) { _, new in
-                        // よく使う予定以外のページへ移ったらスタンプモードを解除
-                        if (new - 1 + 3) % 3 != 0 { stampId = nil }
-                        guard new == 0 || new == 4 else { return }
+                        // 該当ページ以外へ移ったらスタンプモードを解除
+                        let logical = (new - 1 + Self.pageCount) % Self.pageCount
+                        if logical != 0 { stampId = nil }
+                        if logical != 3 { alarmStamp = nil }
+                        guard new == 0 || new == Self.pageCount + 1 else { return }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                             guard tab == new else { return }
                             var t = Transaction()
                             t.disablesAnimations = true
-                            withTransaction(t) { tab = new == 0 ? 3 : 1 }
+                            withTransaction(t) { tab = new == 0 ? Self.pageCount : 1 }
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
@@ -118,7 +123,7 @@ struct UnplacedArea: View {
 
     /// ヘッダーのスワイプで隣のページへ(端からは反対側へ循環)
     private func go(_ delta: Int) {
-        guard (1...3).contains(tab) else { return }
+        guard (1...Self.pageCount).contains(tab) else { return }
         withAnimation(.snappy) { tab += delta }
     }
 
@@ -127,8 +132,10 @@ struct UnplacedArea: View {
         switch logical {
         case 0: favoritesPage
         case 1: chipsPage(items, hidden: dragging)
-        default:
+        case 2:
             cardsPage.frame(maxWidth: .infinity, maxHeight: .infinity)
+        default:
+            AlarmPage(stamp: $alarmStamp)
         }
     }
 

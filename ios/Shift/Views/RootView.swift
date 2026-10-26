@@ -38,6 +38,10 @@ struct RootView: View {
     @State private var selectedDate: String?
     /// スタンプモード中のよく使う予定のID
     @State private var stampId: String?
+    /// アラームのスタンプモード(時間を合わせて「セット」を押した状態)
+    @State private var alarmStamp: AlarmPreset?
+    @State private var toast: String?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,13 +56,30 @@ struct RootView: View {
                         pager
                     }
                     UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday,
-                                 fillHeight: true, stampId: $stampId, onSelectEvent: edit,
+                                 fillHeight: true, stampId: $stampId, alarmStamp: $alarmStamp, onSelectEvent: edit,
                                  onEditFavorite: { editing = EditorTarget(event: $0, isNew: false, favorite: true) },
                                  onNewFavorite: { editing = EditorTarget(event: .newUnplaced(), isNew: true, favorite: true) })
                 }
             }
         }
         .task(id: Rules.ymd(anchor).year) { await holidays.load(around: Rules.ymd(anchor).year) }
+        .task { await AlarmService.shared.refresh(store: store) }
+        .onChange(of: scenePhase) { _, new in
+            if new == .active { Task { await AlarmService.shared.refresh(store: store) } }
+        }
+        .overlay(alignment: .top) {
+            if let toast {
+                Text(toast)
+                    .font(.app(13, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.8), in: Capsule())
+                    .padding(.top, 60)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+        }
         .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew, favoriteMode: $0.favorite) }
         .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
         .sheet(item: $dayTarget) { t in
@@ -72,7 +93,7 @@ struct RootView: View {
 
     private var header: some View {
         VStack(spacing: 8) {
-            if stampFavorite != nil {
+            if stampFavorite != nil || alarmStamp != nil {
                 stampBanner
             } else {
                 HStack(spacing: 8) {
@@ -142,15 +163,14 @@ struct RootView: View {
     /// スタンプモード中、ヘッダー1行目(設定・年月・予定追加)の代わりに出す帯
     @ViewBuilder
     private var stampBanner: some View {
-        if let fav = stampFavorite {
-            let time = Rules.timeLabel(fav)
+        if stampFavorite != nil || alarmStamp != nil {
             HStack(spacing: 8) {
-                Text("「\(fav.title)\(time.isEmpty ? "" : " " + time)」を置く日をタップ")
+                Text(stampBannerText)
                     .font(.app(12, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 4)
-                Button { withAnimation(.snappy) { stampId = nil } } label: {
+                Button { withAnimation(.snappy) { stampId = nil; alarmStamp = nil } } label: {
                     Text("完了")
                         .font(.app(12, weight: .bold))
                         .padding(.horizontal, 12)
@@ -205,7 +225,53 @@ struct RootView: View {
         }
     }
 
+    private var stampBannerText: String {
+        if let fav = stampFavorite {
+            let time = Rules.timeLabel(fav)
+            return "「\(fav.title)\(time.isEmpty ? "" : " " + time)」を置く日をタップ"
+        }
+        if let spec = alarmStamp { return "⏰ \(spec.label) をセットする日をタップ" }
+        return ""
+    }
+
+    private func showToast(_ text: String) {
+        withAnimation(.snappy) { toast = text }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            withAnimation(.snappy) { if toast == text { toast = nil } }
+        }
+    }
+
+    /// アラームのスタンプ: 日付のタップでセット、同じ日にもう一度タップで解除
+    private func toggleAlarm(_ spec: AlarmPreset, on date: String) {
+        Task { @MainActor in
+            let r = await AlarmService.shared.toggle(spec: spec, on: date, store: store)
+            switch r {
+            case .set: UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            case .removed: UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            case .noShift:
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                showToast("この日には時刻のあるシフトがありません")
+            case .past:
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                showToast("鳴る時刻を過ぎています")
+            case .denied:
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                showToast("設定アプリでアラームを許可してください")
+            case .unsupported:
+                showToast("アラームは iOS 26 以降で使えます")
+            case .failed:
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                showToast("アラームをセットできませんでした")
+            }
+        }
+    }
+
     private func addEvent(on date: String) {
+        if let spec = alarmStamp {
+            toggleAlarm(spec, on: date)
+            return
+        }
         if let id = stampId {
             // スタンプモード: 日付のタップで配置、同じ日にもう一度タップで削除
             if let r = store.stampToggle(favoriteId: id, on: date) {

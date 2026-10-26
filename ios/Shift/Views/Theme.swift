@@ -68,6 +68,7 @@ enum Theme {
     static let payFill = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#3a3320")) : UIColor(Color(hex: "#fdf3d8")) })
     static let payText = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#f7d77b")) : UIColor(Color(hex: "#9a7000")) })
     static let deltaDown = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#f19a9a")) : UIColor(Color(hex: "#d9695f")) })
+    static let alarm = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#f2a64a")) : UIColor(Color(hex: "#e8890c")) })
     static let saturday = Color(hex: "#3b82f6")
     static let sunday = Color(hex: "#ef4444")
 }

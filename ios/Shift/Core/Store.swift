@@ -30,6 +30,8 @@ final class Store {
     private(set) var workplaces: [Workplace]
     /// よく使う予定(日付なしのテンプレート)
     var favorites: [ShiftEvent] = []
+    /// セット済みのアラーム
+    var alarmEntries: [AlarmEntry] = []
     /// 自動候補から非表示にした予定のキー
     var hiddenSuggestions: Set<String>
 
@@ -50,6 +52,10 @@ final class Store {
         customColors = defaults.stringArray(forKey: Keys.custom) ?? []
         workplaces = defaults.data(forKey: Keys.workplaces)
             .flatMap { try? JSONDecoder().decode([Workplace].self, from: $0) } ?? []
+        if let data = try? Data(contentsOf: Self.alarmsURL(for: fileURL)),
+           let list = try? JSONDecoder().decode([AlarmEntry].self, from: data) {
+            alarmEntries = list
+        }
         if let data = try? Data(contentsOf: Self.favoritesURL(for: fileURL)),
            let list = try? JSONDecoder().decode([ShiftEvent].self, from: data) {
             favorites = list

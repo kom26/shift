@@ -16,6 +16,10 @@ targets:
     platform: iOS
     sources:
       - Shift
+    info:
+      path: ShiftInfo.plist
+      properties:
+        NSAlarmKitUsageDescription: 出勤前のアラームをセットするために使います
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kom26.shift
