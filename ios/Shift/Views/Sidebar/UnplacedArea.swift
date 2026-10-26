@@ -86,6 +86,8 @@ struct UnplacedArea: View {
                         pageContent(0, items: items, dragging: dragging).tag(4)
                     }
                     .onChange(of: tab) { _, new in
+                        // よく使う予定以外のページへ移ったらスタンプモードを解除
+                        if (new - 1 + 3) % 3 != 0 { stampId = nil }
                         guard new == 0 || new == 4 else { return }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                             guard tab == new else { return }
