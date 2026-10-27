@@ -77,16 +77,18 @@ struct StoreTests {
         #expect(reloaded.checkedWorkplaces == ["w1", ""])
     }
 
-    @Test func rememberColorSkipsPresetsAndKeepsEightMostRecent() {
+    @Test func rememberColorSkipsPresetsAndKeepsSevenMostRecent() {
         let (store, _, _, _) = make()
         store.rememberColor(Store.defaultColors[0])
         #expect(store.customColors.isEmpty)
         for i in 0..<10 { store.rememberColor(String(format: "#0000%02x", i)) }
-        #expect(store.customColors.count == 8)
+        #expect(store.customColors.count == 7)
         #expect(store.customColors.first == "#000009")
         store.rememberColor("#000005")
         #expect(store.customColors.first == "#000005")
         #expect(store.customColors.filter { $0 == "#000005" }.count == 1)
+        store.removeCustomColor("#000005")
+        #expect(!store.customColors.contains("#000005"))
     }
 
     @Test func totalsGroupByColorAndFilterByStartDate() {
@@ -96,6 +98,7 @@ struct StoreTests {
         store.save(ev("c", "2026-10-21", color: "#222222", allDay: false, st: "07:00", et: "15:00", wh: 7))
         store.save(ev("out", "2026-10-30", color: "#111111", allDay: false, st: "09:00", et: "18:00"))
         store.save(ev("allday", "2026-10-20", color: "#111111"))
+        attachWorkplaces(store)
         let t = store.totals(from: "2026-10-18", to: "2026-10-24")
         #expect(t.count == 2)
         #expect(t[0].color == "#111111")

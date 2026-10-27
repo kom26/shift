@@ -111,7 +111,7 @@ struct EventEditor: View {
                     workplaceChips
                     TextField("タイトル(必須)", text: $title)
                         .focused($focusedField, equals: .title)
-                    ColorRow(color: $color, recent: store.customColors)
+                    ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
                 }
                 Section {
                     Toggle("終日", isOn: $allDay)
@@ -476,6 +476,12 @@ struct EventEditor: View {
         timeRow(.start)
         timeRow(.end)
         endNotationHints
+        // 通常予定(職場なし)には休憩・シフト時間・実労働は出さない
+        if selectedWorkplace != nil { workRows }
+    }
+
+    @ViewBuilder
+    private var workRows: some View {
         HStack {
             Text("休憩")
             Spacer()
@@ -771,6 +777,9 @@ struct EventEditor: View {
 private struct ColorRow: View {
     @Binding var color: String
     let recent: [String]
+    var onDeleteRecent: (String) -> Void = { _ in }
+    /// 最近の色でタップした色。右にゴミ箱を出す
+    @State private var trashColor: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -778,7 +787,21 @@ private struct ColorRow: View {
             if !recent.isEmpty {
                 HStack {
                     Text("最近").font(.app(11)).foregroundStyle(.secondary)
-                    swatches(recent)
+                    swatches(recent, isRecent: true)
+                    if let t = trashColor, recent.contains(t) {
+                        Button {
+                            onDeleteRecent(t)
+                            trashColor = nil
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.app(15))
+                                .foregroundStyle(Theme.deltaDown)
+                                .padding(6)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("この色を削除")
+                    }
                 }
             }
             ColorPicker("カスタム色",
@@ -787,13 +810,16 @@ private struct ColorRow: View {
         }
     }
 
-    private func swatches(_ list: [String]) -> some View {
+    private func swatches(_ list: [String], isRecent: Bool = false) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(list, id: \.self) { c in
                 ColorDot(hex: c, size: 24)
                     .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
-                    .onTapGesture { color = c }
+                    .onTapGesture {
+                        color = c
+                        trashColor = isRecent ? c : nil
+                    }
                 }
             }
             .padding(.horizontal, 5)

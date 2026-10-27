@@ -33,6 +33,7 @@ struct SummaryCardsTests {
         store.save(ev("b", "2026-10-20", allDay: false, st: "14:00", et: "17:00", wh: 3))
         store.save(ev("c", "2026-10-14", allDay: false, st: "09:00", et: "14:00", wh: 5))
         store.save(ev("d", "2026-09-10", allDay: false, st: "09:00", et: "15:00", wh: 6))
+        attachWorkplaces(store)
         return store
     }
 

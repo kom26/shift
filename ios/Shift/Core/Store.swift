@@ -49,7 +49,7 @@ final class Store {
         self.defaults = defaults
         checkedWorkplaces = Set(defaults.stringArray(forKey: Keys.checked) ?? [])
         hiddenSuggestions = Set(defaults.stringArray(forKey: Keys.hiddenSuggestions) ?? [])
-        customColors = defaults.stringArray(forKey: Keys.custom) ?? []
+        customColors = Array((defaults.stringArray(forKey: Keys.custom) ?? []).prefix(Self.maxRecentColors))
         workplaces = defaults.data(forKey: Keys.workplaces)
             .flatMap { try? JSONDecoder().decode([Workplace].self, from: $0) } ?? []
         if let data = try? Data(contentsOf: Self.alarmsURL(for: fileURL)),
@@ -76,6 +76,8 @@ final class Store {
 
     /// 「指定なし」(職場に結びつかない予定)を表すフィルタ用の番兵ID
     static let noWorkplaceKey = ""
+    /// カスタム色の「最近」に残す最大数
+    static let maxRecentColors = 7
 
     /// 配置済みで、職場フィルタを通る予定(フィルタが空なら全て)
     var visibleEvents: [ShiftEvent] {
@@ -292,7 +294,12 @@ final class Store {
 
     func rememberColor(_ color: String) {
         guard !Self.defaultColors.contains(color) else { return }
-        customColors = Array(([color] + customColors.filter { $0 != color }).prefix(8))
+        customColors = Array(([color] + customColors.filter { $0 != color }).prefix(Self.maxRecentColors))
+        defaults.set(customColors, forKey: Keys.custom)
+    }
+
+    func removeCustomColor(_ color: String) {
+        customColors.removeAll { $0 == color }
         defaults.set(customColors, forKey: Keys.custom)
     }
 
