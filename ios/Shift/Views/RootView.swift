@@ -279,7 +279,7 @@ struct RootView: View {
 
     private var addButtonTitle: String {
         guard let d = selectedDate else { return "＋ 予定追加" }
-        return "＋ (Rules.ymd(d).day)日に追加"
+        return "＋ \(Rules.ymd(d).day)日に追加"
     }
 
     /// 日付セルのタップ: スタンプ中は配置、そうでなければ選択。選択中の日をもう一度タップで一覧

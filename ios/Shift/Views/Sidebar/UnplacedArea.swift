@@ -25,6 +25,7 @@ struct UnplacedArea: View {
     /// 0..5。1〜4が実ページ、0と5は端から端へ循環するための複製(止まったら実ページへ瞬間移動)
     @State private var tab = 1
     private static let pageCount = 4
+    private static let pageTitles = ["よく使う予定", "未配置の予定", "労働時間・給料", "アラームセット"]
     private var page: Int { (tab - 1 + Self.pageCount) % Self.pageCount }
     @AppStorage("payBasis") private var payBasisRaw = PayBasis.work.rawValue
 
@@ -71,6 +72,12 @@ struct UnplacedArea: View {
                     }
                 }
                 HStack {
+                    if !collapsed {
+                        Text(Self.pageTitles[page])
+                            .font(.app(12, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                     Spacer()
                     Button {
                         withAnimation(.snappy) { collapsed.toggle() }
