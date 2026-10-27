@@ -20,7 +20,7 @@ struct FilterSheet: View {
             Row(id: $0.id, name: $0.name, color: $0.color, count: counts[$0.id] ?? 0)
         }
         if let n = counts[Store.noWorkplaceKey], n > 0 {
-            list.append(Row(id: Store.noWorkplaceKey, name: "指定なし", color: nil, count: n))
+            list.append(Row(id: Store.noWorkplaceKey, name: "通常予定", color: nil, count: n))
         }
         return list
     }
@@ -50,7 +50,7 @@ struct FilterSheet: View {
                     .foregroundStyle(.primary)
                 }
             }
-            .navigationTitle("職場で絞り込み")
+            .navigationTitle("絞り込み")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

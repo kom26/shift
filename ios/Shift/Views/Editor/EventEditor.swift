@@ -108,9 +108,9 @@ struct EventEditor: View {
             ScrollViewReader { proxy in
             Form {
                 Section {
-                    TextField("タイトル", text: $title)
-                        .focused($focusedField, equals: .title)
                     workplaceChips
+                    TextField("タイトル(必須)", text: $title)
+                        .focused($focusedField, equals: .title)
                     ColorRow(color: $color, recent: store.customColors)
                 }
                 Section {
@@ -216,7 +216,7 @@ struct EventEditor: View {
                     title = ""
                     color = Store.defaultColors[0]
                 } label: {
-                    Text("指定なし").font(.app(13)).foregroundStyle(.primary)
+                    Text("通常予定").font(.app(13)).foregroundStyle(.primary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(Capsule().fill(Color(.secondarySystemFill)))

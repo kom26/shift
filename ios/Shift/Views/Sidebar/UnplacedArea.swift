@@ -215,7 +215,7 @@ struct UnplacedArea: View {
             HStack(spacing: 6) {
                 filterChip(title: "すべて", color: nil, key: nil)
                 ForEach(store.workplaces) { w in filterChip(title: w.name, color: w.color, key: w.id) }
-                filterChip(title: "指定なし", color: nil, key: Store.noWorkplaceKey)
+                filterChip(title: "通常予定", color: nil, key: Store.noWorkplaceKey)
             }
             .padding(.horizontal, 3)
             .padding(.vertical, 3)

@@ -91,17 +91,17 @@ final class Store {
         var map: [String: ColorTotal] = [:]
         for ev in visibleEvents {
             guard let sd = ev.startDate, sd >= from, sd <= to,
-                  let h = ev.effectiveHours, h > 0 else { continue }
-            let w = workplace(for: ev)
-            let key = w?.id ?? ev.color
+                  let h = ev.effectiveHours, h > 0,
+                  let w = workplace(for: ev) else { continue }   // 通常予定(職場なし)は集計しない
+            let key = w.id
             if map[key] == nil {
                 order.append(key)
-                map[key] = ColorTotal(color: w?.color ?? ev.color, title: w?.name ?? ev.title,
+                map[key] = ColorTotal(color: w.color, title: w.name,
                                       hours: 0, count: 0, key: key)
             }
             map[key]!.hours += h
             map[key]!.count += 1
-            if let w, let p = PayCalculator.pay(event: ev, workplace: w, isHoliday: isHoliday(sd)) {
+            if let p = PayCalculator.pay(event: ev, workplace: w, isHoliday: isHoliday(sd)) {
                 map[key]!.pay += p.total
             }
         }
