@@ -26,16 +26,14 @@ struct DaySheet: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                     .background(Color(.secondarySystemBackground))
-                if summary.paydays.isEmpty && summary.events.isEmpty {
+                badges(summary)
+                if summary.events.isEmpty {
                     Spacer()
                     Text("予定はありません")
                         .foregroundStyle(Color.secondary)
                     Spacer()
                 } else {
                     List {
-                        ForEach(summary.paydays) { r in
-                            paydayRow(r)
-                        }
                         ForEach(summary.events) { row in
                             Button {
                                 dismiss()
@@ -57,6 +55,34 @@ struct DaySheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    @ViewBuilder
+    private func badges(_ summary: DaySummary) -> some View {
+        let alarms = store.alarmFireMinutes(on: date).sorted()
+        if !summary.paydays.isEmpty || !alarms.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(summary.paydays) { r in
+                    Text("給料日 \(Money.yen(r.amount))")
+                        .font(.app(11, weight: .semibold))
+                        .foregroundStyle(Theme.payText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Theme.payFill, in: Capsule())
+                }
+                ForEach(alarms, id: \.self) { m in
+                    Label(String(format: "%d:%02d", m / 60, m % 60), systemImage: "bell.fill")
+                        .font(.app(11, weight: .semibold))
+                        .foregroundStyle(Theme.alarm)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Theme.alarm.opacity(0.16), in: Capsule())
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
     }
 
     private var addButton: some View {
