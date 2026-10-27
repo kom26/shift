@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 予定バーの文字サイズを、実際のカレンダーを見ながらスライダーで調整する(カレンダーは操作できない)
 struct BarFontSheet: View {
-    @Environment(.dismiss) private var dismiss
+    @Environment(\.dismiss) private var dismiss
     @AppStorage("mode") private var calendarMode: CalendarMode = .week
     @AppStorage("startMonday") private var startMonday = false
     @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
