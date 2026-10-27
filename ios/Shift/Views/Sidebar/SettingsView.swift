@@ -14,12 +14,20 @@ struct SettingsView: View {
     @State private var message: String?
     @State private var editingWorkplace: Workplace?
     @State private var addingWorkplace = false
+    @State private var showBarFont = false
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("カレンダー") {
                     Toggle("週の始まりを月曜にする", isOn: $startMonday)
+                    Button { showBarFont = true } label: {
+                        HStack {
+                            Text("予定バーの文字サイズ").foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.app(13)).foregroundStyle(.tertiary)
+                        }
+                    }
                 }
                 Section {
                     Picker("月の見込み給料", selection: $payBasis) {
@@ -102,6 +110,7 @@ struct SettingsView: View {
                     Button("完了") { gapFocused = false }
                 }
             }
+            .sheet(isPresented: $showBarFont) { BarFontSheet() }
             .sheet(item: $editingWorkplace) { WorkplaceEditor(workplace: $0) }
             .sheet(isPresented: $addingWorkplace) { WorkplaceEditor(workplace: nil) }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { handleFile($0) }

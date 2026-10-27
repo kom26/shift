@@ -9,6 +9,8 @@ struct UnplacedArea: View {
     let selectedDate: String?
     let startMonday: Bool
     var fillHeight: Bool = false
+    /// 値が変わるたびに、折りたたみを開いて未配置ページ(チップ)を表示する
+    var revealUnplaced = 0
     @Binding var stampId: String?
     @Binding var alarmStamp: AlarmPreset?
     let onSelectEvent: (ShiftEvent) -> Void
@@ -19,6 +21,7 @@ struct UnplacedArea: View {
     @State private var confirmRecall = false
     @State private var showPayBasis = false
     @State private var favFilter: String?
+    @State private var pendingDeleteId: String?
     /// 0..5。1〜4が実ページ、0と5は端から端へ循環するための複製(止まったら実ページへ瞬間移動)
     @State private var tab = 1
     private static let pageCount = 4
@@ -39,6 +42,16 @@ struct UnplacedArea: View {
             withAnimation(.snappy) { store.unplace(id: id) }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         })
+    }
+
+    private var trashDelegate: UnplaceDropDelegate {
+        UnplaceDropDelegate(trash: true, onDrop: { id in
+            if store.events.contains(where: { $0.id == id }) { pendingDeleteId = id }
+        })
+    }
+
+    private var pendingDeleteTitle: String {
+        store.events.first { $0.id == pendingDeleteId }?.title ?? ""
     }
 
     var body: some View {
@@ -102,7 +115,9 @@ struct UnplacedArea: View {
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
-                    if dragging && !(drag.draggingId?.hasPrefix(Store.favoritePrefix) ?? false) { dropPrompt(over: over) }
+                    if dragging && !(drag.draggingId?.hasPrefix(Store.favoritePrefix) ?? false) {
+                        dropPrompt(over: over, overTrash: drag.isOverTrash)
+                    }
                 }
                 .frame(minHeight: LayoutMath.minUnplacedBody,
                        maxHeight: fillHeight ? .infinity : LayoutMath.minUnplacedBody)
@@ -111,7 +126,23 @@ struct UnplacedArea: View {
         }
         .frame(maxHeight: (fillHeight && !collapsed) ? .infinity : nil, alignment: .top)
         .background(Color(.secondarySystemBackground).ignoresSafeArea(edges: .bottom))
+        .onChange(of: revealUnplaced) { _, _ in
+            withAnimation(.snappy) {
+                collapsed = false
+                tab = 2
+            }
+        }
         .sheet(isPresented: $showPayBasis) { PayBasisSheet() }
+        .confirmationDialog("「\(pendingDeleteTitle)」を削除しますか?",
+                            isPresented: Binding(get: { pendingDeleteId != nil },
+                                                 set: { if !$0 { pendingDeleteId = nil } }),
+                            titleVisibility: .visible) {
+            Button("削除", role: .destructive) {
+                if let id = pendingDeleteId { withAnimation(.snappy) { store.delete(id: id) } }
+                pendingDeleteId = nil
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
+        }
         .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置に戻しますか?",
                             isPresented: $confirmRecall, titleVisibility: .visible) {
             Button("未配置に戻す", role: .destructive) {
@@ -338,22 +369,45 @@ struct UnplacedArea: View {
         .buttonStyle(.plain)
     }
 
-    private func dropPrompt(over: Bool) -> some View {
-        ZStack {
-            Color(.secondarySystemBackground)
-            if over { Theme.accentSoft }
-            VStack(spacing: 4) {
-                Image(systemName: "tray.and.arrow.down").font(.app(22))
-                Text("未配置に戻す").font(.app(15))
-            }
-            .foregroundStyle(.secondary)
-            if over {
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
-                    .padding(4)
+    /// ドラッグ中に出す受け皿。左3/4が「未配置に戻す」、右1/4が「削除」
+    private func dropPrompt(over: Bool, overTrash: Bool) -> some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                ZStack {
+                    Color(.secondarySystemBackground)
+                    if over { Theme.accentSoft }
+                    VStack(spacing: 4) {
+                        Image(systemName: "tray.and.arrow.down").font(.app(22))
+                        Text("未配置に戻す").font(.app(15))
+                    }
+                    .foregroundStyle(.secondary)
+                    if over {
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                            .padding(4)
+                    }
+                }
+                .frame(width: geo.size.width * 0.75)
+                .contentShape(Rectangle())
+                .onDrop(of: [.plainText], delegate: unplaceDelegate)
+                ZStack {
+                    Theme.deltaDown.opacity(overTrash ? 0.28 : 0.12)
+                    VStack(spacing: 4) {
+                        Image(systemName: overTrash ? "trash.fill" : "trash").font(.app(22))
+                        Text("削除").font(.app(15))
+                    }
+                    .foregroundStyle(Theme.deltaDown)
+                    if overTrash {
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(Theme.deltaDown, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                            .padding(4)
+                    }
+                }
+                .frame(width: geo.size.width * 0.25)
+                .contentShape(Rectangle())
+                .onDrop(of: [.plainText], delegate: trashDelegate)
             }
         }
-        .allowsHitTesting(false)
     }
 
     private var cardsPage: some View {
@@ -457,7 +511,12 @@ struct UnplacedArea: View {
 
 /// 未配置エリア全体で受ける move ドロップ
 struct UnplaceDropDelegate: DropDelegate {
+    var trash = false
     let onDrop: (String) -> Void
+
+    private func setOver(_ on: Bool) {
+        if trash { DragState.shared.isOverTrash = on } else { DragState.shared.isOverUnplaced = on }
+    }
 
     func validateDrop(info: DropInfo) -> Bool {
         info.hasItemsConforming(to: [.plainText])
@@ -465,17 +524,17 @@ struct UnplaceDropDelegate: DropDelegate {
 
     func dropEntered(info: DropInfo) {
         DragState.shared.touch()
-        DragState.shared.isOverUnplaced = true
+        setOver(true)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         DragState.shared.touch()
-        DragState.shared.isOverUnplaced = true
+        setOver(true)
         return DropProposal(operation: .move)
     }
 
     func dropExited(info: DropInfo) {
-        DragState.shared.isOverUnplaced = false
+        setOver(false)
         DragState.shared.exitedTarget()
     }
 

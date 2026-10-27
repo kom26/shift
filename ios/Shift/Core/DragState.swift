@@ -9,6 +9,7 @@ final class DragState {
 
     var isDragging = false
     var isOverUnplaced = false
+    var isOverTrash = false
     /// ドラッグ中の予定の id(ドラッグ開始時に設定)
     var draggingId: String?
     /// 週表示で、つかんだ側のセグメントが開始日から何日目か(日をまたぐ予定の基準日)
@@ -65,6 +66,7 @@ final class DragState {
         beginItem = nil
         if isDragging { isDragging = false }
         if isOverUnplaced { isOverUnplaced = false }
+        if isOverTrash { isOverTrash = false }
         if draggingId != nil { draggingId = nil }
         grabOffsetDays = 0
     }

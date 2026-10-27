@@ -69,19 +69,26 @@ struct SpanBars: View {
     let colW: CGFloat
     let barH: CGFloat
     var compactFont = false
+    @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
+    @AppStorage(BarFontSize.weekKey) private var weekDelta = 0.0
     let leading: CGFloat
     var gap: CGFloat = 2
     let onSelect: (ShiftEvent) -> Void
+
+    private var fontSize: CGFloat {
+        let base: CGFloat = compactFont ? (barH <= 13 ? 8.5 : barH >= 17 ? 10 : 9) : (barH >= 16 ? 10 : 9)
+        return base + CGFloat(compactFont ? monthDelta : weekDelta)
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(rows.indices, id: \.self) { r in
                 ForEach(rows[r]) { s in
-                    EventBar(span: s, height: barH, fontSize: compactFont ? (barH <= 13 ? 8.5 : barH >= 17 ? 10 : 9) : (barH >= 16 ? 10 : 9))
+                    EventBar(span: s, height: barH, fontSize: fontSize)
                         .frame(width: max(0, colW * CGFloat(s.span) - 2), height: barH)
                         .onTapGesture { onSelect(s.event) }
                         .eventMenu(for: s.event, store: store, onEdit: onSelect) {
-                            EventBarPreview(event: s.event, height: barH, fontSize: compactFont ? (barH <= 13 ? 8.5 : barH >= 17 ? 10 : 9) : (barH >= 16 ? 10 : 9), minWidth: max(0, colW * CGFloat(s.span) - 2))
+                            EventBarPreview(event: s.event, height: barH, fontSize: fontSize, minWidth: max(0, colW * CGFloat(s.span) - 2))
                         }
                         .draggable(DragState.shared.begin(s.event.id))
                         .opacity(DragState.shared.isDragging && DragState.shared.draggingId == s.event.id ? 0.35 : 1)
@@ -91,4 +98,11 @@ struct SpanBars: View {
         }
         .frame(height: CGFloat(rows.count) * (barH + gap), alignment: .topLeading)
     }
+}
+
+/// 設定の「予定バーの文字サイズ」。標準からの増減(pt)を週・月で別々に持つ
+enum BarFontSize {
+    static let monthKey = "monthBarFontDelta"
+    static let weekKey = "weekBarFontDelta"
+    static let range: ClosedRange<Double> = -2...3
 }

@@ -7,6 +7,7 @@ struct DaySheet: View {
 
     let date: String
     let onSelectEvent: (ShiftEvent) -> Void
+    var onAddEvent: () -> Void = {}
 
     private var dateText: String {
         let p = Rules.ymd(date)
@@ -47,6 +48,7 @@ struct DaySheet: View {
                     }
                     .listStyle(.plain)
                 }
+                addButton
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -55,6 +57,24 @@ struct DaySheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    private var addButton: some View {
+        Button {
+            dismiss()
+            onAddEvent()
+        } label: {
+            Text("＋ 予定追加")
+                .font(.app(15, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .overlay(RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     private func paydayRow(_ r: Store.PaymentRow) -> some View {

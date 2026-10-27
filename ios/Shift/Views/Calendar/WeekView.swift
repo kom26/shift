@@ -17,6 +17,7 @@ struct WeekView: View {
 
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
+    @AppStorage(BarFontSize.weekKey) private var fontDelta = 0.0
     @State private var dropTarget: String?
 
     private let timeW: CGFloat = 22
@@ -251,12 +252,12 @@ struct WeekView: View {
         let time = Rules.timeLabel(ev)
         return VStack(alignment: .leading, spacing: 0) {
             Text(ev.title)
-                .font(.bar(10, weight: .bold))
+                .font(.bar(10 + CGFloat(fontDelta), weight: .bold))
                 .lineLimit(1)
                 .fixedSize()
             if !time.isEmpty {
                 Text(time)
-                    .font(.bar(9, weight: .bold))
+                    .font(.bar(9 + CGFloat(fontDelta), weight: .bold))
                     .lineLimit(1)
                     .fixedSize()
             }
@@ -273,11 +274,11 @@ struct WeekView: View {
     private func block(_ ev: ShiftEvent, h: CGFloat) -> some View {
         return VStack(alignment: .leading, spacing: 0) {
             Text(ev.title)
-                .font(.bar(10, weight: .bold))
+                .font(.bar(10 + CGFloat(fontDelta), weight: .bold))
                 .lineLimit(2)
             if h > 30 {
                 Text(Rules.timeLabel(ev))
-                    .font(.bar(9))
+                    .font(.bar(9 + CGFloat(fontDelta)))
                     .lineLimit(1)
             }
         }

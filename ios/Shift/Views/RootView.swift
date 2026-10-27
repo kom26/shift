@@ -41,6 +41,9 @@ struct RootView: View {
     /// アラームのスタンプモード(時間を合わせて「セット」を押した状態)
     @State private var alarmStamp: AlarmPreset?
     @State private var toast: String?
+    /// 日付なし予定の作成を始めたときの未配置の数。保存で増えたら未配置ページを開く
+    @State private var unplacedCountOnCreate: Int?
+    @State private var revealToken = 0
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -56,7 +59,7 @@ struct RootView: View {
                         pager
                     }
                     UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday,
-                                 fillHeight: true, stampId: $stampId, alarmStamp: $alarmStamp, onSelectEvent: edit,
+                                 fillHeight: true, revealUnplaced: revealToken, stampId: $stampId, alarmStamp: $alarmStamp, onSelectEvent: edit,
                                  onEditFavorite: { editing = EditorTarget(event: $0, isNew: false, favorite: true) },
                                  onNewFavorite: { editing = EditorTarget(event: .newUnplaced(), isNew: true, favorite: true) })
                 }
@@ -80,11 +83,18 @@ struct RootView: View {
                     .allowsHitTesting(false)
             }
         }
-        .sheet(item: $editing) { EventEditor(original: $0.event, isNew: $0.isNew, favoriteMode: $0.favorite) }
+        .onChange(of: anchor) { _, _ in selectedDate = nil }
+        .onChange(of: mode) { _, _ in selectedDate = nil }
+        .sheet(item: $editing, onDismiss: {
+            if let n = unplacedCountOnCreate, store.unplacedEvents.count > n { revealToken += 1 }
+            unplacedCountOnCreate = nil
+        }) { EventEditor(original: $0.event, isNew: $0.isNew, favoriteMode: $0.favorite) }
         .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
         .sheet(item: $dayTarget) { t in
             DaySheet(date: t.date, onSelectEvent: { ev in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { edit(ev) }
+            }, onAddEvent: {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { createEvent(on: t.date) }
             })
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
@@ -109,8 +119,8 @@ struct RootView: View {
                     Text(title).font(.app(17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
                     Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
                     Spacer(minLength: 0)
-                    Button { addUnplaced() } label: {
-                        Text("＋ 予定追加")
+                    Button { addFromHeader() } label: {
+                        Text(addButtonTitle)
                             .font(.app(15, weight: .semibold))
                             .foregroundStyle(Theme.onAccent)
                             .padding(.horizontal, 10)
@@ -212,9 +222,9 @@ struct RootView: View {
     private func page(offset k: Int) -> some View {
         switch mode {
         case .month:
-            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: { dayTarget = DayTarget(date: $0) })
+            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
         case .week:
-            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: addEvent, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: { dayTarget = DayTarget(date: $0) })
+            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
         }
     }
 
@@ -267,6 +277,38 @@ struct RootView: View {
         }
     }
 
+    private var addButtonTitle: String {
+        guard let d = selectedDate else { return "＋ 予定追加" }
+        return "＋ (Rules.ymd(d).day)日に追加"
+    }
+
+    /// 日付セルのタップ: スタンプ中は配置、そうでなければ選択。選択中の日をもう一度タップで一覧
+    private func tapDay(_ date: String) {
+        if alarmStamp != nil || stampId != nil {
+            addEvent(on: date)
+        } else if selectedDate == date {
+            dayTarget = DayTarget(date: date)
+        } else {
+            selectedDate = date
+            UISelectionFeedbackGenerator().selectionChanged()
+        }
+    }
+
+    /// 日付セルの長押し: その日の予定を追加(スタンプ中は何もしない)
+    private func longPressDay(_ date: String) {
+        guard alarmStamp == nil, stampId == nil else { return }
+        createEvent(on: date)
+    }
+
+    private func createEvent(on date: String) {
+        selectedDate = date
+        editing = EditorTarget(event: .new(on: date), isNew: true)
+    }
+
+    private func addFromHeader() {
+        if let d = selectedDate { createEvent(on: d) } else { addUnplaced() }
+    }
+
     private func addEvent(on date: String) {
         if let spec = alarmStamp {
             toggleAlarm(spec, on: date)
@@ -286,6 +328,7 @@ struct RootView: View {
     }
 
     private func addUnplaced() {
+        unplacedCountOnCreate = store.unplacedEvents.count
         editing = EditorTarget(event: .newUnplaced(), isNew: true)
     }
 
