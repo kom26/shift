@@ -7,8 +7,8 @@ struct DaySheet: View {
 
     let date: String
     let onSelectEvent: (ShiftEvent) -> Void
-    var onAddEvent: () -> Void = {}
     var onSelectPayday: () -> Void = {}
+    var onAddEvent: () -> Void = {}
 
     private var dateText: String {
         let p = Rules.ymd(date)
