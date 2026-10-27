@@ -8,6 +8,7 @@ struct DaySheet: View {
     let date: String
     let onSelectEvent: (ShiftEvent) -> Void
     var onAddEvent: () -> Void = {}
+    var onSelectPayday: () -> Void = {}
 
     private var dateText: String {
         let p = Rules.ymd(date)
@@ -63,12 +64,18 @@ struct DaySheet: View {
         if !summary.paydays.isEmpty || !alarms.isEmpty {
             HStack(spacing: 6) {
                 ForEach(summary.paydays) { r in
+                    Button {
+                        dismiss()
+                        onSelectPayday()
+                    } label: {
                     Text("給料日 \(Money.yen(r.amount))")
                         .font(.app(11, weight: .semibold))
                         .foregroundStyle(Theme.payText)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
                         .background(Theme.payFill, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
                 ForEach(alarms, id: \.self) { m in
                     Label(String(format: "%d:%02d", m / 60, m % 60), systemImage: "bell.fill")

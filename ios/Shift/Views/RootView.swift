@@ -93,6 +93,8 @@ struct RootView: View {
         .sheet(item: $dayTarget) { t in
             DaySheet(date: t.date, onSelectEvent: { ev in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { edit(ev) }
+            }, onSelectPayday: {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: t.date) }
             }, onAddEvent: {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { createEvent(on: t.date) }
             })

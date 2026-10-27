@@ -410,6 +410,15 @@ struct EventEditor: View {
         if openPanel == p {
             VStack(spacing: 0) {
                 wheelPanel(p)
+                // キーボードが閉じてもパネルを閉じられるよう、完了ボタンをパネル内にも置く
+                HStack {
+                    Spacer()
+                    Button("完了") { closeTimePanel() }
+                        .font(.app(15, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 6)
+                }
                 TextField("", text: typedBinding)
                     .keyboardType(.numberPad)
                     .focused($focusedField, equals: field(for: p))
@@ -586,7 +595,17 @@ struct EventEditor: View {
             }
             .buttonStyle(.borderless)
         }
-        if shiftOpen { shiftWheel(total) }
+        if shiftOpen {
+            shiftWheel(total)
+            HStack {
+                Spacer()
+                Button("完了") { shiftOpen = false }
+                    .font(.app(15, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 6)
+            }
+        }
     }
 
     private func shiftWheel(_ total: Int) -> some View {
