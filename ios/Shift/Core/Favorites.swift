@@ -16,9 +16,10 @@ extension Store {
         "\(e.title)|\(e.allDay)|\(e.startTime ?? "")|\(e.endTime ?? "")"
     }
 
-    private func persistFavorites() {
+    func persistFavorites() {
         guard let data = try? JSONEncoder().encode(favorites) else { return }
         try? data.write(to: Self.favoritesURL(for: fileURL), options: .atomic)
+        notifyChanged()
     }
 
     func isFavorite(_ event: ShiftEvent) -> Bool {
@@ -128,5 +129,6 @@ extension Store {
     func hideSuggestion(_ event: ShiftEvent) {
         hiddenSuggestions.insert(Self.favoriteKey(event))
         defaults.set(Array(hiddenSuggestions), forKey: Self.hiddenKey)
+        notifyChanged()
     }
 }

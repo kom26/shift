@@ -108,28 +108,6 @@ struct StoreTests {
         #expect(t[1].hours == 7)
     }
 
-    @Test func importUpsertsByIdAndKeepsUnplaced() throws {
-        let (store, _, _, _) = make()
-        store.save(ev("a1", "2026-10-01"))
-        let json = #"""
-        [{"id":"a1","title":"早番","memo":"","color":"#06b6d4","startDate":"2026-10-20","endDate":"2026-10-20","placed":true,"allDay":false,"startTime":"07:00","endTime":"15:00","workHours":7.25,"_new":null},
-         {"id":"s1","title":"夜勤","color":"#6366f1","startDate":null,"endDate":null,"placed":false,"allDay":false,"startTime":"22:00","endTime":"06:00","workHours":null}]
-        """#
-        let n = try store.importJSON(Data(json.utf8))
-        #expect(n == 2)
-        #expect(store.events.count == 2)
-        #expect(store.events.first { $0.id == "a1" }?.title == "早番")
-        #expect(store.events.first { $0.id == "s1" }?.placed == false)
-        #expect(store.visibleEvents.map(\.id) == ["a1"])
-    }
-
-    @Test func importInvalidJSONThrowsAndLeavesEventsUntouched() {
-        let (store, _, _, _) = make()
-        store.save(ev("a", "2026-10-20"))
-        #expect(throws: (any Error).self) { try store.importJSON(Data("not json".utf8)) }
-        #expect(store.events.map(\.id) == ["a"])
-    }
-
     @Test func corruptFileIsPreservedAndStoreStartsEmpty() throws {
         let name = UUID().uuidString
         let url = FileManager.default.temporaryDirectory.appending(path: "\(name).json")

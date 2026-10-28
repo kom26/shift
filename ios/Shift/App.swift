@@ -4,6 +4,7 @@ import SwiftUI
 struct ShiftApp: App {
     @State private var store = Store()
     @State private var holidays = Holidays()
+    @State private var sync: CloudSync?
 
     init() {
         AppFont.register()
@@ -17,6 +18,13 @@ struct ShiftApp: App {
                 .environment(store)
                 .environment(holidays)
                 .tint(Theme.accent)
+                .task {
+                    guard sync == nil else { return }
+                    let s = CloudSync(store: store)
+                    store.onLocalChange = { [weak s] in s?.localChanged() }
+                    sync = s
+                    s.start()
+                }
         }
     }
 }

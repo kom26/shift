@@ -36,6 +36,9 @@ final class Store {
     var hiddenSuggestions: Set<String>
 
     @ObservationIgnored let fileURL: URL
+    /// 保存するたびに呼ぶ(iCloud 同期用)。iCloud から取り込んだ変更では呼ばない
+    @ObservationIgnored var onLocalChange: (() -> Void)?
+    @ObservationIgnored private var applyingRemote = false
     @ObservationIgnored let defaults: UserDefaults
     private enum Keys {
         static let checked = "shift-checked-workplaces"
@@ -296,22 +299,13 @@ final class Store {
         guard !Self.defaultColors.contains(color) else { return }
         customColors = Array(([color] + customColors.filter { $0 != color }).prefix(Self.maxRecentColors))
         defaults.set(customColors, forKey: Keys.custom)
+        notifyChanged()
     }
 
     func removeCustomColor(_ color: String) {
         customColors.removeAll { $0 == color }
         defaults.set(customColors, forKey: Keys.custom)
-    }
-
-    /// Web版 localStorage の予定JSON(配列)を読み込む。同じIDは上書き。失敗時は何も変更しない
-    @discardableResult
-    func importJSON(_ data: Data) throws -> Int {
-        let list = try JSONDecoder().decode([ShiftEvent].self, from: data)
-        for ev in list {
-            if let i = events.firstIndex(where: { $0.id == ev.id }) { events[i] = ev } else { events.append(ev) }
-        }
-        persist()
-        return list.count
+        notifyChanged()
     }
 
     // MARK: 職場
@@ -377,6 +371,7 @@ final class Store {
 
     private func persistWorkplaces() {
         if let data = try? JSONEncoder().encode(workplaces) { defaults.set(data, forKey: Keys.workplaces) }
+        notifyChanged()
     }
 
     /// 末尾に1件足す(スタンプ配置など、他ファイルの拡張から使う)
@@ -388,5 +383,33 @@ final class Store {
     private func persist() {
         guard let data = try? JSONEncoder().encode(events) else { return }
         try? data.write(to: fileURL, options: .atomic)
+        notifyChanged()
+    }
+
+    // MARK: iCloud 同期
+
+    func notifyChanged() {
+        if !applyingRemote { onLocalChange?() }
+    }
+
+    func syncSnapshot() -> SyncSnapshot {
+        SyncSnapshot(events: events, workplaces: workplaces, favorites: favorites,
+                     customColors: customColors, hiddenSuggestions: Array(hiddenSuggestions).sorted())
+    }
+
+    /// iCloud から届いたデータで置き換える(同期の送り返しは起こさない)
+    func applySnapshot(_ snap: SyncSnapshot) {
+        applyingRemote = true
+        defer { applyingRemote = false }
+        events = snap.events
+        workplaces = snap.workplaces
+        favorites = snap.favorites
+        customColors = Array(snap.customColors.prefix(Self.maxRecentColors))
+        hiddenSuggestions = Set(snap.hiddenSuggestions)
+        persist()
+        persistWorkplaces()
+        persistFavorites()
+        defaults.set(customColors, forKey: Keys.custom)
+        defaults.set(Array(hiddenSuggestions), forKey: Keys.hiddenSuggestions)
     }
 }

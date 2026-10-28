@@ -20,6 +20,10 @@ targets:
       path: ShiftInfo.plist
       properties:
         NSAlarmKitUsageDescription: 出勤前のアラームをセットするために使います
+    entitlements:
+      path: ShiftApp.entitlements
+      properties:
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)$(CFBundleIdentifier)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kom26.shift

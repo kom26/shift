@@ -10,8 +10,6 @@ struct SettingsView: View {
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @FocusState private var gapFocused: Bool
-    @State private var importing = false
-    @State private var message: String?
     @State private var editingWorkplace: Workplace?
     @State private var addingWorkplace = false
     @State private var showBarFont = false
@@ -93,12 +91,25 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    Button("クリップボードから読み込む") { importFromClipboard() }
-                    Button("JSONファイルを読み込む") { importing = true }
+                    HStack {
+                        Text("iCloud で同期")
+                        Spacer()
+                        Text(CloudSync.iCloudAvailable ? "オン" : "オフ")
+                            .foregroundStyle(CloudSync.iCloudAvailable ? Theme.accent : Color.secondary)
+                    }
+                    if CloudSync.iCloudAvailable, let t = CloudSync.lastSync {
+                        HStack {
+                            Text("最後の同期")
+                            Spacer()
+                            Text(t.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
-                    Text("Web版のデータ")
+                    Text("データのバックアップ")
                 } footer: {
-                    Text("Web版の localStorage「shift-sched-events」の中身(JSON)を読み込みます。同じIDの予定は上書きされます。")
+                    Text(CloudSync.iCloudAvailable
+                         ? "予定・職場・よく使う予定は iCloud に自動で保存されます。機種変更しても、同じ Apple ID で iCloud にサインインすれば引き継がれます。"
+                         : "iPhone の「設定」で Apple ID にサインインして iCloud をオンにすると、予定が自動で保存され、機種変更でも引き継げます。サインインしなくても今までどおり使えます。")
                 }
             }
             .navigationTitle("設定")
@@ -113,37 +124,6 @@ struct SettingsView: View {
             .sheet(isPresented: $showBarFont) { BarFontSheet() }
             .sheet(item: $editingWorkplace) { WorkplaceEditor(workplace: $0) }
             .sheet(isPresented: $addingWorkplace) { WorkplaceEditor(workplace: nil) }
-            .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { handleFile($0) }
-            .alert("読み込み", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
-                Button("OK") {}
-            } message: {
-                Text(message ?? "")
-            }
-        }
-    }
-
-    private func importFromClipboard() {
-        guard let text = UIPasteboard.general.string else {
-            message = "クリップボードに文字列がありません"
-            return
-        }
-        run { try store.importJSON(Data(text.utf8)) }
-    }
-
-    private func handleFile(_ result: Result<URL, Error>) {
-        run {
-            let url = try result.get()
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            return try store.importJSON(Data(contentsOf: url))
-        }
-    }
-
-    private func run(_ work: () throws -> Int) {
-        do {
-            message = "\(try work())件の予定を読み込みました"
-        } catch {
-            message = "読み込めませんでした: \(error.localizedDescription)"
         }
     }
 }
