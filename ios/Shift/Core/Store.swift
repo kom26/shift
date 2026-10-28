@@ -394,7 +394,8 @@ final class Store {
 
     func syncSnapshot() -> SyncSnapshot {
         SyncSnapshot(events: events, workplaces: workplaces, favorites: favorites,
-                     customColors: customColors, hiddenSuggestions: Array(hiddenSuggestions).sorted())
+                     customColors: customColors, hiddenSuggestions: Array(hiddenSuggestions).sorted(),
+                     alarms: alarmEntries)
     }
 
     /// iCloud から届いたデータで置き換える(同期の送り返しは起こさない)
@@ -409,6 +410,10 @@ final class Store {
         persist()
         persistWorkplaces()
         persistFavorites()
+        if let alarms = snap.alarms {
+            alarmEntries = alarms
+            persistAlarms()
+        }
         defaults.set(customColors, forKey: Keys.custom)
         defaults.set(Array(hiddenSuggestions), forKey: Keys.hiddenSuggestions)
     }

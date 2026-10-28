@@ -22,6 +22,7 @@ struct ShiftApp: App {
                     guard sync == nil else { return }
                     let s = CloudSync(store: store)
                     store.onLocalChange = { [weak s] in s?.localChanged() }
+                    s.onApplied = { Task { await AlarmService.shared.refresh(store: store) } }
                     sync = s
                     s.start()
                 }

@@ -41,18 +41,34 @@ final class AlarmService {
         return .set
     }
 
-    /// 起動時・復帰時の同期。過ぎた記録を消し、シフト前のアラームは予定の変更に合わせて入れ直す
+    /// 起動時・復帰時の同期。過ぎた記録を消し、シフト前のアラームは予定の変更に合わせて入れ直す。
+    /// iCloud 経由で引き継いだ記録で、この端末に実体がないアラームは、許可を取ってから入れ直す
     func refresh(store: Store) async {
         guard Self.isSupported else { return }
         store.pruneAlarmEntries()
-        for e in store.alarmEntries where e.kind == .beforeShift {
+        let existing = scheduledIds()
+        var authorized: Bool?
+        for e in store.alarmEntries {
             let spec = AlarmPreset(kind: e.kind, minutes: e.minutes)
-            guard let fire = AlarmMath.fireDate(preset: spec, on: e.date, events: store.events), fire > Date() else {
-                await cancel(id: e.id)
-                store.removeAlarmEntry(id: e.id)
-                continue
+            let fire: Date
+            if e.kind == .beforeShift {
+                guard let f = AlarmMath.fireDate(preset: spec, on: e.date, events: store.events), f > Date() else {
+                    await cancel(id: e.id)
+                    store.removeAlarmEntry(id: e.id)
+                    continue
+                }
+                fire = f
+            } else {
+                fire = Date(timeIntervalSince1970: e.fireTime)
             }
-            if abs(fire.timeIntervalSince1970 - e.fireTime) >= 1 {
+            let missing = existing.map { !$0.contains(e.id) } ?? false
+            if missing {
+                if authorized == nil { authorized = await authorize() }
+                guard authorized == true, await schedule(id: e.id, at: fire, spec: spec) else { continue }
+                if abs(fire.timeIntervalSince1970 - e.fireTime) >= 1 {
+                    store.updateAlarmFireTime(id: e.id, to: fire.timeIntervalSince1970)
+                }
+            } else if e.kind == .beforeShift, abs(fire.timeIntervalSince1970 - e.fireTime) >= 1 {
                 await cancel(id: e.id)
                 if await schedule(id: e.id, at: fire, spec: spec) {
                     store.updateAlarmFireTime(id: e.id, to: fire.timeIntervalSince1970)
@@ -61,6 +77,22 @@ final class AlarmService {
                 }
             }
         }
+        // 別の端末で解除されたアラームが、この端末に残っていれば消す
+        if let existing {
+            let keep = Set(store.alarmEntries.map { $0.id })
+            for id in existing where !keep.contains(id) { await cancel(id: id) }
+        }
+    }
+
+    /// この端末の AlarmKit にセット済みのアラームの id。取得できなければ nil
+    private func scheduledIds() -> Set<String>? {
+        #if canImport(AlarmKit)
+        if #available(iOS 26.0, *) {
+            guard let list = try? AlarmManager.shared.alarms else { return nil }
+            return Set(list.map { $0.id.uuidString })
+        }
+        #endif
+        return nil
     }
 
     // MARK: AlarmKit

@@ -7,6 +7,8 @@ struct SyncSnapshot: Codable, Equatable {
     var favorites: [ShiftEvent]
     var customColors: [String]
     var hiddenSuggestions: [String]
+    /// セット済みのアラームの記録。新しい端末では AlarmKit 側に実体がないので、許可を取り直して入れ直す
+    var alarms: [AlarmEntry]?
 
     var isEmpty: Bool { events.isEmpty && workplaces.isEmpty && favorites.isEmpty }
 }
@@ -47,6 +49,8 @@ final class CloudSync {
     private var observer: NSObjectProtocol?
 
     private(set) var tooLarge = false
+    /// iCloud のデータを取り込んだあとに呼ぶ(アラームの入れ直し用)
+    var onApplied: (() -> Void)?
 
     init(store: Store, backing: KeyValueBacking = UbiquitousBacking(),
          defaults: UserDefaults = .standard,
@@ -93,6 +97,7 @@ final class CloudSync {
             store.applySnapshot(remote)
             defaults.set(remoteT, forKey: Self.localTimeKey)
             markSynced()
+            onApplied?()
         } else if localT > remoteT || (remote == nil && !store.syncSnapshot().isEmpty) {
             if localT == 0 { defaults.set(Date().timeIntervalSince1970, forKey: Self.localTimeKey) }
             push()

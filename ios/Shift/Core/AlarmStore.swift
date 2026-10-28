@@ -7,9 +7,10 @@ extension Store {
         return eventsURL.deletingLastPathComponent().appending(path: "\(base)-alarms.json")
     }
 
-    private func persistAlarms() {
+    func persistAlarms() {
         guard let data = try? JSONEncoder().encode(alarmEntries) else { return }
         try? data.write(to: Self.alarmsURL(for: fileURL), options: .atomic)
+        notifyChanged()
     }
 
     /// その日(基準日)にアラームがあるか。月表示・週表示のベルマーク用
