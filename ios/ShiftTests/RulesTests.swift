@@ -94,7 +94,7 @@ struct RulesTests {
     @Test func barLabelShowsTimeUnlessTitleChosen() throws {
         var timed = ev("a", "2026-10-24", allDay: false, st: "09:00", et: "13:00", wh: nil)
         timed.title = "カフェ"
-        #expect(timed.barLabel == "09:00〜13:00")
+        #expect(timed.barLabel == "09:00-13:00")
         timed.barShowsTitle = true
         #expect(timed.barLabel == "カフェ")
         var allDay = ev("b", "2026-10-24", allDay: true, st: nil, et: nil, wh: nil)
@@ -102,7 +102,7 @@ struct RulesTests {
         #expect(allDay.barLabel == "合宿")
         let old = try JSONDecoder().decode(ShiftEvent.self, from: Data(#"{"id":"x","title":"t","allDay":false,"startTime":"09:00","endTime":"10:00"}"#.utf8))
         #expect(old.barShowsTitle == nil)
-        #expect(old.barLabel == "09:00〜10:00")
+        #expect(old.barLabel == "09:00-10:00")
     }
 
     @Test func workHoursNilForAllDayOrMissingTimes() {
@@ -133,8 +133,8 @@ struct RulesTests {
 
     @Test func timeLabel() {
         #expect(Rules.timeLabel(ev("a", "2026-10-24")) == "終日")
-        #expect(Rules.timeLabel(ev("a", "2026-10-24", allDay: false, st: "09:00", et: "18:00")) == "09:00〜18:00")
-        #expect(Rules.timeLabel(ev("a", "2026-10-24", allDay: false, st: "09:00")) == "09:00〜")
+        #expect(Rules.timeLabel(ev("a", "2026-10-24", allDay: false, st: "09:00", et: "18:00")) == "09:00-18:00")
+        #expect(Rules.timeLabel(ev("a", "2026-10-24", allDay: false, st: "09:00")) == "09:00-")
         #expect(Rules.timeLabel(ev("a", "2026-10-24", allDay: false)) == "")
     }
 

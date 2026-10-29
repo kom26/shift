@@ -71,7 +71,8 @@ extension ShiftEvent {
     var isTimedDrop: Bool { !allDay && startTime != nil }
 
     /// カレンダーのバーに出す文字
-    var barLabel: String {
-        (allDay || startTime == nil || barShowsTitle == true) ? title : Rules.timeLabel(self)
-    }
+    var barLabel: String { barShowsTime ? Rules.timeLabel(self) : title }
+
+    /// バーに時間を出すか(終日と時間未設定は予定名)
+    var barShowsTime: Bool { !(allDay || startTime == nil || barShowsTitle == true) }
 }

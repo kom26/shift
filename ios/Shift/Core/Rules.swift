@@ -240,8 +240,8 @@ enum Rules {
 
     static func timeLabel(_ ev: ShiftEvent) -> String {
         if ev.allDay { return "終日" }
-        if let s = ev.startTime, let e = ev.endTime { return "\(s)〜\(e)" }
-        if let s = ev.startTime { return "\(s)〜" }
+        if let s = ev.startTime, let e = ev.endTime { return "\(s)-\(e)" }
+        if let s = ev.startTime { return "\(s)-" }
         return ""
     }
 
