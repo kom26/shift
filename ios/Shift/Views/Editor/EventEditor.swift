@@ -166,7 +166,7 @@ struct EventEditor: View {
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("完了") { closeTimePanel() }
+                    Button("確定") { closeTimePanel() }
                 }
             }
             .onAppear {
@@ -409,16 +409,16 @@ struct EventEditor: View {
         }
         if openPanel == p {
             VStack(spacing: 0) {
-                wheelPanel(p)
-                // キーボードが閉じてもパネルを閉じられるよう、完了ボタンをパネル内にも置く
+                // キーボードが閉じてもパネルを閉じられるよう、確定ボタンをパネルの右上に置く
                 HStack {
                     Spacer()
-                    Button("完了") { closeTimePanel() }
+                    Button("確定") { closeTimePanel() }
                         .font(.app(15, weight: .semibold))
                         .foregroundStyle(Theme.accent)
                         .buttonStyle(.plain)
                         .padding(.vertical, 6)
                 }
+                wheelPanel(p)
                 TextField("", text: typedBinding)
                     .keyboardType(.numberPad)
                     .focused($focusedField, equals: field(for: p))
@@ -602,15 +602,15 @@ struct EventEditor: View {
             .buttonStyle(.borderless)
         }
         if shiftOpen {
-            shiftWheel(total)
             HStack {
                 Spacer()
-                Button("完了") { shiftOpen = false }
+                Button("確定") { shiftOpen = false }
                     .font(.app(15, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .buttonStyle(.plain)
                     .padding(.vertical, 6)
             }
+            shiftWheel(total)
         }
     }
 
