@@ -20,10 +20,18 @@ targets:
       path: ShiftInfo.plist
       properties:
         NSAlarmKitUsageDescription: 出勤前のアラームをセットするために使います
+        CFBundleURLTypes:
+          - CFBundleURLName: com.kom26.shift
+            CFBundleURLSchemes:
+              - shiftpalette
     entitlements:
       path: ShiftApp.entitlements
       properties:
         com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)$(CFBundleIdentifier)
+        com.apple.security.application-groups:
+          - group.com.kom26.shift
+    dependencies:
+      - target: ShiftWidget
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kom26.shift
@@ -36,6 +44,40 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  ShiftWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Widget
+      # アプリと同じ計算・見た目を使うため、画面に依存しないファイルだけ共有する
+      - path: Shift/Core
+        excludes:
+          - AlarmService.swift
+          - CloudSync.swift
+          - DragState.swift
+          - WidgetSync.swift
+      - Shift/Views/Theme.swift
+      - Shift/Views/AppFont.swift
+      - Shift/Views/Calendar/FixedWidthTime.swift
+      - Shift/Resources/Fonts
+    info:
+      path: ShiftWidgetInfo.plist
+      properties:
+        CFBundleDisplayName: シフトパレット
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: ShiftWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.kom26.shift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kom26.shift.widget
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: シフトパレット
+        SKIP_INSTALL: YES
   ShiftTests:
     type: bundle.unit-test
     platform: iOS

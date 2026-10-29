@@ -85,6 +85,13 @@ struct RootView: View {
         }
         .onChange(of: anchor) { _, _ in selectedDate = nil }
         .onChange(of: mode) { _, _ in selectedDate = nil }
+        .onOpenURL { url in
+            // ウィジェットから: shiftpalette://day/2026-10-30 でその日の予定一覧を開く
+            guard url.scheme == "shiftpalette", url.host == "day",
+                  let date = url.pathComponents.last, Rules.parse(date) != nil else { return }
+            anchor = date
+            dayTarget = DayTarget(date: date)
+        }
         .sheet(item: $editing, onDismiss: {
             if let n = unplacedCountOnCreate, store.unplacedEvents.count > n { revealToken += 1 }
             unplacedCountOnCreate = nil
