@@ -201,8 +201,10 @@ enum Rules {
         return span
     }
 
+    /// 労働基準法34条: 実労働が6時間超で45分、8時間超で60分。
+    /// 引数は拘束時間(休憩込み)なので、45分休んでも実労働が8時間を超える8時間45分超から60分にする
     static func defaultBreak(_ total: Int) -> Int {
-        total > 480 ? 60 : total > 360 ? 45 : 0
+        total > 525 ? 60 : total > 360 ? 45 : 0
     }
 
     static func workHours(start: String?, end: String?, allDay: Bool, breakMinutes: Int? = nil) -> Double? {

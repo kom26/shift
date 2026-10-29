@@ -81,6 +81,16 @@ struct RulesTests {
         #expect(Rules.workHours(start: "09:00", end: "24:00", allDay: false) == 14.0)
     }
 
+    @Test func defaultBreakFollowsLaborStandardsAct() {
+        #expect(Rules.defaultBreak(360) == 0)
+        #expect(Rules.defaultBreak(361) == 45)
+        #expect(Rules.defaultBreak(481) == 45)
+        #expect(Rules.defaultBreak(525) == 45)
+        #expect(Rules.defaultBreak(526) == 60)
+        #expect(Rules.workHours(start: "09:00", end: "17:45", allDay: false) == 8.0)
+        #expect(Rules.workHours(start: "09:00", end: "17:46", allDay: false) == 7.77)
+    }
+
     @Test func workHoursNilForAllDayOrMissingTimes() {
         #expect(Rules.workHours(start: "09:00", end: "18:00", allDay: true) == nil)
         #expect(Rules.workHours(start: nil, end: "18:00", allDay: false) == nil)
