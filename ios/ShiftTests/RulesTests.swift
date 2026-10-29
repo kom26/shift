@@ -91,6 +91,20 @@ struct RulesTests {
         #expect(Rules.workHours(start: "09:00", end: "17:46", allDay: false) == 7.77)
     }
 
+    @Test func barLabelShowsTimeUnlessTitleChosen() throws {
+        var timed = ev("a", "2026-10-24", allDay: false, st: "09:00", et: "13:00", wh: nil)
+        timed.title = "カフェ"
+        #expect(timed.barLabel == "09:00〜13:00")
+        timed.barShowsTitle = true
+        #expect(timed.barLabel == "カフェ")
+        var allDay = ev("b", "2026-10-24", allDay: true, st: nil, et: nil, wh: nil)
+        allDay.title = "合宿"
+        #expect(allDay.barLabel == "合宿")
+        let old = try JSONDecoder().decode(ShiftEvent.self, from: Data(#"{"id":"x","title":"t","allDay":false,"startTime":"09:00","endTime":"10:00"}"#.utf8))
+        #expect(old.barShowsTitle == nil)
+        #expect(old.barLabel == "09:00〜10:00")
+    }
+
     @Test func workHoursNilForAllDayOrMissingTimes() {
         #expect(Rules.workHours(start: "09:00", end: "18:00", allDay: true) == nil)
         #expect(Rules.workHours(start: nil, end: "18:00", allDay: false) == nil)

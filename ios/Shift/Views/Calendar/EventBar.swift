@@ -8,9 +8,7 @@ struct EventBar: View {
     var body: some View {
         let ev = span.event
         let r: CGFloat = 4
-        let label: String = !span.isStart
-            ? "…"
-            : ((ev.allDay || ev.startTime == nil) ? ev.title : Rules.timeLabel(ev))
+        let label: String = span.isStart ? ev.barLabel : "…"
         Text(label)
             .font(.bar(fontSize, weight: .bold))
             .lineLimit(1)
@@ -46,7 +44,7 @@ struct EventBarPreview: View {
     var minWidth: CGFloat = 0
 
     var body: some View {
-        let label = (event.allDay || event.startTime == nil) ? event.title : Rules.timeLabel(event)
+        let label = event.barLabel
         let shape = RoundedRectangle(cornerRadius: 4)
         Text(label)
             .font(.bar(fontSize, weight: .bold))

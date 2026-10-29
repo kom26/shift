@@ -14,9 +14,11 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     var workHours: Double?
     var workplaceId: String? = nil
     var breakInNight: Bool? = nil
+    /// バーに予定名を出すか。nil/false は時間(終日と時間未設定の予定は、いつも予定名)
+    var barShowsTitle: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight
+        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle
     }
 
     static func new(on date: String) -> ShiftEvent {
@@ -53,6 +55,7 @@ extension ShiftEvent {
         workHours = try c.decodeIfPresent(Double.self, forKey: .workHours)
         workplaceId = try c.decodeIfPresent(String.self, forKey: .workplaceId)
         breakInNight = try c.decodeIfPresent(Bool.self, forKey: .breakInNight)
+        barShowsTitle = try c.decodeIfPresent(Bool.self, forKey: .barShowsTitle)
     }
 }
 
@@ -66,4 +69,9 @@ extension Optional where Wrapped == String {
 extension ShiftEvent {
     /// 時間つき(終日でなく開始時刻がある)か。週ビューのドロップ表示の出し分けに使う
     var isTimedDrop: Bool { !allDay && startTime != nil }
+
+    /// カレンダーのバーに出す文字
+    var barLabel: String {
+        (allDay || startTime == nil || barShowsTitle == true) ? title : Rules.timeLabel(self)
+    }
 }

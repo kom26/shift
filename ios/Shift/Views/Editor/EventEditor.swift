@@ -28,6 +28,7 @@ struct EventEditor: View {
     @State private var typed = ""
     @State private var workplaceId: String?
     @State private var breakInNight: Bool?
+    @State private var barShowsTitle: Bool
     @State private var didSetup = false
     @State private var lastValidEndDate: Date
     @State private var lastValidEndTime: String
@@ -58,6 +59,7 @@ struct EventEditor: View {
         _lastValidEndTime = State(initialValue: original.endTime ?? "18:00")
         _workplaceId = State(initialValue: original.workplaceId)
         _breakInNight = State(initialValue: original.breakInNight)
+        _barShowsTitle = State(initialValue: original.barShowsTitle ?? false)
         // 保存済みの休憩分(既定と同じ値は onAppear で空に戻す)
         let savedBreak: String
         if let wh = original.workHours, !original.allDay,
@@ -128,6 +130,11 @@ struct EventEditor: View {
                         }
                     } else {
                         timeRows
+                        Picker("バーの表示", selection: $barShowsTitle) {
+                            Text("時間").tag(false)
+                            Text("予定名").tag(true)
+                        }
+                        .pickerStyle(.segmented)
                     }
                 }
                 if let p = payBreakdown { paySection(p) }
@@ -757,6 +764,7 @@ struct EventEditor: View {
                                       allDay: allDay, breakMinutes: effectiveBreak)
         e.workplaceId = workplaceId
         e.breakInNight = breakInNight
+        e.barShowsTitle = barShowsTitle ? true : nil
         return e
     }
 
