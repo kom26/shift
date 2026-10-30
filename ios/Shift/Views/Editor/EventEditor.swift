@@ -131,9 +131,9 @@ struct EventEditor: View {
                     } else {
                         timeRows
                         HStack {
-                            Text("バーの表示")
+                            Text("カレンダー上の表記")
                             Spacer()
-                            Picker("バーの表示", selection: $barShowsTitle) {
+                            Picker("カレンダー上の表記", selection: $barShowsTitle) {
                                 Text("予定名").tag(true)
                                 Text("時間").tag(false)
                             }
