@@ -36,6 +36,7 @@ struct RootView: View {
     @State private var dayTarget: DayTarget?
     @State private var pagerCommand: PagerCommand?
     @State private var selectedDate: String?
+    @State private var selectTodayAfterMove = false
     /// スタンプモード中のよく使う予定のID
     @State private var stampId: String?
     /// アラームのスタンプモード(時間を合わせて「セット」を押した状態)
@@ -83,7 +84,11 @@ struct RootView: View {
                     .allowsHitTesting(false)
             }
         }
-        .onChange(of: anchor) { _, _ in selectedDate = nil }
+        .onChange(of: anchor) { _, _ in
+            // 「今日」ボタンで動いたときだけ、今日を選んだ状態にする
+            selectedDate = selectTodayAfterMove ? Rules.today() : nil
+            selectTodayAfterMove = false
+        }
         .onChange(of: mode) { _, new in
             // 日付を選んだまま週表示にしたら、その日を含む週を出す
             if new == .week, let d = selectedDate { anchor = d }
@@ -149,7 +154,7 @@ struct RootView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 110)
-                Button { withAnimation(.snappy) { anchor = Rules.today() } } label: {
+                Button { goToday() } label: {
                     Text("今日").font(.app(15)).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
                 }
                 Spacer(minLength: 0)
@@ -239,6 +244,17 @@ struct RootView: View {
             MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
         case .week:
             WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
+        }
+    }
+
+    /// 今日を含むページへ移り、今日を選択した状態にする
+    private func goToday() {
+        let today = Rules.today()
+        if anchor == today {
+            selectedDate = today
+        } else {
+            selectTodayAfterMove = true
+            withAnimation(.snappy) { anchor = today }
         }
     }
 
