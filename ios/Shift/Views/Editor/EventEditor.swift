@@ -130,11 +130,16 @@ struct EventEditor: View {
                         }
                     } else {
                         timeRows
-                        Picker("バーの表示", selection: $barShowsTitle) {
-                            Text("時間").tag(false)
-                            Text("予定名").tag(true)
+                        HStack {
+                            Text("バーの表示")
+                            Spacer()
+                            Picker("バーの表示", selection: $barShowsTitle) {
+                                Text("予定名").tag(true)
+                                Text("時間").tag(false)
+                            }
+                            .pickerStyle(.segmented)
+                            .fixedSize()
                         }
-                        .pickerStyle(.segmented)
                     }
                 }
                 if let p = payBreakdown { paySection(p) }
