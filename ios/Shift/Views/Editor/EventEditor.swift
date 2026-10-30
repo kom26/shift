@@ -29,6 +29,8 @@ struct EventEditor: View {
     @State private var workplaceId: String?
     @State private var breakInNight: Bool?
     @State private var barShowsTitle: Bool
+    /// 予定形式。勤務予定のときだけ職場を選べる
+    @State private var isWork: Bool
     @State private var didSetup = false
     @State private var lastValidEndDate: Date
     @State private var lastValidEndTime: String
@@ -58,6 +60,7 @@ struct EventEditor: View {
         _endTime = State(initialValue: original.endTime ?? "18:00")
         _lastValidEndTime = State(initialValue: original.endTime ?? "18:00")
         _workplaceId = State(initialValue: original.workplaceId)
+        _isWork = State(initialValue: isNew || original.workplaceId != nil)
         _breakInNight = State(initialValue: original.breakInNight)
         _barShowsTitle = State(initialValue: original.barShowsTitle ?? false)
         // 保存済みの休憩分(既定と同じ値は onAppear で空に戻す)
@@ -110,7 +113,12 @@ struct EventEditor: View {
             ScrollViewReader { proxy in
             Form {
                 Section {
-                    workplaceChips
+                    Picker("予定形式", selection: $isWork) {
+                        Text("勤務予定").tag(true)
+                        Text("通常予定").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    if isWork { workplaceChips }
                     TextField("タイトル(必須)", text: $title)
                         .focused($focusedField, equals: .title)
                     ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
@@ -195,11 +203,20 @@ struct EventEditor: View {
                 if selectedWorkplace == nil {
                     workplaceId = store.workplace(for: original)?.id
                 }
+                // 既存の予定は、職場があれば勤務予定、なければ通常予定
+                if !isNew { isWork = selectedWorkplace != nil }
                 if let b = Int(breakText), b == defaultBreak { breakText = "" }
             }
             .onChange(of: focusedField) { old, new in
                 guard let old, let oldPanel = panel(for: old), openPanel == oldPanel else { return }
                 if new == nil || panel(for: new!) == nil { closeTimePanel() }
+            }
+            .onChange(of: isWork) { _, new in
+                // 通常予定にしたら職場を外す(職場名のままのタイトルと色も戻す)
+                guard !new, let w = selectedWorkplace else { return }
+                workplaceId = nil
+                if title == w.name { title = "" }
+                if color == w.color { color = Store.defaultColors[0] }
             }
             .onChange(of: start) { normalizeEnd() }
             .onChange(of: end) { validateEndEdit() }
@@ -230,18 +247,6 @@ struct EventEditor: View {
     private var workplaceChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                Button {
-                    workplaceId = nil
-                    title = ""
-                    color = Store.defaultColors[0]
-                } label: {
-                    Text("通常予定").font(.app(13)).foregroundStyle(.primary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color(.secondarySystemFill)))
-                        .overlay(Capsule().stroke(Theme.accent, lineWidth: selectedWorkplace == nil ? 2 : 0))
-                }
-                .buttonStyle(.borderless)
                 ForEach(store.workplaces) { w in
                     Button {
                         workplaceId = w.id
