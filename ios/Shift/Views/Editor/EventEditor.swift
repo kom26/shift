@@ -302,17 +302,24 @@ struct EventEditor: View {
 
     private static func digits(of time: String) -> String { time.filter { $0.isASCII && $0.isNumber } }
 
+    /// Form の行の出入りをアニメーションさせるとキーボードの表示と重なってカクつくので、即時に切り替える
+    private func noAnimation(_ body: () -> Void) {
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t, body)
+    }
+
     private func closeTimePanel() {
         typed = ""
         focusedField = nil
-        withAnimation(.easeInOut(duration: 0.2)) { openPanel = nil }
+        noAnimation { openPanel = nil }
     }
 
     private func toggleTimePanel(_ p: TimePanel) {
         shiftOpen = false
         let next: TimePanel? = openPanel == p ? nil : p
         typed = next == nil ? "" : Self.digits(of: timeValue(p))
-        withAnimation(.easeInOut(duration: 0.2)) { openPanel = next }
+        noAnimation { openPanel = next }
         focusedField = next.map(field(for:))
     }
 
@@ -501,7 +508,6 @@ struct EventEditor: View {
             .labelsHidden()
         }
         .frame(height: 140)
-        .compositingGroup()
         .clipped()
     }
 
@@ -673,7 +679,6 @@ struct EventEditor: View {
             Text("分").font(.app(15))
         }
         .frame(height: 140)
-        .compositingGroup()
         .clipped()
     }
 
