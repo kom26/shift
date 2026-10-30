@@ -13,7 +13,7 @@ struct StepDayIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         WidgetOffset(key: "day").step(delta)
-        WidgetCenter.shared.reloadTimelines(ofKind: WidgetBridge.dayKind)
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetBridge.kind)
         return .result()
     }
 }
@@ -24,7 +24,7 @@ struct ResetDayIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         WidgetOffset(key: "day").set(0)
-        WidgetCenter.shared.reloadTimelines(ofKind: WidgetBridge.dayKind)
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetBridge.kind)
         return .result()
     }
 }
@@ -41,7 +41,7 @@ struct StepWeekIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         WidgetOffset(key: "week").step(delta)
-        WidgetCenter.shared.reloadTimelines(ofKind: WidgetBridge.weekKind)
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetBridge.kind)
         return .result()
     }
 }
@@ -52,7 +52,7 @@ struct ResetWeekIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         WidgetOffset(key: "week").set(0)
-        WidgetCenter.shared.reloadTimelines(ofKind: WidgetBridge.weekKind)
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetBridge.kind)
         return .result()
     }
 }

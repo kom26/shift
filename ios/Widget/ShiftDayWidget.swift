@@ -2,44 +2,6 @@ import SwiftUI
 import WidgetKit
 import AppIntents
 
-struct DayEntry: TimelineEntry {
-    let date: Date
-    let content: DayContent
-    let offset: Int
-}
-
-struct DayProvider: TimelineProvider {
-    private func entry(now: Date = Date()) -> DayEntry {
-        let today = Rules.today()
-        let offset = WidgetOffset(key: "day").current(today: today)
-        let source = WidgetSource.load()
-        return DayEntry(date: now, content: source.dayContent(Rules.addDays(today, offset)), offset: offset)
-    }
-
-    func placeholder(in context: Context) -> DayEntry { entry() }
-
-    func getSnapshot(in context: Context, completion: @escaping (DayEntry) -> Void) {
-        completion(entry())
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<DayEntry>) -> Void) {
-        completion(Timeline(entries: [entry()], policy: .after(nextMidnight())))
-    }
-}
-
-struct ShiftDayWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: WidgetBridge.dayKind, provider: DayProvider()) { entry in
-            SmallDayView(content: entry.content, offset: entry.offset)
-                .containerBackground(Color(.systemBackground), for: .widget)
-        }
-        .configurationDisplayName("今日の予定")
-        .description("その日の予定を見られます。前の日・次の日にも切り替えられます。")
-        .supportedFamilies([.systemSmall])
-        .contentMarginsDisabled()
-    }
-}
-
 struct SmallDayView: View {
     let content: DayContent
     let offset: Int

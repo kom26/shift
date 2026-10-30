@@ -2,45 +2,6 @@ import SwiftUI
 import WidgetKit
 import AppIntents
 
-struct WeekEntry: TimelineEntry {
-    let date: Date
-    let content: WeekContent
-    let offset: Int
-}
-
-struct WeekProvider: TimelineProvider {
-    private func entry(now: Date = Date()) -> WeekEntry {
-        let today = Rules.today()
-        let offset = WidgetOffset(key: "week").current(today: today)
-        let source = WidgetSource.load()
-        let content = source.weekContent(containing: Rules.addDays(today, 7 * offset), today: today)
-        return WeekEntry(date: now, content: content, offset: offset)
-    }
-
-    func placeholder(in context: Context) -> WeekEntry { entry() }
-
-    func getSnapshot(in context: Context, completion: @escaping (WeekEntry) -> Void) {
-        completion(entry())
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<WeekEntry>) -> Void) {
-        completion(Timeline(entries: [entry()], policy: .after(nextMidnight())))
-    }
-}
-
-struct ShiftWeekWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: WidgetBridge.weekKind, provider: WeekProvider()) { entry in
-            MediumWeekView(content: entry.content, offset: entry.offset)
-                .containerBackground(Color(.systemBackground), for: .widget)
-        }
-        .configurationDisplayName("1週間")
-        .description("今日を含む1週間の予定と、週の労働時間・見込み給料を見られます。")
-        .supportedFamilies([.systemMedium])
-        .contentMarginsDisabled()
-    }
-}
-
 struct MediumWeekView: View {
     let content: WeekContent
     let offset: Int

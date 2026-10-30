@@ -9,8 +9,8 @@ struct WidgetData: Codable, Equatable {
 /// アプリとウィジェットが App Group の共有領域でやり取りする
 enum WidgetBridge {
     static let groupId = "group.com.kom26.shift"
-    static let dayKind = "ShiftDayWidget"
-    static let weekKind = "ShiftWeekWidget"
+    /// 小・中を同じウィジェットにまとめる(右下をドラッグして大きさを切り替えられるように)
+    static let kind = "ShiftWidget"
 
     private static var fileURL: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId)?
