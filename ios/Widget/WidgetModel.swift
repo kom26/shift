@@ -71,12 +71,19 @@ extension WidgetSource {
 
     func dayContent(_ ds: String) -> DayContent {
         let summary = store.daySummary(date: ds, isHoliday: isHoliday)
-        let lines = summary.events.map { row -> DayEventLine in
+        // 並びは カレンダーと同じ順: ①前日からの予定 ②終日 ③時間予定(開始順)
+        let carried = summary.events.filter { !$0.isAllDay && $0.isContinuation }
+        let allDay = summary.events.filter { $0.isAllDay }
+        let timed = summary.events.filter { !$0.isAllDay && !$0.isContinuation }
+        let lines = (carried + allDay + timed).map { row -> DayEventLine in
             let ev = row.event
             let hours = ev.effectiveHours.flatMap { $0 > 0 && !ev.allDay ? Rules.formatHours($0) : nil } ?? ""
-            let label = row.isAllDay ? "終日" : (ev.startTime == nil ? "" : Rules.timeLabel(ev))
+            let isCarried = !row.isAllDay && row.isContinuation
+            let label = row.isAllDay ? "終日"
+                : isCarried ? carriedLabel(ev, on: ds)
+                : (ev.startTime == nil ? "" : Rules.timeLabel(ev))
             return DayEventLine(id: ev.id, title: ev.title, color: ev.color, label: label, hours: hours,
-                                isAllDay: row.isAllDay, showsTime: !row.isAllDay && ev.startTime != nil)
+                                isAllDay: row.isAllDay, showsTime: !row.isAllDay && !isCarried && ev.startTime != nil)
         }
         let paid = summary.paydays.reduce(0) { $0 + $1.amount }
         let pay = summary.paydays.isEmpty ? nil : "給料日 " + Money.yen(paid)
@@ -90,6 +97,20 @@ extension WidgetSource {
         return DayContent(date: ds, weekday: Self.weekdays[wd],
                           weekdayType: Rules.dayType(ds, isHoliday: isHoliday(ds)),
                           pay: pay, alarm: alarm, events: lines)
+    }
+
+    /// 前の日から続く予定の表記。その日に終わるなら「前日から6:00」、まだ続くなら「前日から」
+    private func carriedLabel(_ ev: ShiftEvent, on ds: String) -> String {
+        let start = ev.startDate ?? ds
+        let from: String
+        if start == Rules.addDays(ds, -1) {
+            from = "前日から"
+        } else {
+            let p = Rules.ymd(start)
+            from = "\(p.month)/\(p.day)から"
+        }
+        if (ev.endDate ?? start) == ds, let end = ev.endTime { return from + end }
+        return from
     }
 
     func weekContent(containing ds: String, today: String) -> WeekContent {

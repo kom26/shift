@@ -84,7 +84,11 @@ struct RootView: View {
             }
         }
         .onChange(of: anchor) { _, _ in selectedDate = nil }
-        .onChange(of: mode) { _, _ in selectedDate = nil }
+        .onChange(of: mode) { _, new in
+            // 日付を選んだまま週表示にしたら、その日を含む週を出す
+            if new == .week, let d = selectedDate { anchor = d }
+            selectedDate = nil
+        }
         .onOpenURL { url in
             // ウィジェットから: shiftpalette://day/2026-10-30 でその日の予定一覧を開く
             guard url.scheme == "shiftpalette", url.host == "day",

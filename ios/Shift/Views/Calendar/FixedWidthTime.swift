@@ -37,10 +37,19 @@ struct FixedWidthTimeText: View {
     let text: String
     let size: CGFloat
     var weight: Font.Weight = .bold
+    /// 指定すると、入り切らないときに末尾を削って「…」にする
+    var maxWidth: CGFloat? = nil
+
+    private var shown: String {
+        guard let m = maxWidth, FixedWidthTime.width(of: text, size: size, weight: weight) > m else { return text }
+        var t = text
+        while !t.isEmpty, FixedWidthTime.width(of: t + "…", size: size, weight: weight) > m { t.removeLast() }
+        return t + "…"
+    }
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(Array(text.enumerated()), id: \.offset) { _, ch in
+            ForEach(Array(shown.enumerated()), id: \.offset) { _, ch in
                 Text(String(ch))
                     .font(.bar(size, weight: weight))
                     .frame(width: FixedWidthTime.cell(ch, weight: weight) * size)

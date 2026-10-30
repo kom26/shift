@@ -8,11 +8,19 @@ struct EventBar: View {
     var body: some View {
         let ev = span.event
         let r: CGFloat = 4
-        label(ev)
-            .padding(.leading, span.isStart ? 5 : 3)
-            .padding(.trailing, 3)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        let lead: CGFloat = span.isStart ? 5 : 3
+        // 文字は overlay に置く。バーの大きさは文字に左右されず、長いときは左詰めで「…」になる
+        Color.clear
+            .frame(maxWidth: .infinity)
             .frame(height: height)
+            .overlay(alignment: .leading) {
+                GeometryReader { geo in
+                    let avail = max(0, geo.size.width - lead - 3)
+                    label(ev, avail: avail)
+                        .frame(width: avail, height: geo.size.height, alignment: .leading)
+                        .padding(.leading, lead)
+                }
+            }
             .clipped()
             .foregroundStyle(EventColor.text(ev.color))
             .background(
@@ -35,11 +43,11 @@ struct EventBar: View {
 extension EventBar {
     /// 時間は数字の幅をそろえて「00:00-00:00」と同じ横幅にする
     @ViewBuilder
-    fileprivate func label(_ ev: ShiftEvent) -> some View {
+    fileprivate func label(_ ev: ShiftEvent, avail: CGFloat) -> some View {
         if !span.isStart {
             Text("…").font(.bar(fontSize, weight: .bold)).lineLimit(1)
         } else if ev.barShowsTime {
-            FixedWidthTimeText(text: Rules.timeLabel(ev), size: fontSize)
+            FixedWidthTimeText(text: Rules.timeLabel(ev), size: fontSize, maxWidth: avail)
         } else {
             Text(ev.title).font(.bar(fontSize, weight: .bold)).lineLimit(1).truncationMode(.tail)
         }
