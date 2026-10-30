@@ -53,11 +53,19 @@ struct MonthView: View {
                 // 予定3本+週計行が入る高さを基準にバーを太くする(増えたら縦スクロール)
                 let barH = min(20, max(11, floor((minRow - stripH - numH - bottomPad) / 3) - 1))
                 let needed = weekRows.map { numH + CGFloat($0.count) * (barH + barGap) + bottomPad + strip }
+                // 予定が多い週が増やした高さは、予定が少ない週から削って吸収する(最低3本ぶんは残す)
+                let floor3 = numH + 3 * (barH + barGap) + bottomPad + strip
+                let extra = needed.reduce(0) { $0 + max(0, $1 - minRow) }
+                let room = needed.map { $0 <= minRow ? minRow - max($0, floor3) : 0 }.map { max(0, $0) }
+                let roomTotal = room.reduce(0, +)
+                let taken = roomTotal > 0 ? min(extra, roomTotal) : 0
+                let heights: [CGFloat] = needed.indices.map { i in
+                    needed[i] > minRow ? needed[i] : minRow - (roomTotal > 0 ? taken * room[i] / roomTotal : 0)
+                }
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
-                            // 予定が多い週だけ高くする。ほかの週は基準の高さのまま
-                            weekBlock(weeks[i], rows: weekRows[i], rowH: max(minRow, needed[i]), barH: barH, monthOrder: monthOrder, conflictDays: conflictDays)
+                            weekBlock(weeks[i], rows: weekRows[i], rowH: heights[i], barH: barH, monthOrder: monthOrder, conflictDays: conflictDays)
                             if i < weeks.count - 1 { Divider() }
                         }
                     }
