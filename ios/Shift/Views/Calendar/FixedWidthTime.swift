@@ -41,7 +41,9 @@ struct FixedWidthTimeText: View {
     var maxWidth: CGFloat? = nil
 
     private var shown: String {
-        guard let m = maxWidth, FixedWidthTime.width(of: text, size: size, weight: weight) > m else { return text }
+        // 標準の文字サイズは「00:00-00:00」がちょうど収まる大きさなので、計算の誤差で溢れ扱いにならないよう 0.5pt の余裕を見る
+        guard let limit = maxWidth, FixedWidthTime.width(of: text, size: size, weight: weight) > limit + 0.5 else { return text }
+        let m = limit + 0.5
         var t = text
         while !t.isEmpty, FixedWidthTime.width(of: t + "…", size: size, weight: weight) > m { t.removeLast() }
         return t + "…"
