@@ -229,6 +229,7 @@ struct RootView: View {
                   })
             .id(mode)
             .transition(.opacity)
+            .environment(\.isStamping, stampId != nil || alarmStamp != nil)
     }
 
     @ViewBuilder

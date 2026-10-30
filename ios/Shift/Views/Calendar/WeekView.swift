@@ -19,6 +19,7 @@ struct WeekView: View {
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @AppStorage(BarFontSize.weekKey) private var fontDelta = 0.0
     @State private var dropTarget: String?
+    @Environment(\.isStamping) private var isStamping
 
     private let timeW: CGFloat = 22
     private let barH: CGFloat = 20
@@ -216,6 +217,7 @@ struct WeekView: View {
                         }
                         .draggable(DragState.shared.begin(ev.id, grabOffsetDays: Rules.daysBetween(ev.startDate ?? ds, ds)))
                         .opacity(DragState.shared.isDragging && DragState.shared.draggingId == ev.id ? 0.35 : 1)
+                        .allowsHitTesting(!isStamping)
                         .offset(x: 1, y: H * CGFloat(seg.top))
                 }
             }

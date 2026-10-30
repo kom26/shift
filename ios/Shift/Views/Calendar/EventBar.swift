@@ -81,6 +81,16 @@ struct EventBarPreview: View {
     }
 }
 
+private struct StampingKey: EnvironmentKey { static let defaultValue = false }
+
+extension EnvironmentValues {
+    /// スタンプ中は予定バーを触れなくして、タップをその下の日付セルに通す
+    var isStamping: Bool {
+        get { self[StampingKey.self] }
+        set { self[StampingKey.self] = newValue }
+    }
+}
+
 /// 月/週ビュー共用: SpanLayout の行を上から積んで描画する
 struct SpanBars: View {
     @Environment(Store.self) private var store
@@ -88,6 +98,7 @@ struct SpanBars: View {
     let colW: CGFloat
     let barH: CGFloat
     var compactFont = false
+    @Environment(\.isStamping) private var isStamping
     @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
     @AppStorage(BarFontSize.weekKey) private var weekDelta = 0.0
     let leading: CGFloat
@@ -117,6 +128,7 @@ struct SpanBars: View {
             }
         }
         .frame(height: CGFloat(rows.count) * (barH + gap), alignment: .topLeading)
+        .allowsHitTesting(!isStamping)
     }
 }
 
