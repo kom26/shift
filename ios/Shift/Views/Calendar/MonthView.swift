@@ -209,6 +209,8 @@ struct MonthWatermark: View {
 /// 給料日のコイン(積み重ねアイコン)。タップで給料シートを開く
 struct PaydayCoinButton: View {
     let action: () -> Void
+    /// スタンプ中は押せない(タップはその下の日付セルに通す)
+    @Environment(\.isStamping) private var isStamping
     private let gold = Color(red: 0.95, green: 0.7, blue: 0.1)
 
     var body: some View {
@@ -219,9 +221,10 @@ struct PaydayCoinButton: View {
                 .frame(width: 12, height: 12)
                 .foregroundStyle(gold)
                 .padding(2)
-            .frame(minWidth: 28, minHeight: 24)
+            .frame(width: 18, height: 16)
             .contentShape(Rectangle())
         .onTapGesture(perform: action)
+        .allowsHitTesting(!isStamping)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("給料日")
     }

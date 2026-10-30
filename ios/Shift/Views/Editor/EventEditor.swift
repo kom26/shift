@@ -113,7 +113,7 @@ struct EventEditor: View {
             ScrollViewReader { proxy in
             Form {
                 Section {
-                    Picker("予定形式", selection: $isWork) {
+                    Picker("予定形式", selection: kindBinding) {
                         Text("勤務予定").tag(true)
                         Text("通常予定").tag(false)
                     }
@@ -211,13 +211,6 @@ struct EventEditor: View {
                 guard let old, let oldPanel = panel(for: old), openPanel == oldPanel else { return }
                 if new == nil || panel(for: new!) == nil { closeTimePanel() }
             }
-            .onChange(of: isWork) { _, new in
-                // 通常予定にしたら職場を外す(職場名のままのタイトルと色も戻す)
-                guard !new, let w = selectedWorkplace else { return }
-                workplaceId = nil
-                if title == w.name { title = "" }
-                if color == w.color { color = Store.defaultColors[0] }
-            }
             .onChange(of: start) { normalizeEnd() }
             .onChange(of: end) { validateEndEdit() }
             .onChange(of: startTime) { breakText = ""; normalizeEnd() }
@@ -235,6 +228,22 @@ struct EventEditor: View {
         .sheet(isPresented: $addingWorkplace, onDismiss: selectNewWorkplace) {
             WorkplaceEditor(workplace: nil)
         }
+    }
+
+    /// 予定形式の切り替え(ユーザーが切り替えたときだけ動く)。バーの表記も形式の既定に合わせる
+    private var kindBinding: Binding<Bool> {
+        Binding(
+            get: { isWork },
+            set: { new in
+                isWork = new
+                barShowsTitle = !new
+                // 通常予定にしたら職場を外す(職場名のままのタイトルと色も戻す)
+                if !new, let w = selectedWorkplace {
+                    workplaceId = nil
+                    if title == w.name { title = "" }
+                    if color == w.color { color = Store.defaultColors[0] }
+                }
+            })
     }
 
     private func selectNewWorkplace() {
