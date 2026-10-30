@@ -142,7 +142,8 @@ struct EventEditor: View {
                         }
                     }
                 }
-                if let p = payBreakdown { paySection(p) }
+                // 時間を入力している間は計算が重く、キーボードの下で見えないので出さない
+                if openPanel == nil, !shiftOpen, focusedField != .breakMinutes, let p = payBreakdown { paySection(p) }
                 Section {
                     TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
                         .focused($focusedField, equals: .memo)
@@ -164,7 +165,13 @@ struct EventEditor: View {
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: openPanel) { _, new in
                 guard let new else { return }
-                scrollToPanelBottom(new, proxy: proxy)
+                scrollToBottom(panelBottomId(new), proxy: proxy)
+            }
+            .onChange(of: shiftOpen) { _, new in
+                if new { scrollToBottom(Self.shiftPanelId, proxy: proxy) }
+            }
+            .onChange(of: focusedField) { _, new in
+                if new == .breakMinutes { scrollToBottom(Self.breakRowId, proxy: proxy) }
             }
             }
             .navigationTitle(favoriteMode ? (isNew ? "よく使う予定を追加" : "よく使う予定を編集") : (isNew ? "予定を追加" : "予定を編集"))
@@ -307,13 +314,14 @@ struct EventEditor: View {
 
     private func panelBottomId(_ p: TimePanel) -> String { p == .start ? "startPanelBottom" : "endPanelBottom" }
 
-    /// パネル下端が見えるようスクロール(キーボード表示後にもう一度)
-    private func scrollToPanelBottom(_ p: TimePanel, proxy: ScrollViewProxy) {
-        let id = panelBottomId(p)
-        withAnimation { proxy.scrollTo(id, anchor: .bottom) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            guard openPanel == p else { return }
-            withAnimation { proxy.scrollTo(id, anchor: .bottom) }
+    private static let shiftPanelId = "shiftPanelBottom"
+    private static let breakRowId = "breakRow"
+
+    /// 行の展開とキーボードの表示が落ち着いてから、1回だけスクロールして下端を見せる
+    /// (展開・キーボード・スクロールのアニメーションが重なるとカクつく)
+    private func scrollToBottom(_ id: String, proxy: ScrollViewProxy) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
         }
     }
 
@@ -509,6 +517,7 @@ struct EventEditor: View {
                     .buttonStyle(.borderless)
             }
         }
+        .id(Self.breakRowId)
         if showsNightPicker {
             if let w = selectedWorkplace {
                 Picker("休憩を引く時間帯", selection: $breakInNight) {
@@ -614,15 +623,18 @@ struct EventEditor: View {
             .buttonStyle(.borderless)
         }
         if shiftOpen {
-            HStack {
-                Spacer()
-                Button("確定") { shiftOpen = false }
-                    .font(.app(15, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 6)
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button("確定") { shiftOpen = false }
+                        .font(.app(15, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 6)
+                }
+                shiftWheel(total)
             }
-            shiftWheel(total)
+            .id(Self.shiftPanelId)
         }
     }
 
