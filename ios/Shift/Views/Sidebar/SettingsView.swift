@@ -36,7 +36,7 @@ struct SettingsView: View {
                 } header: {
                     Text("見込み給料")
                 } footer: {
-                    Text("勤務ベース: 表示中の月に働いた分。給料日ベース: 表示中の月に受け取る給料(職場の給料日の設定が必要です)。")
+                    Text(payBasis == PayBasis.payday.rawValue ? "表示中の月に受け取る給料" : "表示中の月に働いた分")
                 }
                 Section {
                     Toggle("予定が重複している日を赤く注意表示", isOn: $conflictWarningOn)
