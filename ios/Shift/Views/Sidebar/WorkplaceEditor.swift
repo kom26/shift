@@ -19,6 +19,8 @@ struct WorkplaceEditor: View {
     @State private var paydayOn: Bool
     @State private var paydayDay: Int
     @State private var paydayOffset: Int
+    @State private var isDaily: Bool
+    @State private var dailyMonthly: Bool
     @State private var confirmApply = false
     @FocusState private var focus: String?
 
@@ -39,7 +41,12 @@ struct WorkplaceEditor: View {
         _paydayOn = State(initialValue: workplace?.paydayDay != nil)
         _paydayDay = State(initialValue: workplace?.paydayDay ?? 25)
         _paydayOffset = State(initialValue: workplace?.paydayMonthOffset ?? 1)
+        _isDaily = State(initialValue: workplace?.isDaily ?? false)
+        _dailyMonthly = State(initialValue: workplace?.dailyPaidMonthly ?? false)
     }
+
+    /// 締め日・給料日の設定を出すか(時給、または月払いの日給)
+    private var usesCycle: Bool { !isDaily || dailyMonthly }
 
     private static func text(_ v: Int?) -> String {
         guard let v, v > 0 else { return "" }
@@ -108,13 +115,27 @@ struct WorkplaceEditor: View {
                                 selection: EventColor.pickerBinding($color),
                                 supportsOpacity: false)
                 }
-                Section("給与") {
-                    moneyRow("時給", $wage, key: "wage")
-                    moneyRow("交通費(片道)", $transport, key: "transport")
-                    Text("1予定ごとに往復(×2)で計算します")
-                        .font(.app(12))
-                        .foregroundStyle(.secondary)
+                Section {
+                    Picker("給与の形態", selection: $isDaily) {
+                        Text("時給").tag(false)
+                        Text("日給").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    if isDaily {
+                        Text("日給は予定ごとに入力します")
+                            .font(.app(12))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        moneyRow("時給", $wage, key: "wage")
+                        moneyRow("交通費(片道)", $transport, key: "transport")
+                        Text("1予定ごとに往復(×2)で計算します")
+                            .font(.app(12))
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("給与")
                 }
+                if !isDaily {
                 Section("曜日別の加給(円/時)") {
                     ForEach(0..<7, id: \.self) { i in
                         moneyRow(Self.dayLabels[i] + "曜日", $bonus[i], key: "bonus\(i)", unit: "円/時")
@@ -146,36 +167,48 @@ struct WorkplaceEditor: View {
                 } header: {
                     Text("独自の休憩ルール")
                 }
+                }
                 Section {
-                    Picker("締め日", selection: $closingDay) {
-                        dayOptions
-                    }
-                    .pickerStyle(.menu)
-                    Toggle("給料日を設定する", isOn: $paydayOn)
-                    if paydayOn {
-                        Picker("支払い月", selection: $paydayOffset) {
-                            Text("当月").tag(0)
-                            Text("翌月").tag(1)
-                            Text("翌々月").tag(2)
+                    if isDaily {
+                        Picker("支払い", selection: $dailyMonthly) {
+                            Text("日払い").tag(false)
+                            Text("月払い").tag(true)
                         }
-                        .pickerStyle(.menu)
-                        Picker("給料日", selection: $paydayDay) {
+                        .pickerStyle(.segmented)
+                    }
+                    if usesCycle {
+                        Picker("締め日", selection: $closingDay) {
                             dayOptions
                         }
                         .pickerStyle(.menu)
+                        Toggle("給料日を設定する", isOn: $paydayOn)
+                        if paydayOn {
+                            Picker("支払い月", selection: $paydayOffset) {
+                                Text("当月").tag(0)
+                                Text("翌月").tag(1)
+                                Text("翌々月").tag(2)
+                            }
+                            .pickerStyle(.menu)
+                            Picker("給料日", selection: $paydayDay) {
+                                dayOptions
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        Text("例: 末日締め・翌月25日払い")
+                            .font(.app(12))
+                            .foregroundStyle(.secondary)
                     }
-                    Text("例: 末日締め・翌月25日払い")
-                        .font(.app(12))
-                        .foregroundStyle(.secondary)
                 } header: {
                     Text("給料日")
                 }
-                Section("休憩を引く時間帯の既定") {
-                    Picker("休憩を引く時間帯", selection: $breakFromNight) {
-                        Text("深夜帯から引く").tag(true)
-                        Text("深夜帯以外から引く").tag(false)
+                if !isDaily {
+                    Section("休憩を引く時間帯の既定") {
+                        Picker("休憩を引く時間帯", selection: $breakFromNight) {
+                            Text("深夜帯から引く").tag(true)
+                            Text("深夜帯以外から引く").tag(false)
+                        }
+                        .pickerStyle(.menu)
                     }
-                    .pickerStyle(.menu)
                 }
             }
             .scrollDismissesKeyboard(.interactively)
@@ -223,8 +256,10 @@ struct WorkplaceEditor: View {
                   breakRules: BreakRuleDraft.clean(rules),
                   breakFromNight: breakFromNight,
                   closingDay: closingDay,
-                  paydayDay: paydayOn ? paydayDay : nil,
-                  paydayMonthOffset: paydayOffset)
+                  paydayDay: (paydayOn && usesCycle) ? paydayDay : nil,
+                  paydayMonthOffset: paydayOffset,
+                  payType: isDaily ? .daily : .hourly,
+                  dailyPaidMonthly: isDaily && dailyMonthly)
     }
 
     private func commit(applyToEvents: Bool) {

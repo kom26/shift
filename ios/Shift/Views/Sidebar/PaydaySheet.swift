@@ -60,8 +60,44 @@ struct PaydaySheet: View {
 private struct PaydayDetail: View {
     let row: Store.PaymentRow
 
+    private func day(_ ds: String) -> String {
+        let p = Rules.ymd(ds)
+        return "\(p.month)/\(p.day)"
+    }
+
     var body: some View {
         List {
+            if row.workplace.isDaily {
+                Section {
+                    HStack {
+                        Text("給料")
+                        Spacer()
+                        Text(Money.yen(row.amount)).font(.app(20, weight: .bold).monospacedDigit())
+                    }
+                    LabeledContent("出勤", value: "\(row.items.count)日")
+                        .font(.app(13))
+                }
+                Section("日給の内訳") {
+                    ForEach(row.items) { it in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(day(it.date))
+                                if !it.label.isEmpty {
+                                    Text(it.label).font(.app(12)).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(Money.yen(it.amount)).monospacedDigit()
+                                if it.minutes > 0 {
+                                    Text(Money.yen(it.amount * 60 / Double(it.minutes)) + "/時")
+                                        .font(.app(12)).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
             Section {
                 PayBreakdownRows(p: row.breakdown, transportLabel: "交通費") {
                     if row.breakdown.adjustment != 0 {
@@ -72,6 +108,7 @@ private struct PaydayDetail: View {
             } footer: {
                 let s = Rules.ymd(row.start), e = Rules.ymd(row.end)
                 Text("\(s.month)/\(s.day)〜\(e.month)/\(e.day)の勤務分")
+            }
             }
         }
         .navigationTitle(row.workplace.name)

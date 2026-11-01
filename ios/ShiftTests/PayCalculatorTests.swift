@@ -34,6 +34,24 @@ struct PayCalculatorTests {
         #expect(sum.netMinutes == 960)
     }
 
+    @Test func dailyWageIsUsedAsIs() throws {
+        let w = Workplace(id: "d", name: "D", color: "#111111", hourlyWage: 1000, transport: 500, payType: .daily)
+        var e = timed("2026-10-20", "09:00", "18:00")
+        #expect(PayCalculator.pay(event: e, workplace: w, isHoliday: false) == nil)  // 日給が未入力
+        e.dailyWage = 9000
+        e.adjustment = 500
+        let p = try #require(PayCalculator.pay(event: e, workplace: w, isHoliday: false))
+        #expect(close(p.total, 9000))   // 時給・交通費・調整給は使わない
+        #expect(p.netMinutes == 540)    // シフト時間
+    }
+
+    @Test func dailyDailyPayHasNoPayday() {
+        var w = Workplace(id: "d", name: "D", color: "#111111", closingDay: 0, paydayDay: 25, payType: .daily)
+        #expect(!PayCycle.isPayday("2026-10-25", workplace: w))
+        w.dailyPaidMonthly = true
+        #expect(PayCycle.isPayday("2026-10-25", workplace: w))
+    }
+
     @Test func daytime() throws {
         let p = try #require(PayCalculator.pay(event: timed("2026-10-20", "09:00", "18:00"), workplace: wp(), isHoliday: false))
         #expect(close(p.base, 8000))

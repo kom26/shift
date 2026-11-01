@@ -29,13 +29,24 @@ struct Workplace: Codable, Identifiable, Equatable {
     var paydayDay: Int?
     /// 締め月から何か月後が給料日か。0 = 当月、1 = 翌月、2 = 翌々月
     var paydayMonthOffset: Int
+    /// 給与の形態。日給の職場は、予定ごとに日給を手入力する(時給・交通費・加給・休憩は使わない)
+    var payType: PayType
+    /// 日給のとき、月払い(締め日・給料日あり)か。false は日払い
+    var dailyPaidMonthly: Bool
+
+    enum PayType: String, Codable { case hourly, daily }
+
+    var isDaily: Bool { payType == .daily }
 
     init(id: String, name: String, color: String,
          hourlyWage: Int = 0, transport: Int = 0,
          weekdayBonus: [Int] = [0, 0, 0, 0, 0, 0, 0],
          holidayBonus: Int = 0, breakRules: [BreakRule] = [],
          breakFromNight: Bool = true,
-         closingDay: Int = 0, paydayDay: Int? = nil, paydayMonthOffset: Int = 1) {
+         closingDay: Int = 0, paydayDay: Int? = nil, paydayMonthOffset: Int = 1,
+         payType: PayType = .hourly, dailyPaidMonthly: Bool = false) {
+        self.payType = payType
+        self.dailyPaidMonthly = dailyPaidMonthly
         self.id = id
         self.name = name
         self.color = color
@@ -52,7 +63,7 @@ struct Workplace: Codable, Identifiable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, color, hourlyWage, transport, weekdayBonus, holidayBonus, breakRules, breakFromNight
-        case closingDay, paydayDay, paydayMonthOffset
+        case closingDay, paydayDay, paydayMonthOffset, payType, dailyPaidMonthly
     }
 
     init(from decoder: Decoder) throws {
@@ -69,6 +80,8 @@ struct Workplace: Codable, Identifiable, Equatable {
         closingDay = try c.decodeIfPresent(Int.self, forKey: .closingDay) ?? 0
         paydayDay = try c.decodeIfPresent(Int.self, forKey: .paydayDay)
         paydayMonthOffset = min(max(try c.decodeIfPresent(Int.self, forKey: .paydayMonthOffset) ?? 1, 0), 2)
+        payType = try c.decodeIfPresent(PayType.self, forKey: .payType) ?? .hourly
+        dailyPaidMonthly = try c.decodeIfPresent(Bool.self, forKey: .dailyPaidMonthly) ?? false
     }
 
     /// 7要素(0=日曜)に揃える

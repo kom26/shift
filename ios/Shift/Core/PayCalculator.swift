@@ -63,6 +63,13 @@ enum PayCalculator {
               let span = Rules.spanMinutes(startDate: event.startDate, startTime: event.startTime,
                                            endDate: event.endDate, endTime: event.endTime) else { return nil }
 
+        // 日給の職場は、手入力の日給がそのまま給与(時給・深夜・交通費・加給は使わない)
+        if workplace.isDaily {
+            guard let wage = event.dailyWage, wage > 0 else { return nil }
+            return PayBreakdown(base: Double(wage), night: 0, overtime: 0, bonus: 0, transport: 0,
+                                total: Double(wage), netMinutes: span, nightMinutes: 0, overtimeMinutes: 0)
+        }
+
         let brk: Int
         if let wh = event.workHours {
             brk = max(0, Int((Double(span) - wh * 60).rounded()))

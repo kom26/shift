@@ -24,6 +24,7 @@ struct EventEditor: View {
     @State private var confirmDelete = false
     @State private var openPanel: TimePanel?
     @State private var adjustmentText: String
+    @State private var dailyWageText: String
     @State private var registerFavorite = false
     @State private var typed = ""
     @State private var workplaceId: String?
@@ -40,7 +41,7 @@ struct EventEditor: View {
     @State private var workplaceCountBeforeAdd = 0
     @FocusState private var focusedField: Field?
 
-    enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime, adjustment }
+    enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime, adjustment, dailyWage }
     enum TimePanel: Hashable { case start, end }
 
     init(original: ShiftEvent, isNew: Bool, favoriteMode: Bool = false) {
@@ -63,6 +64,7 @@ struct EventEditor: View {
         _isWork = State(initialValue: isNew || original.workplaceId != nil)
         _breakInNight = State(initialValue: original.breakInNight)
         _adjustmentText = State(initialValue: original.adjustment.map { $0 == 0 ? "" : String($0) } ?? "")
+        _dailyWageText = State(initialValue: original.dailyWage.map { $0 == 0 ? "" : String($0) } ?? "")
         _barShowsTitle = State(initialValue: original.barShowsTitle ?? false)
         // 保存済みの休憩分(既定と同じ値は onAppear で空に戻す)
         let savedBreak: String
@@ -90,7 +92,9 @@ struct EventEditor: View {
     private var defaultBreak: Int {
         total.map { BreakRules.minutes(span: $0, rules: selectedWorkplace?.breakRules ?? []) } ?? 0
     }
-    private var effectiveBreak: Int { Int(breakText) ?? defaultBreak }
+    /// 日給の職場。休憩・実労働・時給計算は使わない
+    private var isDaily: Bool { selectedWorkplace?.isDaily ?? false }
+    private var effectiveBreak: Int { isDaily ? 0 : (Int(breakText) ?? defaultBreak) }
     private var hours: Double? {
         Rules.workHours(startDate: startDateText, startTime: startTime, endDate: endDateText, endTime: endTime,
                         allDay: allDay, breakMinutes: effectiveBreak)
@@ -154,7 +158,13 @@ struct EventEditor: View {
                     }
                 }
                 // 時間を入力している間は計算が重く、キーボードの下で見えないので出さない
-                if openPanel == nil, focusedField != .breakMinutes, let p = payBreakdown { paySection(p) }
+                if openPanel == nil, focusedField != .breakMinutes, !allDay {
+                    if isDaily {
+                        dailySection
+                    } else if let p = payBreakdown {
+                        paySection(p)
+                    }
+                }
                 Section {
                     TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
                         .focused($focusedField, equals: .memo)
@@ -181,6 +191,7 @@ struct EventEditor: View {
             .onChange(of: focusedField) { _, new in
                 if new == .breakMinutes { scrollToBottom(Self.breakRowId, proxy: proxy) }
                 if new == .adjustment { scrollToBottom(Self.adjustmentRowId, proxy: proxy) }
+                if new == .dailyWage { scrollToBottom(Self.dailyWageRowId, proxy: proxy) }
             }
             }
             .navigationTitle(favoriteMode ? (isNew ? "よく使う予定を追加" : "よく使う予定を編集") : (isNew ? "予定を追加" : "予定を編集"))
@@ -337,6 +348,7 @@ struct EventEditor: View {
 
     private static let breakRowId = "breakRow"
     private static let adjustmentRowId = "adjustmentRow"
+    private static let dailyWageRowId = "dailyWageRow"
 
     /// 行の展開とキーボードの表示が落ち着いてから、1回だけスクロールして下端を見せる
     /// (展開・キーボード・スクロールのアニメーションが重なるとカクつく)
@@ -537,6 +549,11 @@ struct EventEditor: View {
     @ViewBuilder
     private var workRows: some View {
         if let total { LabeledContent("シフト時間", value: Rules.formatHours(Double(total) / 60)) }
+        if !isDaily { breakAndActualRows }
+    }
+
+    @ViewBuilder
+    private var breakAndActualRows: some View {
         HStack {
             Text("休憩")
             Spacer()
@@ -617,6 +634,30 @@ struct EventEditor: View {
         }
         .font(.app(13))
         .foregroundStyle(.secondary)
+    }
+
+    /// 日給の職場: 日給(手入力)と、日給÷シフト時間の時給換算
+    private var dailySection: some View {
+        let wage = Int(dailyWageText) ?? 0
+        return Section {
+            HStack {
+                Text("日給")
+                Spacer()
+                TextField("0", text: Binding(
+                    get: { dailyWageText },
+                    set: { dailyWageText = String($0.filter { $0.isASCII && $0.isNumber }.prefix(7)) }))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 100)
+                    .focused($focusedField, equals: .dailyWage)
+                Text("円")
+            }
+            .id(Self.dailyWageRowId)
+            if wage > 0, let t = total, t > 0 {
+                LabeledContent("時給換算", value: Money.yen(Double(wage) * 60 / Double(t)) + "/時")
+                    .font(.app(13))
+            }
+        }
     }
 
     private func paySection(_ p: PayBreakdown) -> some View {
@@ -738,6 +779,7 @@ struct EventEditor: View {
         e.breakInNight = breakInNight
         e.barShowsTitle = barShowsTitle ? true : nil
         e.adjustment = Int(adjustmentText).flatMap { $0 == 0 ? nil : $0 }
+        e.dailyWage = Int(dailyWageText).flatMap { $0 == 0 ? nil : $0 }
         return e
     }
 

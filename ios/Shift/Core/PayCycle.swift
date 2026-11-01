@@ -23,7 +23,7 @@ enum PayCycle {
     }
 
     static func isPayday(_ ds: String, workplace: Workplace) -> Bool {
-        guard let pd = workplace.paydayDay else { return false }
+        guard let pd = workplace.paydayDay, !workplace.isDaily || workplace.dailyPaidMonthly else { return false }
         let (y, m, d) = Rules.ymd(ds)
         return d == resolvedDay(pd, year: y, month: m)
     }

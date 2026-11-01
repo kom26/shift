@@ -124,12 +124,22 @@ final class Store {
         return (inList + rest).map(\.t)
     }
 
+    struct PayItem: Identifiable {
+        let id: String
+        let date: String
+        let label: String
+        let minutes: Int
+        let amount: Double
+    }
+
     struct PaymentRow: Identifiable {
         let workplace: Workplace
         let start: String
         let end: String
         /// 期間内の給与の内訳の合計
         let breakdown: PayBreakdown
+        /// 日給の職場だけ、期間内の出勤ごとの内訳
+        var items: [PayItem] = []
         var amount: Double { breakdown.total }
         var id: String { workplace.id }
     }
@@ -143,13 +153,18 @@ final class Store {
         workplaces.compactMap { w in
             guard let period = PayCycle.period(forPayday: ds, workplace: w) else { return nil }
             var sum = PayBreakdown.zero
+            var items: [PayItem] = []
             for ev in events where ev.placed {
                 guard let sd = ev.startDate, sd >= period.start, sd <= period.end,
                       let ew = workplace(for: ev), ew.id == w.id,
                       let p = PayCalculator.pay(event: ev, workplace: w, isHoliday: isHoliday(sd)) else { continue }
                 sum = sum + p
+                if w.isDaily {
+                    items.append(PayItem(id: ev.id, date: sd, label: Rules.timeLabel(ev), minutes: p.netMinutes, amount: p.total))
+                }
             }
-            return PaymentRow(workplace: w, start: period.start, end: period.end, breakdown: sum)
+            items.sort { ($0.date, $0.label) < ($1.date, $1.label) }
+            return PaymentRow(workplace: w, start: period.start, end: period.end, breakdown: sum, items: items)
         }
     }
 
