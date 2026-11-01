@@ -39,12 +39,13 @@ struct SettingsView: View {
                     Text("勤務ベース: 表示中の月に働いた分。給料日ベース: 表示中の月に受け取る給料(職場の給料日の設定が必要です)。")
                 }
                 Section {
-                    Toggle("重なりを赤く注意表示", isOn: $conflictWarningOn)
+                    Toggle("予定が重複している日を赤く注意表示", isOn: $conflictWarningOn)
                     if conflictWarningOn {
                         HStack {
-                            Text("間の時間が")
+                            Text("予定の間の時間が")
+                            // 0 のときは空にして、グレーの「0」(プレースホルダー)で入力欄だと分かるようにする
                             TextField("0", text: Binding(
-                                get: { String(conflictGapMinutes) },
+                                get: { conflictGapMinutes == 0 ? "" : String(conflictGapMinutes) },
                                 set: { input in
                                     let digits = String(input.filter { $0.isASCII && $0.isNumber }.prefix(6))
                                     conflictGapMinutes = min(max(Int(digits) ?? 0, 0), 1440)
@@ -53,15 +54,14 @@ struct SettingsView: View {
                                 .multilineTextAlignment(.trailing)
                                 .frame(width: 70)
                                 .focused($gapFocused)
-                            Text("分未満のとき注意")
+                            Text("分未満のとき注意表示")
                         }
                     }
                 } header: {
-                    Text("シフトの重なり")
+                    Text("予定の重複(ダブルブッキング)")
                 } footer: {
-                    if conflictWarningOn {
-                        Text("0分: 時間が重なる場合だけ。30分なら、前のシフトの終わりから次の開始まで30分未満でも赤くします")
-                    }
+                    Text("※終日予定は重複にカウントされません。
+初期設定(0分):予定が1分でも重なる場合")
                 }
                 Section {
                     if store.workplaces.isEmpty {
