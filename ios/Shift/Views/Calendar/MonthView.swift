@@ -18,6 +18,8 @@ struct MonthView: View {
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @State private var dropTarget: String?
+    @State private var annivTarget: AnnivTarget?
+    @Environment(\.isStamping) private var isStamping
 
     private let numH = LayoutMath.numH
     private let barGap = LayoutMath.barGap
@@ -31,6 +33,10 @@ struct MonthView: View {
         let monthBounds = Rules.monthBounds(of: anchor)
         let monthTotals = store.totals(from: monthBounds.first, to: monthBounds.last, isHoliday: { holidays.name(on: $0) != nil })
         let monthOrder = monthTotals.map(\.key)
+        // 記念日・誕生日のアイコンは、週計を出すときは競合するので出さない
+        let annivMap: [String: [Anniversary]] = summaryOn ? [:] : Dictionary(
+            weeks.flatMap { $0 }.map { ($0, store.anniversaries(on: $0)) }.filter { !$0.1.isEmpty },
+            uniquingKeysWith: { a, _ in a })
         let conflictDays: Set<String> = conflictWarningOn ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
         VStack(spacing: 0) {
             HStack(spacing: 0) {
@@ -52,7 +58,7 @@ struct MonthView: View {
                 let minRow = (geo.size.height - (n - 1)) / n
                 // 予定3本+週計行が入る高さを基準にバーを太くする(増えたら縦スクロール)
                 let barH = min(20, max(11, floor((minRow - stripH - numH - bottomPad) / 3) - 1))
-                let needed = weekRows.map { numH + CGFloat($0.count) * (barH + barGap) + bottomPad + strip }
+                let needed = weeks.indices.map { neededHeight(cells: weeks[$0], rows: weekRows[$0], barH: barH, strip: strip, annivMap: annivMap) }
                 // 予定が多い週が増やした高さは、予定が少ない週から削って吸収する(最低3本ぶんは残す)
                 let floor3 = numH + 3 * (barH + barGap) + bottomPad + strip
                 let extra = needed.reduce(0) { $0 + max(0, $1 - minRow) }
@@ -65,7 +71,7 @@ struct MonthView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
-                            weekBlock(weeks[i], rows: weekRows[i], rowH: heights[i], barH: barH, monthOrder: monthOrder, conflictDays: conflictDays)
+                            weekBlock(weeks[i], rows: weekRows[i], rowH: heights[i], barH: barH, monthOrder: monthOrder, conflictDays: conflictDays, annivMap: annivMap)
                             if i < weeks.count - 1 { Divider() }
                         }
                     }
@@ -85,11 +91,12 @@ struct MonthView: View {
                 MonthWatermark(number: ym.month)
             }
         }
+        .sheet(item: $annivTarget) { AnniversaryDetailSheet(id: $0.id, asOf: $0.date) }
     }
 
-    private func weekBlock(_ cells: [String], rows: [[BarSpan]], rowH: CGFloat, barH: CGFloat, monthOrder: [String], conflictDays: Set<String>) -> some View {
+    private func weekBlock(_ cells: [String], rows: [[BarSpan]], rowH: CGFloat, barH: CGFloat, monthOrder: [String], conflictDays: Set<String>, annivMap: [String: [Anniversary]]) -> some View {
         VStack(spacing: 0) {
-            weekCells(cells, rows: rows, barH: barH, conflictDays: conflictDays)
+            weekCells(cells, rows: rows, barH: barH, conflictDays: conflictDays, annivMap: annivMap)
                 .frame(height: summaryOn ? rowH - stripH : rowH)
                 .clipped()
             if summaryOn {
@@ -106,13 +113,13 @@ struct MonthView: View {
         }
     }
 
-    private func weekCells(_ cells: [String], rows: [[BarSpan]], barH: CGFloat, conflictDays: Set<String>) -> some View {
+    private func weekCells(_ cells: [String], rows: [[BarSpan]], barH: CGFloat, conflictDays: Set<String>, annivMap: [String: [Anniversary]]) -> some View {
         GeometryReader { geo in
             let w = geo.size.width / 7
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(0..<7, id: \.self) { i in
-                        dayCell(cells[i], conflict: conflictDays.contains(cells[i]))
+                        dayCell(cells[i], conflict: conflictDays.contains(cells[i]), annivs: annivMap[cells[i]] ?? [], iconSize: barH)
                             .frame(width: w, height: geo.size.height)
                             .overlay(alignment: .leading) {
                                 Rectangle().fill(Color(.separator).opacity(0.5)).frame(width: 0.5)
@@ -132,13 +139,26 @@ struct MonthView: View {
         }
     }
 
+    /// 1週ぶんに必要な高さ。記念日のアイコンがある日は、その日のバーの下にもう1本ぶん確保する
+    private func neededHeight(cells: [String], rows: [[BarSpan]], barH: CGFloat, strip: CGFloat,
+                              annivMap: [String: [Anniversary]]) -> CGFloat {
+        let lane = barH + barGap
+        var lanes = rows.count
+        for col in 0..<7 where annivMap[cells[col]] != nil {
+            let used = rows.indices.filter { r in rows[r].contains { $0.col <= col && col < $0.col + $0.span } }
+                .map { $0 + 1 }.max() ?? 0
+            lanes = max(lanes, used + 1)
+        }
+        return numH + CGFloat(lanes) * lane + bottomPad + strip
+    }
+
     /// ドラッグ中の予定を ds に置くと、時間つきの他の予定と重なるか
     private func dropConflicts(_ ds: String) -> Bool {
         guard let id = DragState.shared.draggingId, let m = store.dropPreview(id: id, on: ds) else { return false }
         return DropCheck.overlaps(moved: m, others: store.events)
     }
 
-    private func dayCell(_ ds: String, conflict: Bool) -> some View {
+    private func dayCell(_ ds: String, conflict: Bool, annivs: [Anniversary], iconSize: CGFloat) -> some View {
         let inMonth = Rules.isSameMonth(ds, as: anchor)
         let holiday = holidays.name(on: ds)
         let type = Rules.dayType(ds, isHoliday: holiday != nil)
@@ -185,6 +205,20 @@ struct MonthView: View {
                     .strokeBorder(dropBad ? Color.red : Theme.accent, style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            // 予定のバーの下(右下)に右詰めで並べる。足りない分は週の高さを広げて確保している
+            HStack(spacing: 1) {
+                ForEach(annivs.prefix(3)) { a in
+                    AnniversaryIcon(icon: a.icon, color: a.color, size: iconSize)
+                        .onTapGesture { annivTarget = AnnivTarget(id: a.id, date: ds) }
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityLabel(a.name)
+                }
+            }
+            .padding(.trailing, 2)
+            .padding(.bottom, 1)
+            .allowsHitTesting(!isStamping)
+        }
         .contentShape(Rectangle())
         .onTapGesture { onSelectDay(ds) }
         .onLongPressGesture(minimumDuration: 0.45) {
@@ -192,6 +226,11 @@ struct MonthView: View {
             onLongPressDay(ds)
         }
     }
+}
+
+struct AnnivTarget: Identifiable {
+    let id: String
+    let date: String
 }
 
 /// 背面に敷く巨大な月数字 (薄く、タップを通す)

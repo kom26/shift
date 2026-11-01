@@ -1,0 +1,244 @@
+import SwiftUI
+
+/// 記念日のアイコン(色つき)
+struct AnniversaryIcon: View {
+    let icon: Anniversary.Icon
+    let color: String
+    var size: CGFloat = 16
+
+    var body: some View {
+        Image(icon.asset)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .foregroundStyle(Color(hex: color))
+    }
+}
+
+/// 設定 → 記念日・誕生日 の一覧(名前・日付・年齢/経過)。タップで詳細
+struct AnniversaryListView: View {
+    @Environment(Store.self) private var store
+    @State private var adding = false
+
+    var body: some View {
+        List {
+            if store.anniversaries.isEmpty {
+                Text("登録されていません").foregroundStyle(.secondary)
+            }
+            ForEach(store.anniversaries) { a in
+                NavigationLink {
+                    AnniversaryDetail(id: a.id)
+                } label: {
+                    HStack(spacing: 10) {
+                        AnniversaryIcon(icon: a.icon, color: a.color, size: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(a.name.isEmpty ? "(名前なし)" : a.name)
+                            Text(a.dateText).font(.app(12)).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        if let e = a.elapsedText(asOf: Rules.today()) {
+                            Text(e).font(.app(15).monospacedDigit()).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .onDelete { offsets in
+                let ids = offsets.map { store.anniversaries[$0].id }
+                ids.forEach { store.deleteAnniversary(id: $0) }
+            }
+        }
+        .navigationTitle("記念日・誕生日")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { adding = true } label: { Image(systemName: "plus") }
+                    .accessibilityLabel("追加")
+            }
+        }
+        .sheet(isPresented: $adding) { AnniversaryEditor(item: nil) }
+    }
+}
+
+/// 詳細(名前・日付・経過・繰り返し・メモ)。右上の「編集」から編集画面へ。
+/// カレンダーのアイコンからも開く(asOf はタップした日。年齢などをその日時点で出す)
+struct AnniversaryDetail: View {
+    @Environment(Store.self) private var store
+    let id: String
+    var asOf: String? = nil
+    @State private var editing = false
+
+    var body: some View {
+        Group {
+            if let a = store.anniversaries.first(where: { $0.id == id }) {
+                List {
+                    Section {
+                        HStack(spacing: 12) {
+                            AnniversaryIcon(icon: a.icon, color: a.color, size: 36)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(a.name.isEmpty ? "(名前なし)" : a.name).font(.app(20, weight: .bold))
+                                Text(a.dateText).foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        if let e = a.elapsedText(asOf: asOf ?? Rules.today()) {
+                            LabeledContent(a.kind == .birthday ? "年齢" : "経過", value: e)
+                        }
+                        LabeledContent("種類", value: a.kind == .birthday ? "誕生日" : "記念日")
+                        if a.kind == .anniversary {
+                            LabeledContent("くり返し", value: a.monthly ? "毎月" : "毎年")
+                        }
+                    }
+                    if !a.memo.isEmpty {
+                        Section("メモ") { Text(a.memo) }
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) { Button("編集") { editing = true } }
+                }
+                .sheet(isPresented: $editing) { AnniversaryEditor(item: a) }
+            } else {
+                Text("削除されました").foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("詳細")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// カレンダーのアイコンから開く詳細(閉じるボタンつき)
+struct AnniversaryDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let id: String
+    let asOf: String
+
+    var body: some View {
+        NavigationStack {
+            AnniversaryDetail(id: id, asOf: asOf)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
+                }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+struct AnniversaryEditor: View {
+    @Environment(Store.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let item: Anniversary?
+
+    @State private var a: Anniversary
+    @State private var knowsYear: Bool
+    @State private var yearValue: Int
+    @State private var confirmDelete = false
+
+    init(item: Anniversary?) {
+        self.item = item
+        let v = item ?? Anniversary()
+        _a = State(initialValue: v)
+        _knowsYear = State(initialValue: v.year != nil)
+        _yearValue = State(initialValue: v.year ?? 2000)
+    }
+
+    private var thisYear: Int { Rules.ymd(Rules.today()).year }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("種類", selection: $a.kind) {
+                        Text("誕生日").tag(Anniversary.Kind.birthday)
+                        Text("記念日").tag(Anniversary.Kind.anniversary)
+                    }
+                    .pickerStyle(.segmented)
+                    TextField("名前(記念日の名前でもOK)", text: $a.name)
+                }
+                Section {
+                    if a.kind == .anniversary {
+                        Picker("くり返し", selection: $a.monthly) {
+                            Text("毎年").tag(false)
+                            Text("毎月").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    Toggle(a.kind == .birthday ? "生まれ年を入力" : "年を入力", isOn: $knowsYear)
+                    if knowsYear {
+                        Picker("年", selection: $yearValue) {
+                            ForEach((1900...thisYear).reversed(), id: \.self) { Text("\($0)年").tag($0) }
+                        }
+                    }
+                    Picker("月", selection: $a.month) {
+                        ForEach(1...12, id: \.self) { Text("\($0)月").tag($0) }
+                    }
+                    Picker("日", selection: $a.day) {
+                        ForEach(1...31, id: \.self) { Text("\($0)日").tag($0) }
+                    }
+                } footer: {
+                    if a.isMonthly {
+                        Text("毎月\(a.day)日に表示します。年を入れると「◯年◯ヶ月」を出します。")
+                    } else if !knowsYear {
+                        Text("年が分からないときは入れなくても登録できます(年齢は出ません)。")
+                    }
+                }
+                Section("アイコン") {
+                    HStack(spacing: 14) {
+                        ForEach(Anniversary.Icon.allCases, id: \.self) { ic in
+                            Button { a.icon = ic } label: {
+                                AnniversaryIcon(icon: ic, color: a.color, size: 28)
+                                    .padding(8)
+                                    .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemFill)))
+                                    .overlay(RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Theme.accent, lineWidth: a.icon == ic ? 2 : 0))
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(ic.label)
+                        }
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(Store.defaultColors, id: \.self) { c in
+                                Button { a.color = c } label: {
+                                    Circle().fill(Color(hex: c)).frame(width: 26, height: 26)
+                                        .overlay(Circle().stroke(Theme.accent, lineWidth: a.color == c ? 3 : 0).padding(-3))
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 4)
+                    }
+                }
+                Section("メモ") {
+                    TextField("メモ(任意)", text: $a.memo, axis: .vertical).lineLimit(2...6)
+                }
+                if item != nil {
+                    Section {
+                        Button("削除", role: .destructive) { confirmDelete = true }
+                    }
+                }
+            }
+            .navigationTitle(item == nil ? "記念日・誕生日を追加" : "編集")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        a.name = a.name.trimmingCharacters(in: .whitespaces)
+                        a.year = knowsYear ? yearValue : nil
+                        if a.kind == .birthday { a.monthly = false }
+                        store.saveAnniversary(a)
+                        dismiss()
+                    }
+                    .disabled(a.name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .confirmationDialog("削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("削除", role: .destructive) {
+                    store.deleteAnniversary(id: a.id)
+                    dismiss()
+                }
+            }
+        }
+    }
+}

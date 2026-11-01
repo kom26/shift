@@ -9,6 +9,8 @@ struct SyncSnapshot: Codable, Equatable {
     var hiddenSuggestions: [String]
     /// セット済みのアラームの記録。新しい端末では AlarmKit 側に実体がないので、許可を取り直して入れ直す
     var alarms: [AlarmEntry]?
+    /// 記念日・誕生日。古いデータには無いので省略可
+    var anniversaries: [Anniversary]?
 
     var isEmpty: Bool { events.isEmpty && workplaces.isEmpty && favorites.isEmpty }
 }

@@ -28,6 +28,9 @@ struct SettingsView: View {
                     }
                 }
                 Section {
+                    NavigationLink("記念日・誕生日") { AnniversaryListView() }
+                }
+                Section {
                     Picker("月の見込み給料", selection: $payBasis) {
                         Text("勤務ベース").tag(PayBasis.work.rawValue)
                         Text("給料日ベース").tag(PayBasis.payday.rawValue)

@@ -30,6 +30,7 @@ final class Store {
     private(set) var workplaces: [Workplace]
     /// よく使う予定(日付なしのテンプレート)
     var favorites: [ShiftEvent] = []
+    var anniversaries: [Anniversary] = []
     /// セット済みのアラーム
     var alarmEntries: [AlarmEntry] = []
     /// 自動候補から非表示にした予定のキー
@@ -59,6 +60,7 @@ final class Store {
            let list = try? JSONDecoder().decode([AlarmEntry].self, from: data) {
             alarmEntries = list
         }
+        loadAnniversaries()
         if let data = try? Data(contentsOf: Self.favoritesURL(for: fileURL)),
            let list = try? JSONDecoder().decode([ShiftEvent].self, from: data) {
             favorites = list
@@ -397,7 +399,7 @@ final class Store {
     func syncSnapshot() -> SyncSnapshot {
         SyncSnapshot(events: events, workplaces: workplaces, favorites: favorites,
                      customColors: customColors, hiddenSuggestions: Array(hiddenSuggestions).sorted(),
-                     alarms: alarmEntries)
+                     alarms: alarmEntries, anniversaries: anniversaries)
     }
 
     /// iCloud から届いたデータで置き換える(同期の送り返しは起こさない)
@@ -412,6 +414,10 @@ final class Store {
         persist()
         persistWorkplaces()
         persistFavorites()
+        if let list = snap.anniversaries {
+            anniversaries = list
+            persistAnniversaries()
+        }
         if let alarms = snap.alarms {
             alarmEntries = alarms
             persistAlarms()
