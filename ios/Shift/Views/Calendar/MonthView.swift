@@ -156,15 +156,16 @@ struct MonthView: View {
                     .foregroundStyle(isToday ? Theme.accent : type.color)
                     .opacity(inMonth ? 1 : 0.45)
                 Spacer(minLength: 0)
-                if store.hasPayday(on: ds) {
-                    PaydayCoinButton { onSelectPayday(ds) }
-                }
                 if store.hasAlarm(on: ds) {
                     Image(systemName: "bell.fill")
                         .font(.app(9))
                         .foregroundStyle(Theme.alarm)
-                        .padding(.trailing, 3)
+                        .padding(.trailing, store.hasPayday(on: ds) ? 2 : 3)
                         .accessibilityLabel("アラーム")
+                }
+                // 給料日のコインはセルの右上の角に付ける(アラームはその左)
+                if store.hasPayday(on: ds) {
+                    PaydayCoinButton { onSelectPayday(ds) }
                 }
             }
             .frame(height: numH)
@@ -220,8 +221,7 @@ struct PaydayCoinButton: View {
                 .scaledToFit()
                 .frame(width: 12, height: 12)
                 .foregroundStyle(gold)
-                .padding(2)
-            .frame(width: 18, height: 16)
+            .frame(width: 16, height: 16, alignment: .topTrailing)
             .contentShape(Rectangle())
         .onTapGesture(perform: action)
         .allowsHitTesting(!isStamping)
