@@ -136,6 +136,7 @@ struct EventEditor: View {
                             Spacer()
                             endDateControl
                         }
+                        barLookRow
                     } else {
                         timeRows
                         HStack {
@@ -148,6 +149,7 @@ struct EventEditor: View {
                             .pickerStyle(.segmented)
                             .fixedSize()
                         }
+                        barLookRow
                     }
                 }
                 // 時間を入力している間は計算が重く、キーボードの下で見えないので出さない
@@ -520,8 +522,23 @@ struct EventEditor: View {
         if selectedWorkplace != nil { workRows }
     }
 
+    /// 「予定バーの見た目」: 月カレンダーでのバーを、この予定の日付で見せる
+    private var barLookRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("予定バーの見た目")
+            BarLookPreview(event: previewEvent)
+        }
+    }
+
+    private var previewEvent: ShiftEvent {
+        var e = build()
+        if e.title.isEmpty { e.title = "タイトル" }
+        return e
+    }
+
     @ViewBuilder
     private var workRows: some View {
+        if let total { shiftDurationRow(total) }
         HStack {
             Text("休憩")
             Spacer()
@@ -554,7 +571,6 @@ struct EventEditor: View {
                 .pickerStyle(.menu)
             }
         }
-        if let total { shiftDurationRow(total) }
         if let hours {
             LabeledContent("実労働", value: Rules.formatHours(hours))
         }
