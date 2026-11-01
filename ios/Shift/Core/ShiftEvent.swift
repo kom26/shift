@@ -16,9 +16,11 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     var breakInNight: Bool? = nil
     /// バーに予定名を出すか。nil/false は時間(終日と時間未設定の予定は、いつも予定名)
     var barShowsTitle: Bool? = nil
+    /// 一律加給・調整給(円)。手入力で、nil は 0 円
+    var adjustment: Int? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle
+        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle, adjustment
     }
 
     static func new(on date: String) -> ShiftEvent {
@@ -56,6 +58,7 @@ extension ShiftEvent {
         workplaceId = try c.decodeIfPresent(String.self, forKey: .workplaceId)
         breakInNight = try c.decodeIfPresent(Bool.self, forKey: .breakInNight)
         barShowsTitle = try c.decodeIfPresent(Bool.self, forKey: .barShowsTitle)
+        adjustment = try c.decodeIfPresent(Int.self, forKey: .adjustment)
     }
 }
 

@@ -21,16 +21,20 @@ struct PaydaySheet: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(rows) { r in
-                        HStack(spacing: 8) {
-                            ColorDot(hex: r.workplace.color, size: 10)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(r.workplace.name)
-                                Text("\(short(r.start))〜\(short(r.end))")
-                                    .font(.app(12))
-                                    .foregroundStyle(.secondary)
+                        NavigationLink {
+                            PaydayDetail(row: r)
+                        } label: {
+                            HStack(spacing: 8) {
+                                ColorDot(hex: r.workplace.color, size: 10)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(r.workplace.name)
+                                    Text("\(short(r.start))〜\(short(r.end))")
+                                        .font(.app(12))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 8)
+                                Text(Money.yen(r.amount)).monospacedDigit()
                             }
-                            Spacer(minLength: 8)
-                            Text(Money.yen(r.amount)).monospacedDigit()
                         }
                     }
                     HStack {
@@ -49,5 +53,28 @@ struct PaydaySheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+/// 職場ごとの給料の内訳(予定追加の見込み給与と同じ並び。期間内の予定の合計)
+private struct PaydayDetail: View {
+    let row: Store.PaymentRow
+
+    var body: some View {
+        List {
+            Section {
+                PayBreakdownRows(p: row.breakdown, transportLabel: "交通費") {
+                    if row.breakdown.adjustment != 0 {
+                        LabeledContent("一律加給・調整給", value: Money.yen(row.breakdown.adjustment))
+                            .font(.app(13))
+                    }
+                }
+            } footer: {
+                let s = Rules.ymd(row.start), e = Rules.ymd(row.end)
+                Text("\(s.month)/\(s.day)〜\(e.month)/\(e.day)の勤務分")
+            }
+        }
+        .navigationTitle(row.workplace.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

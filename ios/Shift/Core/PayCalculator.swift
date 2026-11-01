@@ -10,6 +10,21 @@ struct PayBreakdown: Equatable {
     var netMinutes: Int
     var nightMinutes: Int
     var overtimeMinutes: Int
+    /// 一律加給・調整給(手入力。total に含む)
+    var adjustment: Double = 0
+    /// 曜日・祝日加給の対象になった分数(加給がない日は 0)
+    var bonusMinutes: Int = 0
+
+    static let zero = PayBreakdown(base: 0, night: 0, overtime: 0, bonus: 0, transport: 0, total: 0,
+                                   netMinutes: 0, nightMinutes: 0, overtimeMinutes: 0)
+
+    static func + (a: PayBreakdown, b: PayBreakdown) -> PayBreakdown {
+        PayBreakdown(base: a.base + b.base, night: a.night + b.night, overtime: a.overtime + b.overtime,
+                     bonus: a.bonus + b.bonus, transport: a.transport + b.transport, total: a.total + b.total,
+                     netMinutes: a.netMinutes + b.netMinutes, nightMinutes: a.nightMinutes + b.nightMinutes,
+                     overtimeMinutes: a.overtimeMinutes + b.overtimeMinutes,
+                     adjustment: a.adjustment + b.adjustment, bonusMinutes: a.bonusMinutes + b.bonusMinutes)
+    }
 }
 
 enum PayCalculator {
@@ -86,8 +101,10 @@ enum PayCalculator {
         let ot = Double(overtime) / 60 * wage * 0.25
         let bonus = Double(net) / 60 * Double(bonusRate)
         let transport = Double(workplace.transport) * 2  // 片道 × 2(往復)
+        let adjustment = Double(event.adjustment ?? 0)
         return PayBreakdown(base: base, night: night, overtime: ot, bonus: bonus, transport: transport,
-                            total: base + night + ot + bonus + transport,
-                            netMinutes: net, nightMinutes: nn, overtimeMinutes: overtime)
+                            total: base + night + ot + bonus + transport + adjustment,
+                            netMinutes: net, nightMinutes: nn, overtimeMinutes: overtime,
+                            adjustment: adjustment, bonusMinutes: bonusRate > 0 ? net : 0)
     }
 }

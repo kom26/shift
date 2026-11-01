@@ -126,7 +126,9 @@ final class Store {
         let workplace: Workplace
         let start: String
         let end: String
-        let amount: Double
+        /// 期間内の給与の内訳の合計
+        let breakdown: PayBreakdown
+        var amount: Double { breakdown.total }
         var id: String { workplace.id }
     }
 
@@ -138,14 +140,14 @@ final class Store {
     func payments(onPayday ds: String, isHoliday: (String) -> Bool = { _ in false }) -> [PaymentRow] {
         workplaces.compactMap { w in
             guard let period = PayCycle.period(forPayday: ds, workplace: w) else { return nil }
-            var amount = 0.0
+            var sum = PayBreakdown.zero
             for ev in events where ev.placed {
                 guard let sd = ev.startDate, sd >= period.start, sd <= period.end,
                       let ew = workplace(for: ev), ew.id == w.id,
                       let p = PayCalculator.pay(event: ev, workplace: w, isHoliday: isHoliday(sd)) else { continue }
-                amount += p.total
+                sum = sum + p
             }
-            return PaymentRow(workplace: w, start: period.start, end: period.end, amount: amount)
+            return PaymentRow(workplace: w, start: period.start, end: period.end, breakdown: sum)
         }
     }
 

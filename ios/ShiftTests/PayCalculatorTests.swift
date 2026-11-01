@@ -23,6 +23,17 @@ struct PayCalculatorTests {
         #expect(close(p.total, 9000))
     }
 
+    @Test func adjustmentIsAddedToTotal() throws {
+        var e = timed("2026-10-20", "09:00", "18:00")
+        e.adjustment = 1500
+        let p = try #require(PayCalculator.pay(event: e, workplace: wp(), isHoliday: false))
+        #expect(close(p.adjustment, 1500))
+        #expect(close(p.total, 10000))
+        let sum = p + p
+        #expect(close(sum.total, 20000))
+        #expect(sum.netMinutes == 960)
+    }
+
     @Test func daytime() throws {
         let p = try #require(PayCalculator.pay(event: timed("2026-10-20", "09:00", "18:00"), workplace: wp(), isHoliday: false))
         #expect(close(p.base, 8000))

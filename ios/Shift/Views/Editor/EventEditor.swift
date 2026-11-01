@@ -23,7 +23,7 @@ struct EventEditor: View {
     @State private var hasDate: Bool
     @State private var confirmDelete = false
     @State private var openPanel: TimePanel?
-    @State private var shiftOpen = false
+    @State private var adjustmentText: String
     @State private var registerFavorite = false
     @State private var typed = ""
     @State private var workplaceId: String?
@@ -40,7 +40,7 @@ struct EventEditor: View {
     @State private var workplaceCountBeforeAdd = 0
     @FocusState private var focusedField: Field?
 
-    enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime }
+    enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime, adjustment }
     enum TimePanel: Hashable { case start, end }
 
     init(original: ShiftEvent, isNew: Bool, favoriteMode: Bool = false) {
@@ -62,6 +62,7 @@ struct EventEditor: View {
         _workplaceId = State(initialValue: original.workplaceId)
         _isWork = State(initialValue: isNew || original.workplaceId != nil)
         _breakInNight = State(initialValue: original.breakInNight)
+        _adjustmentText = State(initialValue: original.adjustment.map { $0 == 0 ? "" : String($0) } ?? "")
         _barShowsTitle = State(initialValue: original.barShowsTitle ?? false)
         // 保存済みの休憩分(既定と同じ値は onAppear で空に戻す)
         let savedBreak: String
@@ -153,7 +154,7 @@ struct EventEditor: View {
                     }
                 }
                 // 時間を入力している間は計算が重く、キーボードの下で見えないので出さない
-                if openPanel == nil, !shiftOpen, focusedField != .breakMinutes, let p = payBreakdown { paySection(p) }
+                if openPanel == nil, focusedField != .breakMinutes, let p = payBreakdown { paySection(p) }
                 Section {
                     TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
                         .focused($focusedField, equals: .memo)
@@ -177,11 +178,9 @@ struct EventEditor: View {
                 guard let new else { return }
                 scrollToBottom(panelBottomId(new), proxy: proxy)
             }
-            .onChange(of: shiftOpen) { _, new in
-                if new { scrollToBottom(Self.shiftPanelId, proxy: proxy) }
-            }
             .onChange(of: focusedField) { _, new in
                 if new == .breakMinutes { scrollToBottom(Self.breakRowId, proxy: proxy) }
+                if new == .adjustment { scrollToBottom(Self.adjustmentRowId, proxy: proxy) }
             }
             }
             .navigationTitle(favoriteMode ? (isNew ? "よく使う予定を追加" : "よく使う予定を編集") : (isNew ? "予定を追加" : "予定を編集"))
@@ -318,7 +317,6 @@ struct EventEditor: View {
     }
 
     private func toggleTimePanel(_ p: TimePanel) {
-        shiftOpen = false
         let next: TimePanel? = openPanel == p ? nil : p
         typed = next == nil ? "" : Self.digits(of: timeValue(p))
         noAnimation { openPanel = next }
@@ -337,8 +335,8 @@ struct EventEditor: View {
 
     private func panelBottomId(_ p: TimePanel) -> String { p == .start ? "startPanelBottom" : "endPanelBottom" }
 
-    private static let shiftPanelId = "shiftPanelBottom"
     private static let breakRowId = "breakRow"
+    private static let adjustmentRowId = "adjustmentRow"
 
     /// 行の展開とキーボードの表示が落ち着いてから、1回だけスクロールして下端を見せる
     /// (展開・キーボード・スクロールのアニメーションが重なるとカクつく)
@@ -538,7 +536,7 @@ struct EventEditor: View {
 
     @ViewBuilder
     private var workRows: some View {
-        if let total { shiftDurationRow(total) }
+        if let total { LabeledContent("シフト時間", value: Rules.formatHours(Double(total) / 60)) }
         HStack {
             Text("休憩")
             Spacer()
@@ -621,106 +619,28 @@ struct EventEditor: View {
         .foregroundStyle(.secondary)
     }
 
-    // MARK: シフト時間
-
-    private func shiftText(_ minutes: Int) -> String {
-        minutes % 60 == 0 ? "\(minutes / 60)時間" : "\(minutes / 60)時間\(minutes % 60)分"
-    }
-
-    /// 開始は動かさず、終了(日付と時刻)をシフト時間に合わせる
-    private func setShiftMinutes(_ dur: Int) {
-        guard let sm = Rules.minutes(startTime) else { return }
-        let abs = sm + dur
-        let time = String(format: "%02d:%02d", (abs % 1440) / 60, abs % 60)
-        let date = hasDate ? (Rules.parse(Rules.addDays(Rules.format(start), abs / 1440)) ?? end) : end
-        applyEnd(date: date, time: time)
-    }
-
-    @ViewBuilder
-    private func shiftDurationRow(_ total: Int) -> some View {
-        HStack(spacing: 8) {
-            Text("シフト時間")
-            Spacer()
-            Button {
-                if shiftOpen {
-                    shiftOpen = false
-                } else {
-                    closeTimePanel()
-                    shiftOpen = true
-                }
-            } label: {
-                Text(shiftText(total))
-                    .font(.app(17).monospacedDigit())
-                    .foregroundStyle(shiftOpen ? Theme.onAccent : Color.primary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(shiftOpen ? Theme.accent : Color(.secondarySystemFill)))
-            }
-            .buttonStyle(.borderless)
-        }
-        if shiftOpen {
-            VStack(spacing: 0) {
-                HStack {
-                    Spacer()
-                    Button("確定") { shiftOpen = false }
-                        .font(.app(15, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 6)
-                }
-                shiftWheel(total)
-            }
-            .id(Self.shiftPanelId)
-        }
-    }
-
-    private func shiftWheel(_ total: Int) -> some View {
-        let h = min(total / 60, 48), m = total % 60
-        var minuteItems = Rules.minuteOptions
-        if !minuteItems.contains(m) { minuteItems.append(m); minuteItems.sort() }
-        let hourBinding = Binding<Int>(get: { h }, set: { setShiftMinutes($0 * 60 + m) })
-        let minuteBinding = Binding<Int>(get: { m }, set: { setShiftMinutes(h * 60 + $0) })
-        return HStack(spacing: 0) {
-            Picker("時間", selection: hourBinding) {
-                ForEach(0...48, id: \.self) { Text("\($0)").tag($0) }
-            }
-            .pickerStyle(.wheel)
-            .labelsHidden()
-            Text("時間").font(.app(15))
-            Picker("分", selection: minuteBinding) {
-                ForEach(minuteItems, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
-            }
-            .pickerStyle(.wheel)
-            .labelsHidden()
-            Text("分").font(.app(15))
-        }
-        .frame(height: 140)
-        .clipped()
-    }
-
     private func paySection(_ p: PayBreakdown) -> some View {
         Section {
-            HStack {
-                Text("見込み給与")
-                Spacer()
-                Text(Money.yen(p.total)).font(.app(20, weight: .bold).monospacedDigit())
-            }
-            payRow("基本", p.base, always: true)
-            payRow("深夜割増", p.night)
-            payRow("残業割増", p.overtime)
-            payRow("加給", p.bonus)
-            payRow("交通費(往復)", p.transport)
-            LabeledContent("実労働", value: Rules.formatHours(Double(p.netMinutes) / 60))
-                .font(.app(13))
+            PayBreakdownRows(p: p) { adjustmentRow }
         }
     }
 
-    @ViewBuilder
-    private func payRow(_ label: String, _ amount: Double, always: Bool = false) -> some View {
-        if always || amount > 0 {
-            LabeledContent(label, value: Money.yen(amount))
-                .font(.app(13))
+    /// 一律加給・調整給の手入力(0 のときはグレーの「0」を見せる)
+    private var adjustmentRow: some View {
+        HStack {
+            Text("一律加給・調整給").font(.app(13))
+            Spacer()
+            TextField("0", text: Binding(
+                get: { adjustmentText },
+                set: { adjustmentText = String($0.filter { $0.isASCII && $0.isNumber }.prefix(7)) }))
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .font(.app(13).monospacedDigit())
+                .frame(width: 100)
+                .focused($focusedField, equals: .adjustment)
+            Text("円").font(.app(13))
         }
+        .id(Self.adjustmentRowId)
     }
 
     /// 開始側の編集で終了が開始より前になったら終了日を進める(終日は 終了日 >= 開始日)。
@@ -817,6 +737,7 @@ struct EventEditor: View {
         e.workplaceId = workplaceId
         e.breakInNight = breakInNight
         e.barShowsTitle = barShowsTitle ? true : nil
+        e.adjustment = Int(adjustmentText).flatMap { $0 == 0 ? nil : $0 }
         return e
     }
 
