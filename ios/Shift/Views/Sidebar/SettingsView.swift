@@ -60,8 +60,7 @@ struct SettingsView: View {
                 } header: {
                     Text("予定の重複(ダブルブッキング)")
                 } footer: {
-                    Text("※終日予定は重複にカウントされません。
-初期設定(0分):予定が1分でも重なる場合")
+                    Text("※終日予定は重複にカウントされません。\n初期設定(0分):予定が1分でも重なる場合")
                 }
                 Section {
                     if store.workplaces.isEmpty {
