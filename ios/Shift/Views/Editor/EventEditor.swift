@@ -534,8 +534,10 @@ struct EventEditor: View {
 
     /// 「予定バーの見た目」: 月カレンダーでのバーを、この予定の日付で見せる
     private var barLookRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("予定バーの見た目")
+        // プレビューは最大3マスぶんの幅なので、名前の右に右詰めで並べて縦幅を節約する
+        HStack(alignment: .center, spacing: 8) {
+            Text("予定バーの見た目").lineLimit(1).fixedSize()
+            Spacer(minLength: 0)
             BarLookPreview(event: previewEvent)
         }
     }

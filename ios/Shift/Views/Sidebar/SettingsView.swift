@@ -45,7 +45,8 @@ struct SettingsView: View {
                     Toggle("予定が重複している日を赤く注意表示", isOn: $conflictWarningOn)
                     if conflictWarningOn {
                         HStack {
-                            Text("予定の間の時間が")
+                            Text("予定の間の時間が").lineLimit(1).fixedSize()
+                            Spacer(minLength: 0)
                             // 0 のときは空にして、グレーの「0」(プレースホルダー)で入力欄だと分かるようにする
                             TextField("0", text: Binding(
                                 get: { conflictGapMinutes == 0 ? "" : String(conflictGapMinutes) },
@@ -55,9 +56,9 @@ struct SettingsView: View {
                                 }))
                                 .keyboardType(.numberPad)
                                 .multilineTextAlignment(.trailing)
-                                .frame(width: 70)
+                                .frame(width: 50)
                                 .focused($gapFocused)
-                            Text("分未満のとき注意表示")
+                            Text("分未満のとき").lineLimit(1).fixedSize()
                         }
                     }
                 } header: {

@@ -398,6 +398,8 @@ struct UnplacedArea: View {
                 .contentShape(Rectangle())
                 .onDrop(of: [.plainText], delegate: unplaceDelegate)
                 ZStack {
+                    // 下のカードが透けないよう、不透明な地の上に色を重ねる
+                    Color(.secondarySystemBackground)
                     Theme.deltaDown.opacity(overTrash ? 0.28 : 0.12)
                     VStack(spacing: 4) {
                         Image(systemName: overTrash ? "trash.fill" : "trash").font(.app(22))

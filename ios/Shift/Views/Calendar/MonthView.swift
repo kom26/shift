@@ -261,6 +261,9 @@ struct PaydayCoinButton: View {
                 .frame(width: 12, height: 12)
                 .foregroundStyle(gold)
             .frame(width: 16, height: 16, alignment: .topTrailing)
+            // セルの枠線(0.5〜1pt)に被らないよう、角から 1.5pt だけ内側に置く
+            .padding(.top, 1.5)
+            .padding(.trailing, 1.5)
             .contentShape(Rectangle())
         .onTapGesture(perform: action)
         .allowsHitTesting(!isStamping)

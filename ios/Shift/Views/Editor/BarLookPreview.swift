@@ -39,7 +39,6 @@ struct BarLookPreview: View {
         .frame(width: total, alignment: .leading)
         .background(Color(.systemBackground))
         .overlay(Rectangle().strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5))
-        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("カレンダー上の見た目のプレビュー")
     }
