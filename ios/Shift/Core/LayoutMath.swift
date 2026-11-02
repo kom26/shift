@@ -2,8 +2,8 @@ import CoreGraphics
 
 /// 月表示とルート画面で共有する縦方向のレイアウト定数・計算
 enum LayoutMath {
-    static let numH: CGFloat = 15
-    static let bottomPad: CGFloat = 2
+    static let numH: CGFloat = 17
+    static let bottomPad: CGFloat = 0
     static let barGap: CGFloat = 1
     static let weekStripH: CGFloat = 16
     /// 給料日・記念日のアイコンの大きさ(マスの横幅の1/4の枠に収める)
