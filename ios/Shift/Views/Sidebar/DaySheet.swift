@@ -18,6 +18,7 @@ struct DaySheet: View {
 
     var body: some View {
         let summary = store.daySummary(date: date, isHoliday: { holidays.name(on: $0) != nil })
+        let annivs = store.anniversaries(on: date)
         NavigationStack {
             VStack(spacing: 0) {
                 Text(dateText)
@@ -28,13 +29,34 @@ struct DaySheet: View {
                     .padding(.vertical, 6)
                     .background(Color(.secondarySystemBackground))
                 badges(summary)
-                if summary.events.isEmpty {
+                if summary.events.isEmpty && annivs.isEmpty {
                     Spacer()
                     Text("予定はありません")
                         .foregroundStyle(Color.secondary)
                     Spacer()
                 } else {
                     List {
+                        // 記念日・誕生日(タップで詳細。メモもそこで見られる)
+                        ForEach(annivs) { a in
+                            NavigationLink {
+                                AnniversaryDetail(id: a.id, asOf: date)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    AnniversaryIcon(icon: a.icon, color: a.color, size: 24)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(a.name).font(.app(17))
+                                        if !a.memo.isEmpty {
+                                            Text(a.memo).font(.app(12)).foregroundStyle(.secondary).lineLimit(1)
+                                        }
+                                    }
+                                    Spacer(minLength: 8)
+                                    if let e = a.elapsedText(asOf: date) {
+                                        Text(e).font(.app(15, weight: .semibold).monospacedDigit())
+                                            .foregroundStyle(Color(hex: a.color))
+                                    }
+                                }
+                            }
+                        }
                         ForEach(summary.events) { row in
                             Button {
                                 dismiss()
