@@ -55,7 +55,9 @@ struct MonthView: View {
                 let weekRows = weeks.map { SpanLayout.rows(events: store.visibleEvents, weekCells: $0.map { Optional($0) }) }
                 let n = CGFloat(max(1, weeks.count))
                 let strip: CGFloat = summaryOn ? stripH : 0
-                let minRow = (geo.size.height - (n - 1)) / n
+                // 週の間の区切り線(Divider)の太さは 1pt ではなく 1px ぶん
+                let divH = 1 / UIScreen.main.scale
+                let minRow = (geo.size.height - (n - 1) * divH) / n
                 // 予定3本+週計行が入る高さを基準にバーを太くする(増えたら縦スクロール)
                 let barH = min(20, max(11, floor((minRow - stripH - numH - bottomPad) / 3) - 1))
                 let needed = weeks.indices.map { neededHeight(cells: weeks[$0], rows: weekRows[$0], barH: barH, strip: strip, annivMap: annivMap) }
@@ -65,9 +67,12 @@ struct MonthView: View {
                 let room = needed.map { $0 <= minRow ? minRow - max($0, floor3) : 0 }.map { max(0, $0) }
                 let roomTotal = room.reduce(0, +)
                 let taken = roomTotal > 0 ? min(extra, roomTotal) : 0
-                let heights: [CGFloat] = needed.indices.map { i in
+                let raw: [CGFloat] = needed.indices.map { i in
                     needed[i] > minRow ? needed[i] : minRow - (roomTotal > 0 ? taken * room[i] / roomTotal : 0)
                 }
+                // 吸収しきれずに余った高さ(最終週と月計の間の隙間になる)は、全週に均等に配る
+                let slack = max(0, geo.size.height - raw.reduce(0, +) - (n - 1) * divH)
+                let heights = raw.map { $0 + slack / n }
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
