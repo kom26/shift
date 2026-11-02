@@ -26,6 +26,10 @@ extension Store {
                 }
             } else if let seg = Rules.timedSegment(ev, on: date) {
                 timed.append((seg.top, DayEventRow(event: ev, isAllDay: false, isContinuation: cont)))
+            } else if !cont, ev.startTime != nil {
+                // 24:00 以降の開始(営業日の25:00 など)は、時刻としては翌日に入るが、始まった日の予定としても出す
+                let s = Double(Rules.minutes(ev.startTime) ?? 1440) / 1440
+                timed.append((s, DayEventRow(event: ev, isAllDay: false, isContinuation: false)))
             }
         }
         allDay.sort { $0.event.title < $1.event.title }

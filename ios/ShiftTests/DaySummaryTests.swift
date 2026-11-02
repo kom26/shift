@@ -30,9 +30,18 @@ struct DaySummaryTests {
     @Test func extendedTime() {
         let store = make()
         store.save(ev("x", "2026-10-01", allDay: false, st: "29:00", et: "36:00"))
-        #expect(store.daySummary(date: "2026-10-01").events.isEmpty)
+        // 始まった日(営業日)にも出る。翌日には前日からの予定として出る
+        let d1 = store.daySummary(date: "2026-10-01").events
+        #expect(d1.count == 1 && !d1[0].isContinuation)
         let d2 = store.daySummary(date: "2026-10-02").events
         #expect(d2.count == 1 && d2[0].isContinuation)
+    }
+
+    @Test func midnightStartShowsOnStartDay() {
+        let store = make()
+        store.save(ev("m", "2026-11-22", "2026-11-23", allDay: false, st: "24:00", et: "07:00"))
+        let d1 = store.daySummary(date: "2026-11-22").events
+        #expect(d1.count == 1 && !d1[0].isContinuation)
     }
 
     @Test func unplacedExcluded() {
