@@ -119,7 +119,7 @@ struct MonthView: View {
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(0..<7, id: \.self) { i in
-                        dayCell(cells[i], conflict: conflictDays.contains(cells[i]), annivs: annivMap[cells[i]] ?? [], iconSize: barH)
+                        dayCell(cells[i], conflict: conflictDays.contains(cells[i]), annivs: annivMap[cells[i]] ?? [], cellW: w)
                             .frame(width: w, height: geo.size.height)
                             .overlay(alignment: .leading) {
                                 Rectangle().fill(Color(.separator).opacity(0.5)).frame(width: 0.5)
@@ -143,13 +143,13 @@ struct MonthView: View {
     private func neededHeight(cells: [String], rows: [[BarSpan]], barH: CGFloat, strip: CGFloat,
                               annivMap: [String: [Anniversary]]) -> CGFloat {
         let lane = barH + barGap
-        var lanes = rows.count
+        var h = numH + CGFloat(rows.count) * lane + bottomPad + strip
         for col in 0..<7 where annivMap[cells[col]] != nil {
             let used = rows.indices.filter { r in rows[r].contains { $0.col <= col && col < $0.col + $0.span } }
                 .map { $0 + 1 }.max() ?? 0
-            lanes = max(lanes, used + 1)
+            h = max(h, numH + CGFloat(used) * lane + stripH)
         }
-        return numH + CGFloat(lanes) * lane + bottomPad + strip
+        return h
     }
 
     /// ドラッグ中の予定を ds に置くと、時間つきの他の予定と重なるか
@@ -158,7 +158,7 @@ struct MonthView: View {
         return DropCheck.overlaps(moved: m, others: store.events)
     }
 
-    private func dayCell(_ ds: String, conflict: Bool, annivs: [Anniversary], iconSize: CGFloat) -> some View {
+    private func dayCell(_ ds: String, conflict: Bool, annivs: [Anniversary], cellW: CGFloat) -> some View {
         let inMonth = Rules.isSameMonth(ds, as: anchor)
         let holiday = holidays.name(on: ds)
         let type = Rules.dayType(ds, isHoliday: holiday != nil)
@@ -206,17 +206,18 @@ struct MonthView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            // 予定のバーの下(右下)に右詰めで並べる。足りない分は週の高さを広げて確保している
-            HStack(spacing: 1) {
-                ForEach(annivs.prefix(3)) { a in
-                    AnniversaryIcon(icon: a.icon, color: a.color, size: iconSize)
+            // セルの幅を4等分した枠に1個ずつ、週計の行と同じ高さの帯で右下に右詰めで並べる。
+            // 足りない分は週の高さを広げて確保している
+            HStack(spacing: 0) {
+                ForEach(annivs.prefix(4)) { a in
+                    AnniversaryIcon(icon: a.icon, color: a.color, size: LayoutMath.slotIconSize)
+                        .frame(width: cellW / 4, height: stripH)
+                        .contentShape(Rectangle())
                         .onTapGesture { annivTarget = AnnivTarget(id: a.id, date: ds) }
                         .accessibilityAddTraits(.isButton)
                         .accessibilityLabel(a.name)
                 }
             }
-            .padding(.trailing, 2)
-            .padding(.bottom, 1)
             .allowsHitTesting(!isStamping)
         }
         .contentShape(Rectangle())
@@ -258,12 +259,10 @@ struct PaydayCoinButton: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 12, height: 12)
+                .frame(width: LayoutMath.slotIconSize, height: LayoutMath.slotIconSize)
                 .foregroundStyle(gold)
-            .frame(width: 16, height: 16, alignment: .topTrailing)
-            // セルの枠線(0.5〜1pt)に被らないよう、角から 1.5pt だけ内側に置く
-            .padding(.top, 1.5)
-            .padding(.trailing, 1.5)
+            // マスの横幅の1/4(約14pt)の枠の中央に、記念日アイコンと同じ大きさで置く。枠線には被らない
+            .frame(width: 14, height: LayoutMath.numH)
             .contentShape(Rectangle())
         .onTapGesture(perform: action)
         .allowsHitTesting(!isStamping)

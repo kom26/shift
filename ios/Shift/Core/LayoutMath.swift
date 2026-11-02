@@ -6,6 +6,8 @@ enum LayoutMath {
     static let bottomPad: CGFloat = 2
     static let barGap: CGFloat = 1
     static let weekStripH: CGFloat = 16
+    /// 給料日・記念日のアイコンの大きさ(マスの横幅の1/4の枠に収める)
+    static let slotIconSize: CGFloat = 12
     static let refBarH: CGFloat = 13
     static let weekdayHeaderH: CGFloat = 24
     static let monthStripH: CGFloat = 20
