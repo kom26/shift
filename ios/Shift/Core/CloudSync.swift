@@ -1,4 +1,11 @@
 import Foundation
+import Observation
+
+/// 新しい端末で、iCloud のデータが届くまで「引き継ぎ中」を出すための状態
+@Observable
+final class SyncStatus {
+    var restoring = false
+}
 
 /// iCloud のキーバリューストアに相当する入れ物(テストでは差し替える)
 protocol KeyValueBacking: AnyObject {
@@ -39,13 +46,24 @@ final class CloudSync {
     /// iCloud のデータを取り込んだあとに呼ぶ(アラームの入れ直し用)
     var onApplied: (() -> Void)?
 
+    let status: SyncStatus
+    private let available: () -> Bool
+    private let restoreTimeout: TimeInterval
+    private var restoreWork: DispatchWorkItem?
+
     init(store: Store, backing: KeyValueBacking = UbiquitousBacking(),
          defaults: UserDefaults = .standard,
-         backupURL: URL = URL.applicationSupportDirectory.appending(path: "sync-backup.json")) {
+         backupURL: URL = URL.applicationSupportDirectory.appending(path: "sync-backup.json"),
+         status: SyncStatus = SyncStatus(),
+         available: @escaping () -> Bool = { CloudSync.iCloudAvailable },
+         restoreTimeout: TimeInterval = 8) {
         self.store = store
         self.backing = backing
         self.defaults = defaults
         self.backupURL = backupURL
+        self.status = status
+        self.available = available
+        self.restoreTimeout = restoreTimeout
     }
 
     deinit {
@@ -67,6 +85,27 @@ final class CloudSync {
             object: nil, queue: .main) { [weak self] _ in self?.reconcile() }
         backing.synchronize()
         reconcile()
+        beginRestoreIfNeeded()
+    }
+
+    /// 一度も同期していない空の端末で iCloud にサインインしているときは、データが届くまで待つ。
+    /// 届く前に予定を入れると、この端末のほうが新しい扱いになって iCloud を上書きしてしまうため。
+    /// iCloud に何もない(本当の新規)場合は、時間切れで通常どおり始める
+    private func beginRestoreIfNeeded() {
+        guard let store, available(),
+              defaults.double(forKey: Self.localTimeKey) == 0,
+              backing.data(forKey: Self.snapshotKey) == nil,
+              store.syncSnapshot().isEmpty else { return }
+        status.restoring = true
+        let work = DispatchWorkItem { [weak self] in self?.endRestore() }
+        restoreWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + restoreTimeout, execute: work)
+    }
+
+    private func endRestore() {
+        restoreWork?.cancel()
+        restoreWork = nil
+        status.restoring = false
     }
 
     /// アプリを開いたとき・iCloud 側が変わったときに、新しいほうに揃える
@@ -84,6 +123,7 @@ final class CloudSync {
             store.applySnapshot(remote)
             defaults.set(remoteT, forKey: Self.localTimeKey)
             markSynced()
+            endRestore()
             onApplied?()
         } else if localT > remoteT || (remote == nil && !store.syncSnapshot().isEmpty) {
             if localT == 0 { defaults.set(Date().timeIntervalSince1970, forKey: Self.localTimeKey) }
@@ -93,6 +133,7 @@ final class CloudSync {
 
     /// 端末で変更があった。少し待ってからまとめて送る
     func localChanged() {
+        guard !status.restoring else { return }
         defaults.set(Date().timeIntervalSince1970, forKey: Self.localTimeKey)
         pushWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.push() }

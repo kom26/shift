@@ -5,6 +5,7 @@ struct ShiftApp: App {
     @State private var store = Store()
     @State private var holidays = Holidays()
     @State private var sync: CloudSync?
+    @State private var syncStatus = SyncStatus()
     @AppStorage("startMonday") private var startMonday = false
 
     init() {
@@ -19,9 +20,12 @@ struct ShiftApp: App {
                 .environment(store)
                 .environment(holidays)
                 .tint(Theme.accent)
+                .overlay {
+                    if syncStatus.restoring { RestoringOverlay() }
+                }
                 .task {
                     guard sync == nil else { return }
-                    let s = CloudSync(store: store)
+                    let s = CloudSync(store: store, status: syncStatus)
                     store.onLocalChange = { [weak s] in
                         s?.localChanged()
                         WidgetSync.publish(store: store)
