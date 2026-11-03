@@ -38,7 +38,6 @@ targets:
     entitlements:
       path: ShiftApp.entitlements
       properties:
-        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)$(CFBundleIdentifier)
         com.apple.developer.applesignin:
           - Default
         com.apple.security.application-groups:
@@ -47,6 +46,8 @@ targets:
       - target: ShiftWidget
       - package: Firebase
         product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
       - package: GoogleSignIn
         product: GoogleSignIn
     settings:
@@ -70,7 +71,6 @@ targets:
       - path: Shift/Core
         excludes:
           - AlarmService.swift
-          - CloudSync.swift
           - DragState.swift
           - WidgetSync.swift
       - Shift/Views/Theme.swift

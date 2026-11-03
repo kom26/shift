@@ -119,19 +119,22 @@ final class AuthService {
     }
 
     /// アカウントを削除する。しばらく前にログインしたままだと拒否されるので、そのときは再ログインを促す
-    func deleteAccount() async {
-        guard let user = Auth.auth().currentUser else { return }
+    @discardableResult
+    func deleteAccount() async -> Bool {
+        guard let user = Auth.auth().currentUser else { return false }
         busy = true
         defer { busy = false }
         do {
             try await user.delete()
             GIDSignIn.sharedInstance.signOut()
+            return true
         } catch {
             if (error as NSError).code == AuthErrorCode.requiresRecentLogin.rawValue {
                 errorMessage = "セキュリティのため、もう一度ログインしてから削除してください"
             } else {
                 errorMessage = "アカウントを削除できませんでした"
             }
+            return false
         }
     }
 

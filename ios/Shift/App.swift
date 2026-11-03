@@ -4,17 +4,29 @@ import SwiftUI
 
 @main
 struct ShiftApp: App {
-    @State private var store = Store()
+    @State private var store: Store
     @State private var holidays = Holidays()
-    @State private var sync: CloudSync?
-    @State private var syncStatus = SyncStatus()
-    @AppStorage("startMonday") private var startMonday = false
-
+    @State private var sync: AccountSync
     @State private var auth: AuthService
+    @AppStorage("startMonday") private var startMonday = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         AppFont.register()
         FirebaseApp.configure()
+        let s = Store()
+        let a = AccountSync(store: s, backing: FirestoreBacking())
+        s.onLocalChange = { [weak a, weak s] in
+            a?.localChanged()
+            if let s { WidgetSync.publish(store: s) }
+        }
+        a.onApplied = { [weak s] in
+            guard let s else { return }
+            WidgetSync.publish(store: s)
+            Task { await AlarmService.shared.refresh(store: s) }
+        }
+        _store = State(initialValue: s)
+        _sync = State(initialValue: a)
         _auth = State(initialValue: AuthService())
     }
 
@@ -26,25 +38,23 @@ struct ShiftApp: App {
                 .environment(store)
                 .environment(holidays)
                 .environment(auth)
+                .environment(sync)
                 .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
                 .tint(Theme.accent)
                 .overlay {
-                    if syncStatus.restoring { RestoringOverlay() }
+                    if sync.status.restoring || sync.status.choice != nil { RestoringOverlay(sync: sync) }
                 }
-                .task {
-                    guard sync == nil else { return }
-                    let s = CloudSync(store: store, status: syncStatus)
-                    store.onLocalChange = { [weak s] in
-                        s?.localChanged()
-                        WidgetSync.publish(store: store)
+                // ログインしている間だけ同期する。ログアウトや別のアカウントへの切り替えでやり直す
+                .task(id: auth.account?.uid) {
+                    if let uid = auth.account?.uid {
+                        await sync.start(uid: uid)
+                    } else {
+                        sync.stop()
                     }
-                    s.onApplied = {
-                        WidgetSync.publish(store: store)
-                        Task { await AlarmService.shared.refresh(store: store) }
-                    }
-                    sync = s
-                    s.start()
                     WidgetSync.publish(store: store)
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { sync.retryIfNeeded() }
                 }
                 .onChange(of: startMonday) { WidgetSync.publish(store: store) }
         }

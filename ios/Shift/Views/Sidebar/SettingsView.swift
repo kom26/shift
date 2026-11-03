@@ -94,27 +94,6 @@ struct SettingsView: View {
                         EditButton().font(.app(13))
                     }
                 }
-                Section {
-                    HStack {
-                        Text("iCloud で同期")
-                        Spacer()
-                        Text(CloudSync.iCloudAvailable ? "オン" : "オフ")
-                            .foregroundStyle(CloudSync.iCloudAvailable ? Theme.accent : Color.secondary)
-                    }
-                    if CloudSync.iCloudAvailable, let t = CloudSync.lastSync {
-                        HStack {
-                            Text("最後の同期")
-                            Spacer()
-                            Text(t.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(.secondary)
-                        }
-                    }
-                } header: {
-                    Text("データのバックアップ")
-                } footer: {
-                    Text(CloudSync.iCloudAvailable
-                         ? "予定・職場・よく使う予定は iCloud に自動で保存されます。機種変更しても、同じ Apple ID で iCloud にサインインすれば引き継がれます。"
-                         : "iPhone の「設定」で Apple ID にサインインして iCloud をオンにすると、予定が自動で保存され、機種変更でも引き継げます。サインインしなくても今までどおり使えます。")
-                }
             }
             .navigationTitle("設定")
             .navigationBarTitleDisplayMode(.inline)

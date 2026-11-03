@@ -4,6 +4,7 @@ import SwiftUI
 /// 設定の「アカウント」。ログインは任意で、していなくても今までどおり使える
 struct AccountSection: View {
     @Environment(AuthService.self) private var auth
+    @Environment(AccountSync.self) private var sync
     @Environment(\.colorScheme) private var scheme
     @State private var confirmDelete = false
 
@@ -17,6 +18,13 @@ struct AccountSection: View {
                     }
                     Spacer()
                     if auth.busy { ProgressView() }
+                }
+                if let t = sync.status.lastSync {
+                    HStack {
+                        Text("最後の同期")
+                        Spacer()
+                        Text(t.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(.secondary)
+                    }
                 }
                 Button("ログアウト") { auth.signOut() }
                 Button("アカウントを削除", role: .destructive) { confirmDelete = true }
@@ -47,11 +55,19 @@ struct AccountSection: View {
             Text("アカウント")
         } footer: {
             Text(auth.account == nil
-                 ? "ログインすると、予定がアカウントに保存され、ほかの端末でも使えるようになります。ログインしなくても今までどおり使えます。"
-                 : "アカウントを削除すると、ログイン情報が消えます。端末の中の予定は残ります。")
+                 ? "ログインすると、予定・職場・よく使う予定・記念日がアカウントに保存され、機種変更でも引き継げます。ログインしなくても今までどおり使えます。"
+                 : "予定などは自動でアカウントに保存されます。アカウントを削除すると、アカウントのデータとログイン情報が消えます。端末の中の予定は残ります。")
         }
         .alert("アカウントを削除しますか?", isPresented: $confirmDelete) {
-            Button("削除", role: .destructive) { Task { await auth.deleteAccount() } }
+            Button("削除", role: .destructive) {
+                Task {
+                    // 先にアカウントのデータを消す。削除に失敗したら、端末のデータをもう一度送って元に戻す
+                    await sync.eraseRemote()
+                    if await !auth.deleteAccount(), let uid = auth.account?.uid {
+                        await sync.start(uid: uid)
+                    }
+                }
+            }
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("この操作は取り消せません。")
