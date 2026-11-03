@@ -1,3 +1,5 @@
+import FirebaseCore
+import GoogleSignIn
 import SwiftUI
 
 @main
@@ -8,8 +10,12 @@ struct ShiftApp: App {
     @State private var syncStatus = SyncStatus()
     @AppStorage("startMonday") private var startMonday = false
 
+    @State private var auth: AuthService
+
     init() {
         AppFont.register()
+        FirebaseApp.configure()
+        _auth = State(initialValue: AuthService())
     }
 
     var body: some Scene {
@@ -19,6 +25,8 @@ struct ShiftApp: App {
                 .environment(\.locale, Locale(identifier: "ja_JP"))
                 .environment(store)
                 .environment(holidays)
+                .environment(auth)
+                .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
                 .tint(Theme.accent)
                 .overlay {
                     if syncStatus.restoring { RestoringOverlay() }

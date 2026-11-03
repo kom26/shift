@@ -17,6 +17,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                AccountSection()
                 Section("カレンダー") {
                     Toggle("週の始まりを月曜にする", isOn: $startMonday)
                     Button { showBarFont = true } label: {
