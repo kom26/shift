@@ -69,7 +69,9 @@ struct CloudSyncTests {
     }
 
     @Test func emptyNewDeviceWaitsForICloudData() {
-        let sync = makeSync(makeStore(), MemoryBacking(), available: true)
+        let store = makeStore()
+        let sync = makeSync(store, MemoryBacking(), available: true)
+        defer { withExtendedLifetime(store) {} }
         sync.start()
         #expect(sync.status.restoring)
         sync.localChanged()
@@ -98,7 +100,9 @@ struct CloudSyncTests {
     }
 
     @Test func notWaitingWhenSignedOutOrAlreadyHasData() {
-        let signedOut = makeSync(makeStore(), MemoryBacking(), available: false)
+        let s0 = makeStore()
+        defer { withExtendedLifetime(s0) {} }
+        let signedOut = makeSync(s0, MemoryBacking(), available: false)
         signedOut.start()
         #expect(!signedOut.status.restoring)
 
@@ -110,7 +114,9 @@ struct CloudSyncTests {
     }
 
     @Test func restoringEndsByTimeout() async throws {
-        let sync = makeSync(makeStore(), MemoryBacking(), available: true, timeout: 0.1)
+        let store = makeStore()
+        defer { withExtendedLifetime(store) {} }
+        let sync = makeSync(store, MemoryBacking(), available: true, timeout: 0.1)
         sync.start()
         #expect(sync.status.restoring)
         try await Task.sleep(for: .seconds(0.4))
