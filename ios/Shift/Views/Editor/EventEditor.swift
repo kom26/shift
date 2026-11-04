@@ -39,6 +39,12 @@ struct EventEditor: View {
     @State private var endWarningTask: Task<Void, Never>?
     @State private var addingWorkplace = false
     @State private var workplaceCountBeforeAdd = 0
+    /// 「自分の予定」に入れるか。通常予定は、レイヤーを必ずどれか 1 つ選ぶ(最後の 1 つは外せない)
+    @State private var includesMine: Bool
+    /// 自分で作ったレイヤーのうち、選んでいるもの
+    @State private var extraLayers: [String]
+    @State private var addingLayer = false
+    @State private var layerCountBeforeAdd = 0
     @FocusState private var focusedField: Field?
 
     enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime, adjustment, dailyWage }
@@ -63,6 +69,9 @@ struct EventEditor: View {
         _workplaceId = State(initialValue: original.workplaceId)
         _isWork = State(initialValue: isNew || original.workplaceId != nil)
         _breakInNight = State(initialValue: original.breakInNight)
+        let layerIds = original.layerIds ?? []
+        _includesMine = State(initialValue: layerIds.isEmpty || layerIds.contains(Layer.mineId))
+        _extraLayers = State(initialValue: layerIds.filter { $0 != Layer.mineId })
         _adjustmentText = State(initialValue: original.adjustment.map { $0 == 0 ? "" : String($0) } ?? "")
         _dailyWageText = State(initialValue: original.dailyWage.map { $0 == 0 ? "" : String($0) } ?? "")
         _barShowsTitle = State(initialValue: original.barShowsTitle ?? false)
@@ -127,6 +136,13 @@ struct EventEditor: View {
                     TextField("タイトル(必須)", text: $title)
                         .focused($focusedField, equals: .title)
                     ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
+                }
+                Section {
+                    layerChips
+                } header: {
+                    Text("レイヤー")
+                } footer: {
+                    Text(isWork ? "職場のレイヤーに加えて、ほかのレイヤーにも入れられます。" : "複数選べます。必ずどれか 1 つは選びます。")
                 }
                 Section {
                     Toggle("終日", isOn: $allDay)
@@ -239,6 +255,83 @@ struct EventEditor: View {
         .presentationDetents([.large])
         .sheet(isPresented: $addingWorkplace, onDismiss: selectNewWorkplace) {
             WorkplaceEditor(workplace: nil)
+        }
+        .sheet(isPresented: $addingLayer, onDismiss: selectNewLayer) {
+            LayerEditor(layer: store.newLayerDraft(), isNew: true)
+        }
+    }
+
+    // MARK: レイヤー
+
+    /// 選べるレイヤー。勤務予定は職場がレイヤーを兼ねるので、職場以外(自分で作ったもの)だけ
+    private var selectableLayers: [Layer] { isWork ? store.layers : store.allLayers }
+
+    private func isLayerOn(_ id: String) -> Bool {
+        id == Layer.mineId ? includesMine : extraLayers.contains(id)
+    }
+
+    private func toggleLayer(_ id: String) {
+        if isLayerOn(id) {
+            // 通常予定は、最後の 1 つを外せない
+            let selected = (includesMine ? 1 : 0) + extraLayers.count
+            if !isWork, selected <= 1 { return }
+            if id == Layer.mineId { includesMine = false } else { extraLayers.removeAll { $0 == id } }
+        } else {
+            if id == Layer.mineId { includesMine = true } else { extraLayers.append(id) }
+        }
+    }
+
+    private func selectNewLayer() {
+        guard store.layers.count > layerCountBeforeAdd, let l = store.layers.last else { return }
+        extraLayers.append(l.id)
+    }
+
+    /// 保存する layerIds。「自分の予定」だけ(または何も無し)なら nil
+    private func builtLayerIds() -> [String]? {
+        let known = Set(store.layers.map(\.id))
+        let extras = extraLayers.filter { known.contains($0) }
+        if isWork {
+            // 勤務予定は、いつも「自分の予定」にも入る
+            return extras.isEmpty ? nil : [Layer.mineId] + extras
+        }
+        let ids = (includesMine ? [Layer.mineId] : []) + extras
+        return ids.isEmpty || ids == [Layer.mineId] ? nil : ids
+    }
+
+    private var layerChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(selectableLayers) { l in
+                    let on = isLayerOn(l.id)
+                    Button { toggleLayer(l.id) } label: {
+                        HStack(spacing: 6) {
+                            ColorDot(hex: l.color, size: 10)
+                            Text(l.name).font(.app(13)).foregroundStyle(.primary)
+                            if on {
+                                Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Theme.accent)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color(.secondarySystemFill)))
+                        .overlay(Capsule().stroke(Theme.accent, lineWidth: on ? 2 : 0))
+                    }
+                    .buttonStyle(.borderless)
+                }
+                Button {
+                    layerCountBeforeAdd = store.layers.count
+                    addingLayer = true
+                } label: {
+                    Image(systemName: "plus").font(.footnote).foregroundStyle(Theme.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .overlay(Capsule().strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("レイヤーを追加")
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 3)
         }
     }
 
@@ -778,6 +871,7 @@ struct EventEditor: View {
         e.workHours = Rules.workHours(startDate: e.startDate, startTime: st, endDate: e.endDate, endTime: et,
                                       allDay: allDay, breakMinutes: effectiveBreak)
         e.workplaceId = workplaceId
+        e.layerIds = builtLayerIds()
         e.breakInNight = breakInNight
         e.barShowsTitle = barShowsTitle ? true : nil
         e.adjustment = Int(adjustmentText).flatMap { $0 == 0 ? nil : $0 }
@@ -799,7 +893,7 @@ struct EventEditor: View {
     }
 }
 
-private struct ColorRow: View {
+struct ColorRow: View {
     @Binding var color: String
     let recent: [String]
     var onDeleteRecent: (String) -> Void = { _ in }

@@ -28,6 +28,9 @@ final class Store {
     private(set) var checkedWorkplaces: Set<String>
     private(set) var customColors: [String]
     private(set) var workplaces: [Workplace]
+    /// 自分で作ったレイヤー(標準の「自分の予定」は含まない)
+    private(set) var layers: [Layer]
+    private(set) var checkedLayers: Set<String>
     /// よく使う予定(日付なしのテンプレート)
     var favorites: [ShiftEvent] = []
     var anniversaries: [Anniversary] = []
@@ -46,6 +49,8 @@ final class Store {
         static let custom = "shift-custom-colors"
         static let workplaces = "shift-workplaces"
         static let hiddenSuggestions = "shift-hidden-suggestions"
+        static let layers = "shift-layers"
+        static let checkedLayers = "shift-checked-layers"
     }
 
     init(fileURL: URL = Store.defaultFileURL, defaults: UserDefaults = .standard) {
@@ -56,6 +61,9 @@ final class Store {
         customColors = Array((defaults.stringArray(forKey: Keys.custom) ?? []).prefix(Self.maxRecentColors))
         workplaces = defaults.data(forKey: Keys.workplaces)
             .flatMap { try? JSONDecoder().decode([Workplace].self, from: $0) } ?? []
+        layers = defaults.data(forKey: Keys.layers)
+            .flatMap { try? JSONDecoder().decode([Layer].self, from: $0) } ?? []
+        checkedLayers = Set(defaults.stringArray(forKey: Keys.checkedLayers) ?? [])
         if let data = try? Data(contentsOf: Self.alarmsURL(for: fileURL)),
            let list = try? JSONDecoder().decode([AlarmEntry].self, from: data) {
             alarmEntries = list
@@ -84,13 +92,25 @@ final class Store {
     /// カスタム色の「最近」に残す最大数
     static let maxRecentColors = 7
 
-    /// 配置済みで、職場フィルタを通る予定(フィルタが空なら全て)
+    /// 配置済みで、職場フィルタとレイヤーフィルタの両方を通る予定(フィルタが空なら全て)
     var visibleEvents: [ShiftEvent] {
-        events.filter {
-            $0.placed && $0.startDate != nil
-                && (checkedWorkplaces.isEmpty || checkedWorkplaces.contains(workplace(for: $0)?.id ?? Store.noWorkplaceKey))
-        }
+        events.filter { $0.placed && $0.startDate != nil && passesFilters($0) }
     }
+
+    private func passesWorkplaceFilter(_ e: ShiftEvent) -> Bool {
+        checkedWorkplaces.isEmpty || checkedWorkplaces.contains(workplace(for: e)?.id ?? Store.noWorkplaceKey)
+    }
+
+    private func passesLayerFilter(_ e: ShiftEvent) -> Bool {
+        checkedLayers.isEmpty || e.effectiveLayerIds.contains { checkedLayers.contains($0) }
+    }
+
+    private func passesFilters(_ e: ShiftEvent) -> Bool { passesWorkplaceFilter(e) && passesLayerFilter(e) }
+
+    /// 標準の「自分の予定」と、自分で作ったレイヤー
+    var allLayers: [Layer] { [Layer.mine] + layers }
+
+    var isFiltering: Bool { !checkedWorkplaces.isEmpty || !checkedLayers.isEmpty }
 
     /// 開始日が from...to に入る予定を職場ごとに合計する(職場なしは色ごと)
     func totals(from: String, to: String, isHoliday: (String) -> Bool = { _ in false }, orderBy: [String]? = nil) -> [ColorTotal] {
@@ -203,11 +223,11 @@ final class Store {
 
     // MARK: 変更
 
-    /// 職場フィルタ中に、フィルタで隠れる予定が配置された(追加・編集・ドラッグ)ら、見えるようにフィルタを外す
+    /// フィルタ中に、フィルタで隠れる予定が配置された(追加・編集・ドラッグ)ら、見えるようにフィルタを外す
     private func revealIfFiltered(_ event: ShiftEvent) {
-        guard !checkedWorkplaces.isEmpty, event.placed, event.startDate != nil,
-              !checkedWorkplaces.contains(workplace(for: event)?.id ?? Store.noWorkplaceKey) else { return }
-        clearWorkplaceFilter()
+        guard event.placed, event.startDate != nil else { return }
+        if !passesWorkplaceFilter(event) { clearWorkplaceFilter() }
+        if !passesLayerFilter(event) { clearLayerFilter() }
     }
 
     func save(_ event: ShiftEvent) {
@@ -314,6 +334,72 @@ final class Store {
         defaults.set([String](), forKey: Keys.checked)
     }
 
+    func toggleLayerFilter(_ id: String) {
+        if checkedLayers.contains(id) { checkedLayers.remove(id) } else { checkedLayers.insert(id) }
+        defaults.set(Array(checkedLayers), forKey: Keys.checkedLayers)
+    }
+
+    func clearLayerFilter() {
+        checkedLayers = []
+        defaults.set([String](), forKey: Keys.checkedLayers)
+    }
+
+    func clearFilters() {
+        clearWorkplaceFilter()
+        clearLayerFilter()
+    }
+
+    // MARK: レイヤー
+
+    @discardableResult
+    func addLayer(name: String, color: String) -> Layer? {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty else { return nil }
+        let layer = Layer(id: UUID().uuidString, name: n, color: color)
+        layers.append(layer)
+        persistLayers()
+        return layer
+    }
+
+    func updateLayer(id: String, name: String, color: String) {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty, let i = layers.firstIndex(where: { $0.id == id }) else { return }
+        layers[i].name = n
+        layers[i].color = color
+        persistLayers()
+    }
+
+    /// レイヤーを消す。入っていた予定は消さず、そのレイヤーだけ外す(ほかに無ければ「自分の予定」に戻る)
+    func deleteLayer(id: String) {
+        guard layers.contains(where: { $0.id == id }) else { return }
+        layers.removeAll { $0.id == id }
+        var touched = false
+        for i in events.indices {
+            guard let ids = events[i].layerIds, ids.contains(id) else { continue }
+            let rest = ids.filter { $0 != id }
+            events[i].layerIds = rest.isEmpty ? nil : rest
+            touched = true
+        }
+        for i in favorites.indices {
+            guard let ids = favorites[i].layerIds, ids.contains(id) else { continue }
+            let rest = ids.filter { $0 != id }
+            favorites[i].layerIds = rest.isEmpty ? nil : rest
+            persistFavorites()
+        }
+        if checkedLayers.contains(id) { toggleLayerFilter(id) }
+        persistLayers()
+        if touched { persist() }
+    }
+
+    func layerEventCount(_ id: String) -> Int {
+        events.filter { $0.effectiveLayerIds.contains(id) }.count
+    }
+
+    private func persistLayers() {
+        if let data = try? JSONEncoder().encode(layers) { defaults.set(data, forKey: Keys.layers) }
+        notifyChanged()
+    }
+
     func rememberColor(_ color: String) {
         guard !Self.defaultColors.contains(color) else { return }
         customColors = Array(([color] + customColors.filter { $0 != color }).prefix(Self.maxRecentColors))
@@ -414,7 +500,7 @@ final class Store {
     func syncSnapshot() -> SyncSnapshot {
         SyncSnapshot(events: events, workplaces: workplaces, favorites: favorites,
                      customColors: customColors, hiddenSuggestions: Array(hiddenSuggestions).sorted(),
-                     alarms: alarmEntries, anniversaries: anniversaries)
+                     alarms: alarmEntries, anniversaries: anniversaries, layers: layers)
     }
 
     /// iCloud から届いたデータで置き換える(同期の送り返しは起こさない)
@@ -436,6 +522,15 @@ final class Store {
         if let alarms = snap.alarms {
             alarmEntries = alarms
             persistAlarms()
+        }
+        if let list = snap.layers {
+            layers = list
+            persistLayers()
+            let known = Set(allLayers.map(\.id))
+            if !checkedLayers.isSubset(of: known) {
+                checkedLayers = checkedLayers.intersection(known)
+                defaults.set(Array(checkedLayers), forKey: Keys.checkedLayers)
+            }
         }
         defaults.set(customColors, forKey: Keys.custom)
         defaults.set(Array(hiddenSuggestions), forKey: Keys.hiddenSuggestions)

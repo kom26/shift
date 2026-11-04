@@ -20,9 +20,11 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     var adjustment: Int? = nil
     /// 日給の職場での、その予定の日給(円・手入力)
     var dailyWage: Int? = nil
+    /// 入れるレイヤー(複数可)。nil・空は「自分の予定」。古いデータには無い
+    var layerIds: [String]? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle, adjustment, dailyWage
+        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle, adjustment, dailyWage, layerIds
     }
 
     static func new(on date: String) -> ShiftEvent {
@@ -62,6 +64,7 @@ extension ShiftEvent {
         barShowsTitle = try c.decodeIfPresent(Bool.self, forKey: .barShowsTitle)
         adjustment = try c.decodeIfPresent(Int.self, forKey: .adjustment)
         dailyWage = try c.decodeIfPresent(Int.self, forKey: .dailyWage)
+        layerIds = try c.decodeIfPresent([String].self, forKey: .layerIds)
     }
 }
 

@@ -45,6 +45,10 @@ final class FirestoreBacking: RemoteDocs {
         return { registration.remove() }
     }
 
+    func delete(uid: String, collection: SyncCollection, id: String) {
+        col(uid, collection).document(id).delete()
+    }
+
     func deleteAll(uid: String) async throws {
         for c in SyncCollection.allCases {
             let snap = try await col(uid, c).getDocuments()

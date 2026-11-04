@@ -32,6 +32,8 @@ struct RootView: View {
     @State private var editing: EditorTarget?
     @State private var showSettings = false
     @State private var showFilter = false
+    @State private var showDrawer = false
+    @State private var showLayers = false
     @State private var paydayTarget: PaydayTarget?
     @State private var dayTarget: DayTarget?
     @State private var pagerCommand: PagerCommand?
@@ -84,6 +86,9 @@ struct RootView: View {
                     .allowsHitTesting(false)
             }
         }
+        .overlay {
+            if showDrawer { drawer }
+        }
         .onChange(of: anchor) { _, _ in
             // 「今日」ボタンで動いたときだけ、今日を選んだ状態にする
             selectedDate = selectTodayAfterMove ? Rules.today() : nil
@@ -117,6 +122,56 @@ struct RootView: View {
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showFilter) { FilterSheet() }
+        .sheet(isPresented: $showLayers) { LayerListView() }
+    }
+
+    private func closeDrawer(then action: (() -> Void)? = nil) {
+        withAnimation(.snappy) { showDrawer = false }
+        if let action { DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: action) }
+    }
+
+    /// 左上のメニューから開く。カレンダーの切り替えと、レイヤー・設定への入り口
+    private var drawer: some View {
+        ZStack(alignment: .leading) {
+            Color.black.opacity(0.3).ignoresSafeArea()
+                .onTapGesture { closeDrawer() }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("カレンダー")
+                    .font(.app(12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
+                drawerRow(title: "自分のカレンダー", icon: "calendar", selected: true) { closeDrawer() }
+                Divider().padding(.vertical, 8)
+                drawerRow(title: "レイヤーの管理", icon: "square.stack.3d.up") { closeDrawer { showLayers = true } }
+                drawerRow(title: "設定", icon: "gearshape") { closeDrawer { showSettings = true } }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .frame(width: 280)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(Color(.systemBackground).ignoresSafeArea())
+            .shadow(color: .black.opacity(0.2), radius: 10, x: 4)
+            .gesture(DragGesture().onEnded { if $0.translation.width < -40 { closeDrawer() } })
+            .transition(.move(edge: .leading))
+        }
+    }
+
+    private func drawerRow(title: String, icon: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).frame(width: 24)
+                Text(title).font(.app(16, weight: selected ? .semibold : .regular))
+                Spacer()
+                if selected { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
+            }
+            .foregroundStyle(selected ? Theme.accent : Color.primary)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 44)
+            .background(selected ? Theme.accentSoft : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var header: some View {
@@ -125,13 +180,13 @@ struct RootView: View {
                 stampBanner
             } else {
                 HStack(spacing: 8) {
-                    Button { showSettings = true } label: {
-                        Image(systemName: "gearshape").font(.title3)
+                    Button { withAnimation(.snappy) { showDrawer = true } } label: {
+                        Image(systemName: "line.3.horizontal").font(.title3)
                             .padding(.horizontal, 6)
                             .frame(minHeight: 36)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("設定")
+                    .accessibilityLabel("メニュー")
                     Spacer(minLength: 0)
                     Button { pagerCommand = PagerCommand(direction: -1, id: UUID()) } label: { Image(systemName: "chevron.left") }
                     Text(title).font(.app(17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
@@ -169,11 +224,11 @@ struct RootView: View {
                         .contentShape(Rectangle())
                 }
                 Button { showFilter = true } label: {
-                    Image(systemName: store.checkedWorkplaces.isEmpty
-                          ? "line.3.horizontal.decrease.circle"
-                          : "line.3.horizontal.decrease.circle.fill")
+                    Image(systemName: store.isFiltering
+                          ? "line.3.horizontal.decrease.circle.fill"
+                          : "line.3.horizontal.decrease.circle")
                         .font(.app(20))
-                        .foregroundStyle(store.checkedWorkplaces.isEmpty ? Color.primary : Theme.accent)
+                        .foregroundStyle(store.isFiltering ? Theme.accent : Color.primary)
                         .frame(minWidth: 36, minHeight: 36)
                         .contentShape(Rectangle())
                 }
