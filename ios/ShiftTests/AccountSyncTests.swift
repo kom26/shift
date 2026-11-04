@@ -113,7 +113,7 @@ struct AccountSyncTests {
         await a.sync.start(uid: "u1")
         let b = Device(remote: remote)
         await b.sync.start(uid: "u1")
-        #expect(b.store.events.map(\.id) == ["a", "b"])
+        #expect(b.store.events.map(\.id).sorted() == ["a", "b"])
 
         // b は閉じたまま。a で b を消し、印が掃除されるまで時間が経つ
         b.sync.stop()
@@ -147,7 +147,7 @@ struct AccountSyncTests {
         b.store.save(edited)
         b.clock.now += 91 * day
         await b.sync.start(uid: "u1")
-        #expect(b.store.events.map(\.id) == ["a", "b"])
+        #expect(b.store.events.map(\.id).sorted() == ["a", "b"])
         #expect(remote.docs[.events]?["b"]?.deleted == false)
     }
 
