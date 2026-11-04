@@ -23,7 +23,7 @@ struct LayerTests {
     }
 
     @Test func oldEventJSONDecodesAndLayerlessEventsAreEncodedUnchanged() throws {
-        let old = #"{"id":"a","title":"t","memo":"","color":"#fff","placed":true,"allDay":true}"#
+        let old = ##"{"id":"a","title":"t","memo":"","color":"#fff","placed":true,"allDay":true}"##
         let e = try JSONDecoder().decode(ShiftEvent.self, from: Data(old.utf8))
         #expect(e.layerIds == nil)
         let json = String(data: try JSONEncoder().encode(e), encoding: .utf8) ?? ""
