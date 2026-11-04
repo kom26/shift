@@ -8,6 +8,7 @@ struct ShiftApp: App {
     @State private var holidays = Holidays()
     @State private var sync: AccountSync
     @State private var auth: AuthService
+    @State private var calendars = CalendarService(backing: FirestoreCalendarBacking())
     @AppStorage("startMonday") private var startMonday = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -39,6 +40,7 @@ struct ShiftApp: App {
                 .environment(holidays)
                 .environment(auth)
                 .environment(sync)
+                .environment(calendars)
                 .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
                 .tint(Theme.accent)
                 .overlay {
@@ -47,9 +49,12 @@ struct ShiftApp: App {
                 // ログインしている間だけ同期する。ログアウトや別のアカウントへの切り替えでやり直す
                 .task(id: auth.account?.uid) {
                     if let uid = auth.account?.uid {
+                        async let shared: Void = calendars.start(uid: uid)
                         await sync.start(uid: uid)
+                        await shared
                     } else {
                         sync.stop()
+                        calendars.stop()
                     }
                     WidgetSync.publish(store: store)
                 }

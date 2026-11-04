@@ -23,6 +23,8 @@ struct DayTarget: Identifiable {
 struct RootView: View {
     @Environment(Store.self) private var store
     @Environment(Holidays.self) private var holidays
+    @Environment(AuthService.self) private var auth
+    @Environment(CalendarService.self) private var calendarService
     @AppStorage("mode") private var mode: CalendarMode = .week
     @AppStorage("startMonday") private var startMonday = false
     @AppStorage("summaryOn") private var summaryOn = false
@@ -34,6 +36,9 @@ struct RootView: View {
     @State private var showFilter = false
     @State private var showDrawer = false
     @State private var showLayers = false
+    @State private var showCreateCalendar = false
+    @State private var showJoinCalendar = false
+    @State private var calendarDetail: SharedCalendar?
     @State private var paydayTarget: PaydayTarget?
     @State private var dayTarget: DayTarget?
     @State private var pagerCommand: PagerCommand?
@@ -123,6 +128,9 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showFilter) { FilterSheet() }
         .sheet(isPresented: $showLayers) { LayerListView() }
+        .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
+        .sheet(isPresented: $showJoinCalendar) { CalendarJoinSheet() }
+        .sheet(item: $calendarDetail) { CalendarDetailSheet(calendar: $0) }
     }
 
     private func closeDrawer(then action: (() -> Void)? = nil) {
@@ -142,6 +150,17 @@ struct RootView: View {
                     .padding(.horizontal, 12)
                     .padding(.top, 12)
                 drawerRow(title: "自分のカレンダー", icon: "calendar", selected: true) { closeDrawer() }
+                if auth.account != nil {
+                    ForEach(calendarService.calendars) { cal in
+                        drawerRow(title: cal.name, icon: "person.2") { closeDrawer { calendarDetail = cal } }
+                    }
+                    drawerRow(title: "共有カレンダーを作る", icon: "plus.circle") { closeDrawer { showCreateCalendar = true } }
+                    drawerRow(title: "招待コードで参加", icon: "link") { closeDrawer { showJoinCalendar = true } }
+                } else {
+                    drawerRow(title: "ログインして共有カレンダーを使う", icon: "person.crop.circle.badge.plus") {
+                        closeDrawer { showSettings = true }
+                    }
+                }
                 Divider().padding(.vertical, 8)
                 drawerRow(title: "レイヤーの管理", icon: "square.stack.3d.up") { closeDrawer { showLayers = true } }
                 drawerRow(title: "設定", icon: "gearshape") { closeDrawer { showSettings = true } }

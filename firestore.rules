@@ -1,9 +1,50 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 自分のデータは自分だけが読み書きできる(共有カレンダーを作るときに追加する)
+    // 自分のデータは自分だけが読み書きできる
     match /users/{uid}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // 共有カレンダー。members に入っている人だけが読める
+    match /calendars/{cid} {
+      function signedIn() { return request.auth != null; }
+      function isMember() {
+        return signedIn() && exists(/databases/$(database)/documents/calendars/$(cid)/members/$(request.auth.uid));
+      }
+      function isOwner() {
+        return signedIn() && resource.data.ownerUid == request.auth.uid;
+      }
+      // 期限内で、無効化されていない招待があるか
+      function validInvite(token) {
+        let inv = get(/databases/$(database)/documents/calendars/$(cid)/invites/$(token)).data;
+        return inv.revoked == false && inv.expiresAt > request.time.toMillis();
+      }
+
+      allow read: if isMember();
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isOwner();
+
+      match /members/{mid} {
+        allow read: if isMember();
+        // 持ち主は作成と同時に自分を入れる。ほかの人は有効な招待があるときだけ入れる
+        allow create: if signedIn() && request.auth.uid == mid && (
+          (request.resource.data.role == 'owner'
+            && getAfter(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == mid)
+          || (request.resource.data.role == 'member' && validInvite(request.resource.data.token))
+        );
+        allow delete: if signedIn() && (
+          request.auth.uid == mid
+          || get(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == request.auth.uid
+        );
+      }
+
+      match /invites/{token} {
+        allow read: if isMember();
+        // 作成と同じ書き込みの中でカレンダーができるので、書き込み後の状態(getAfter)で持ち主を調べる
+        allow create, update, delete: if signedIn()
+          && getAfter(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == request.auth.uid;
+      }
     }
   }
 }
