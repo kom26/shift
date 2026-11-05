@@ -38,8 +38,8 @@ struct SettingsView: View {
                 }
                 Section {
                     Picker("スヌーズ", selection: $snoozeMinutes) {
-                        ForEach(AlarmService.snoozeChoices, id: .self) { m in
-                            Text(m == 0 ? "なし" : "(m)分").tag(m)
+                        ForEach(AlarmService.snoozeChoices, id: \.self) { m in
+                            Text(m == 0 ? "なし" : "\(m)分").tag(m)
                         }
                     }
                     .pickerStyle(.menu)
