@@ -25,7 +25,7 @@ struct RootView: View {
     @Environment(Holidays.self) private var holidays
     @Environment(AuthService.self) private var auth
     @Environment(CalendarService.self) private var calendarService
-    @AppStorage("mode") private var mode: CalendarMode = .week
+    @AppStorage("mode") private var mode: CalendarMode = .month
     @AppStorage("startMonday") private var startMonday = false
     @AppStorage("summaryOn") private var summaryOn = false
     @AppStorage("unplacedCollapsed") private var unplacedCollapsed = false
@@ -119,10 +119,10 @@ struct RootView: View {
         .sheet(item: $dayTarget) { t in
             DaySheet(date: t.date, onSelectEvent: { ev in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { edit(ev) }
-            }, onSelectPayday: {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: t.date) }
-            }, onAddEvent: {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { createEvent(on: t.date) }
+            }, onSelectPayday: { date in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: date) }
+            }, onAddEvent: { date in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { createEvent(on: date) }
             })
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
@@ -315,9 +315,9 @@ struct RootView: View {
     private func page(offset k: Int) -> some View {
         switch mode {
         case .month:
-            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
+            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onTapEvent: tapEvent, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
         case .week:
-            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
+            WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onTapEvent: tapEvent, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
         }
     }
 
@@ -395,6 +395,15 @@ struct RootView: View {
         } else {
             selectedDate = date
             UISelectionFeedbackGenerator().selectionChanged()
+        }
+    }
+
+    /// 予定バーのタップ: 最初のタップは、バーに触れていても日付セルの選択。その日が選択済みなら編集
+    private func tapEvent(_ event: ShiftEvent, on date: String) {
+        if alarmStamp == nil, stampId == nil, selectedDate == date {
+            edit(event)
+        } else {
+            tapDay(date)
         }
     }
 

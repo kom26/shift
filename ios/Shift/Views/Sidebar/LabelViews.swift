@@ -55,7 +55,7 @@ struct WorkLabelSheet: View {
                             Label("職場を追加", systemImage: "plus")
                         }
                         if store.workplaces.isEmpty {
-                            Text("職場を追加すると給料計算ができます。")
+                            Text("職場を追加すると労働時間や給与管理ができます。")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }

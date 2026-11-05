@@ -36,13 +36,24 @@ struct DayEventLine: Identifiable, Equatable {
     let showsTime: Bool
 }
 
+/// 日付の横に出す、その日の記念日・誕生日のアイコン
+struct DayAnnivIcon: Identifiable, Equatable {
+    let id: String
+    let symbol: String
+    let color: String
+}
+
 struct DayContent: Equatable {
+    /// 日付の横に出す記念日アイコンの上限
+    static let maxAnnivIcons = 4
+
     let date: String
     let weekday: String
     let weekdayType: DayType
     let pay: String?
     let alarm: DayAlarmBadge?
     let events: [DayEventLine]
+    var annivs: [DayAnnivIcon] = []
 }
 
 struct WeekBar: Identifiable, Equatable {
@@ -96,7 +107,10 @@ extension WidgetSource {
         let wd = Rules.weekday(ds)
         return DayContent(date: ds, weekday: Self.weekdays[wd],
                           weekdayType: Rules.dayType(ds, isHoliday: isHoliday(ds)),
-                          pay: pay, alarm: alarm, events: lines)
+                          pay: pay, alarm: alarm, events: lines,
+                          annivs: store.anniversaries(on: ds).prefix(DayContent.maxAnnivIcons).map {
+                              DayAnnivIcon(id: $0.id, symbol: $0.icon.symbolName, color: $0.color)
+                          })
     }
 
     /// 前の日から続く予定の表記。その日に終わるなら「前日から6:00」、まだ続くなら「前日から」

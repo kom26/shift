@@ -62,11 +62,11 @@ struct BarFontSheet: View {
         switch target {
         case .month:
             MonthView(anchor: today, startMonday: startMonday, summaryOn: false, selectedDate: nil,
-                      onSelectDay: { _ in }, onSelectEvent: { _ in }, onDropEvent: { _, _ in },
+                      onSelectDay: { _ in }, onSelectEvent: { _ in }, onTapEvent: { _, _ in }, onDropEvent: { _, _ in },
                       onSelectPayday: { _ in }, onLongPressDay: { _ in })
         case .week:
             WeekView(anchor: today, startMonday: startMonday, summaryOn: false, selectedDate: nil,
-                     onSelectDay: { _ in }, onSelectEvent: { _ in }, onDropEvent: { _, _ in },
+                     onSelectDay: { _ in }, onSelectEvent: { _ in }, onTapEvent: { _, _ in }, onDropEvent: { _, _ in },
                      onSelectPayday: { _ in }, onLongPressDay: { _ in })
         }
     }

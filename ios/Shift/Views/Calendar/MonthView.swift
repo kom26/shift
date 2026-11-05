@@ -11,6 +11,8 @@ struct MonthView: View {
     let selectedDate: String?
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
+    /// 予定バーのタップ(タップした日つき)
+    let onTapEvent: (ShiftEvent, String) -> Void
     let onDropEvent: (String, String) -> Void
     let onSelectPayday: (String) -> Void
     let onLongPressDay: (String) -> Void
@@ -131,7 +133,8 @@ struct MonthView: View {
                             }
                     }
                 }
-                SpanBars(rows: rows, colW: w, barH: barH, compactFont: true, leading: 0, gap: barGap, onSelect: onSelectEvent)
+                SpanBars(rows: rows, colW: w, barH: barH, compactFont: true, leading: 0, gap: barGap,
+                         onTap: { ev, col in onTapEvent(ev, cells[min(6, max(0, col))]) }, onEdit: onSelectEvent)
                     .offset(y: numH)
             }
             .onDrop(of: [.plainText], delegate: EventDropDelegate(

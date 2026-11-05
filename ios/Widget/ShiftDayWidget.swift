@@ -67,6 +67,16 @@ struct SmallDayView: View {
                     .foregroundStyle(content.weekdayType.color)
             }
             .lineLimit(1)
+            if !content.annivs.isEmpty {
+                HStack(spacing: 2) {
+                    ForEach(content.annivs) { a in
+                        Image(systemName: a.symbol)
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color(hex: a.color))
+                    }
+                }
+                .fixedSize()
+            }
             Spacer(minLength: 0)
             if let a = content.alarm {
                 Text("🔔 \(a.first)" + (a.more > 0 ? " +\(a.more)" : ""))

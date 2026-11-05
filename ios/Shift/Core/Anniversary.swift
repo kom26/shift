@@ -12,6 +12,14 @@ struct Anniversary: Codable, Identifiable, Equatable {
             case .heart: return "AnnivHeart"
             }
         }
+        /// ウィジェット用。ウィジェットにはアプリの画像が無いので、近い SF Symbols で表す
+        var symbolName: String {
+            switch self {
+            case .cake: return "birthday.cake.fill"
+            case .toast: return "wineglass.fill"
+            case .heart: return "heart.fill"
+            }
+        }
         var label: String {
             switch self {
             case .cake: return "ケーキ"

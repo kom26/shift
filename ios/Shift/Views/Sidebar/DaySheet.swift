@@ -5,10 +5,21 @@ struct DaySheet: View {
     @Environment(Holidays.self) private var holidays
     @Environment(\.dismiss) private var dismiss
 
-    let date: String
+    /// 表示中の日。横にスワイプすると前日・翌日に移る
+    @State private var date: String
+    /// スワイプで、新しい日が右から(翌日)・左から(前日)入ってくる向き
+    @State private var forward = true
     let onSelectEvent: (ShiftEvent) -> Void
-    var onSelectPayday: () -> Void = {}
-    var onAddEvent: () -> Void = {}
+    let onSelectPayday: (String) -> Void
+    let onAddEvent: (String) -> Void
+
+    init(date: String, onSelectEvent: @escaping (ShiftEvent) -> Void,
+         onSelectPayday: @escaping (String) -> Void = { _ in }, onAddEvent: @escaping (String) -> Void = { _ in }) {
+        _date = State(initialValue: date)
+        self.onSelectEvent = onSelectEvent
+        self.onSelectPayday = onSelectPayday
+        self.onAddEvent = onAddEvent
+    }
 
     private var dateText: String {
         let p = Rules.ymd(date)
@@ -21,6 +32,42 @@ struct DaySheet: View {
         let annivs = store.anniversaries(on: date)
         NavigationStack {
             VStack(spacing: 0) {
+                dayContent(summary: summary, annivs: annivs)
+                    .id(date)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: forward ? .trailing : .leading),
+                        removal: .move(edge: forward ? .leading : .trailing)))
+                addButton
+            }
+            .clipped()
+            .simultaneousGesture(daySwipe)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    /// 横にはっきり動かしたときだけ、前日・翌日へ(縦のスクロールとは分ける)
+    private var daySwipe: some Gesture {
+        DragGesture(minimumDistance: 30)
+            .onEnded { v in
+                guard abs(v.translation.width) > 60, abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
+                move(by: v.translation.width < 0 ? 1 : -1)
+            }
+    }
+
+    private func move(by days: Int) {
+        forward = days > 0
+        withAnimation(.snappy) { date = Rules.addDays(date, days) }
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    @ViewBuilder
+    private func dayContent(summary: DaySummary, annivs: [Anniversary]) -> some View {
+        VStack(spacing: 0) {
                 Text(dateText)
                     .font(.app(14))
                     .foregroundStyle(Color.secondary)
@@ -69,15 +116,7 @@ struct DaySheet: View {
                     }
                     .listStyle(.plain)
                 }
-                addButton
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
-            }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
     }
 
     @ViewBuilder
@@ -88,7 +127,7 @@ struct DaySheet: View {
                 ForEach(summary.paydays) { r in
                     Button {
                         dismiss()
-                        onSelectPayday()
+                        onSelectPayday(date)
                     } label: {
                     Text("給料日 \(Money.yen(r.amount))")
                         .font(.app(11, weight: .semibold))
@@ -117,7 +156,7 @@ struct DaySheet: View {
     private var addButton: some View {
         Button {
             dismiss()
-            onAddEvent()
+            onAddEvent(date)
         } label: {
             Text("＋ 予定追加")
                 .font(.app(15, weight: .semibold))

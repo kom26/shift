@@ -103,7 +103,10 @@ struct SpanBars: View {
     @AppStorage(BarFontSize.weekKey) private var weekDelta = 0.0
     let leading: CGFloat
     var gap: CGFloat = 2
-    let onSelect: (ShiftEvent) -> Void
+    /// バーをタップしたとき(タップした日の列の番号つき)。日付セルの選択と編集の振り分けは、呼ぶ側で行う
+    let onTap: (ShiftEvent, Int) -> Void
+    /// 長押しメニューの「編集」
+    let onEdit: (ShiftEvent) -> Void
 
     /// 標準は、1日分の幅のバーに「00:00-00:00」が収まる大きさ。そこからユーザーが増減する
     private var fontSize: CGFloat {
@@ -117,8 +120,11 @@ struct SpanBars: View {
                 ForEach(rows[r]) { s in
                     EventBar(span: s, height: barH, fontSize: fontSize)
                         .frame(width: max(0, colW * CGFloat(s.span) - 2), height: barH)
-                        .onTapGesture { onSelect(s.event) }
-                        .eventMenu(for: s.event, store: store, onEdit: onSelect) {
+                        .gesture(SpatialTapGesture().onEnded { v in
+                            let inBar = colW > 0 ? Int(v.location.x / colW) : 0
+                            onTap(s.event, s.col + min(s.span - 1, max(0, inBar)))
+                        })
+                        .eventMenu(for: s.event, store: store, onEdit: onEdit) {
                             EventBarPreview(event: s.event, height: barH, fontSize: fontSize, minWidth: max(0, colW * CGFloat(s.span) - 2))
                         }
                         .draggable(DragState.shared.begin(s.event.id))

@@ -11,6 +11,8 @@ struct WeekView: View {
     let selectedDate: String?
     let onSelectDay: (String) -> Void
     let onSelectEvent: (ShiftEvent) -> Void
+    /// 予定バーのタップ(タップした日つき)
+    let onTapEvent: (ShiftEvent, String) -> Void
     let onDropEvent: (String, String) -> Void
     let onSelectPayday: (String) -> Void
     let onLongPressDay: (String) -> Void
@@ -116,7 +118,8 @@ struct WeekView: View {
                                 }
                         }
                     }
-                    SpanBars(rows: rows, colW: colW, barH: barH, leading: timeW, onSelect: onSelectEvent)
+                    SpanBars(rows: rows, colW: colW, barH: barH, leading: timeW,
+                             onTap: { ev, col in onTapEvent(ev, days[min(6, max(0, col))]) }, onEdit: onSelectEvent)
                 }
                 .onDrop(of: [.plainText], delegate: EventDropDelegate(
                     resolve: { p in
@@ -211,7 +214,7 @@ struct WeekView: View {
                     let h = max(14, H * CGFloat(seg.height))
                     block(ev, h: h)
                         .frame(width: max(0, colW - 2), height: h)
-                        .onTapGesture { onSelectEvent(ev) }
+                        .onTapGesture { onTapEvent(ev, ds) }
                         .eventMenu(for: ev, store: store, onEdit: onSelectEvent) {
                             blockPreview(ev, w: max(0, colW - 2), h: h)
                         }
