@@ -13,7 +13,7 @@ struct PaletteTests {
             #expect(c.first == "#")
             #expect(c.dropFirst().allSatisfy { hexDigits.contains($0) })
         }
-        #expect(colors[0] == "#bf8df2")
+        #expect(colors[0] == "#bec1cc")
     }
 
     @Test func newEventsUseFirstColor() {

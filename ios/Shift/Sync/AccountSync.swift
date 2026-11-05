@@ -189,7 +189,7 @@ final class AccountSync {
         case .workplaces: snap.workplaces.removeAll { $0.id == id }
         case .favorites: snap.favorites.removeAll { $0.id == id }
         case .anniversaries: snap.anniversaries?.removeAll { $0.id == id }
-        case .layers: snap.layers?.removeAll { $0.id == id }
+        case .labels: snap.labels?.removeAll { $0.id == id }
         case .settings: break
         }
     }
@@ -265,7 +265,7 @@ final class AccountSync {
         guard let store else { return }
         let snap = store.syncSnapshot()
         let localCount = snap.events.count + snap.workplaces.count + snap.favorites.count
-            + (snap.anniversaries?.count ?? 0) + (snap.layers?.count ?? 0)
+            + (snap.anniversaries?.count ?? 0) + (snap.labels?.count ?? 0)
         let remoteCount = liveCount(fetched)
         if localCount == 0, remoteCount == 0 {
             seed(fetched)
@@ -301,7 +301,7 @@ final class AccountSync {
         snap.workplaces = []
         snap.favorites = []
         snap.anniversaries = []
-        snap.layers = []
+        snap.labels = []
         meta.items = [:]
         for c in SyncCollection.allCases { _ = applyDocs(fetched[c] ?? [], c, into: &snap) }
         store.applySnapshot(snap)
@@ -354,11 +354,11 @@ final class AccountSync {
                 if d.deleted { list.removeAll { $0.id == d.id } }
                 else if let v: Anniversary = decode(d.payload) { upsert(&list, v) }
                 snap.anniversaries = list
-            case .layers:
-                var list = snap.layers ?? []
+            case .labels:
+                var list = snap.labels ?? []
                 if d.deleted { list.removeAll { $0.id == d.id } }
-                else if let v: Layer = decode(d.payload) { upsert(&list, v) }
-                snap.layers = list
+                else if let v: EventLabel = decode(d.payload) { upsert(&list, v) }
+                snap.labels = list
             case .settings:
                 if let v: SettingsPayload = decode(d.payload) {
                     snap.customColors = v.customColors
@@ -373,10 +373,10 @@ final class AccountSync {
         if changed {
             if c == .workplaces { sortByOrder(&snap.workplaces, c) }
             if c == .favorites { sortByOrder(&snap.favorites, c) }
-            if c == .layers {
-                var list = snap.layers ?? []
+            if c == .labels {
+                var list = snap.labels ?? []
                 sortByOrder(&list, c)
-                snap.layers = list
+                snap.labels = list
             }
         }
         return changed
@@ -446,7 +446,7 @@ final class AccountSync {
         case .workplaces: return snap.workplaces.enumerated().map { LocalItem(id: $1.id, payload: encode($1), order: $0) }
         case .favorites: return snap.favorites.enumerated().map { LocalItem(id: $1.id, payload: encode($1), order: $0) }
         case .anniversaries: return (snap.anniversaries ?? []).map { LocalItem(id: $0.id, payload: encode($0), order: 0) }
-        case .layers: return (snap.layers ?? []).enumerated().map { LocalItem(id: $1.id, payload: encode($1), order: $0) }
+        case .labels: return (snap.labels ?? []).enumerated().map { LocalItem(id: $1.id, payload: encode($1), order: $0) }
         case .settings:
             let s = SettingsPayload(customColors: snap.customColors, hiddenSuggestions: snap.hiddenSuggestions.sorted())
             return [LocalItem(id: Self.settingsID, payload: encode(s), order: 0)]

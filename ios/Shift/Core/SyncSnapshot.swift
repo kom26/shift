@@ -11,8 +11,10 @@ struct SyncSnapshot: Codable, Equatable {
     var alarms: [AlarmEntry]?
     /// 記念日・誕生日。古いデータには無いので省略可
     var anniversaries: [Anniversary]?
-    /// 自分で作ったレイヤー(「自分の予定」は含まない)。古いデータには無いので省略可
-    var layers: [Layer]?
+    /// 通常予定のラベル。古いデータには無いので省略可
+    var labels: [EventLabel]?
+    /// 以前のレイヤー。読むだけで、書き出さない(ラベルに引き継ぐ)
+    var layers: [EventLabel]?
 
     var isEmpty: Bool { events.isEmpty && workplaces.isEmpty && favorites.isEmpty }
 }

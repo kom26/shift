@@ -29,7 +29,7 @@ struct WorkplaceEditor: View {
     init(workplace: Workplace?) {
         self.workplace = workplace
         _name = State(initialValue: workplace?.name ?? "")
-        _color = State(initialValue: workplace?.color ?? Store.defaultColors[0])
+        _color = State(initialValue: workplace?.color ?? Store.defaultColors[1])
         _wage = State(initialValue: Self.text(workplace?.hourlyWage))
         _transport = State(initialValue: Self.text(workplace?.transport))
         let b = workplace?.weekdayBonus ?? []

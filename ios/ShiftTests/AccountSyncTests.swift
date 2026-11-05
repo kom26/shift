@@ -293,19 +293,19 @@ struct AccountSyncTests {
         #expect(other.store.workplaces.map(\.name) == ["A", "B"])
     }
 
-    @Test func layersAndEventLayerIdsAreSynced() async {
+    @Test func labelsAndEventLabelIdsAreSynced() async {
         let rig = Rig()
-        let a = rig.store.addLayer(name: "A", color: "#111111")!
-        let b = rig.store.addLayer(name: "B", color: "#222222")!
+        let a = rig.store.addLabel(name: "A", color: "#111111")!
+        let b = rig.store.addLabel(name: "B", color: "#222222")!
         var e = ev("e", "2026-10-20")
-        e.layerIds = [b.id]
+        e.labelId = b.id
         rig.store.save(e)
         await rig.sync.start(uid: "u1")
-        #expect(rig.remote.docs[.layers]?.count == 2)
+        #expect(rig.remote.docs[.labels]?.count == 2)
         let other = Rig(remote: rig.remote)
         await other.sync.start(uid: "u1")
-        #expect(other.store.layers.map(\.id) == [a.id, b.id])
-        #expect(other.store.events.first?.layerIds == [b.id])
+        #expect(other.store.labels.map(\.id) == [a.id, b.id])
+        #expect(other.store.events.first?.labelId == b.id)
     }
 
     @Test func eraseRemoteClearsAccountDataButKeepsLocal() async {

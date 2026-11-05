@@ -37,16 +37,16 @@ struct EventEditor: View {
     @State private var lastValidEndTime: String
     @State private var endWarningVisible = false
     @State private var endWarningTask: Task<Void, Never>?
-    @State private var addingWorkplace = false
-    @State private var workplaceCountBeforeAdd = 0
-    /// 「自分の予定」に入れるか。通常予定は、レイヤーを必ずどれか 1 つ選ぶ(最後の 1 つは外せない)
-    @State private var includesMine: Bool
-    /// 自分で作ったレイヤーのうち、選んでいるもの
-    @State private var extraLayers: [String]
-    @State private var addingLayer = false
-    @State private var layerCountBeforeAdd = 0
+    @State private var labelId: String?
+    /// 個別カラー。オフのときは職場やラベルの色に付いていく
+    @State private var ownColor: Bool
+    @State private var picking: PickerKind?
     @FocusState private var focusedField: Field?
 
+    enum PickerKind: Identifiable {
+        case workplace, label
+        var id: Int { self == .workplace ? 0 : 1 }
+    }
     enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime, adjustment, dailyWage }
     enum TimePanel: Hashable { case start, end }
 
@@ -69,9 +69,8 @@ struct EventEditor: View {
         _workplaceId = State(initialValue: original.workplaceId)
         _isWork = State(initialValue: isNew || original.workplaceId != nil)
         _breakInNight = State(initialValue: original.breakInNight)
-        let layerIds = original.layerIds ?? []
-        _includesMine = State(initialValue: layerIds.isEmpty || layerIds.contains(Layer.mineId))
-        _extraLayers = State(initialValue: layerIds.filter { $0 != Layer.mineId })
+        _labelId = State(initialValue: original.labelId)
+        _ownColor = State(initialValue: original.ownColor ?? false)
         _adjustmentText = State(initialValue: original.adjustment.map { $0 == 0 ? "" : String($0) } ?? "")
         _dailyWageText = State(initialValue: original.dailyWage.map { $0 == 0 ? "" : String($0) } ?? "")
         _barShowsTitle = State(initialValue: original.barShowsTitle ?? false)
@@ -132,17 +131,19 @@ struct EventEditor: View {
                         Text("通常予定").tag(false)
                     }
                     .pickerStyle(.segmented)
-                    if isWork { workplaceChips }
+                    if isWork {
+                        choiceRow(symbol: "building.2", title: "職場", name: selectedWorkplace?.name ?? "指定なし",
+                                  color: selectedWorkplace?.color ?? EventLabel.noneColor) { picking = .workplace }
+                    } else {
+                        choiceRow(symbol: "tag", title: "ラベル", name: store.label(for: labelId)?.name ?? "ラベルなし",
+                                  color: store.label(for: labelId)?.color ?? EventLabel.noneColor) { picking = .label }
+                    }
                     TextField("タイトル(必須)", text: $title)
                         .focused($focusedField, equals: .title)
-                    ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
-                }
-                Section {
-                    layerChips
-                } header: {
-                    Text("レイヤー")
-                } footer: {
-                    Text(isWork ? "職場のレイヤーに加えて、ほかのレイヤーにも入れられます。" : "複数選べます。必ずどれか 1 つは選びます。")
+                    Toggle("個別カラー", isOn: ownColorBinding)
+                    if ownColor {
+                        ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
+                    }
                 }
                 Section {
                     Toggle("終日", isOn: $allDay)
@@ -233,6 +234,9 @@ struct EventEditor: View {
                 }
                 // 既存の予定は、職場があれば勤務予定、なければ通常予定
                 if !isNew { isWork = selectedWorkplace != nil }
+                if original.ownColor == nil, !isNew {
+                    ownColor = original.color != currentGroupColor
+                }
                 if let b = Int(breakText), b == defaultBreak { breakText = "" }
             }
             .onChange(of: focusedField) { old, new in
@@ -253,85 +257,55 @@ struct EventEditor: View {
             }
         }
         .presentationDetents([.large])
-        .sheet(isPresented: $addingWorkplace, onDismiss: selectNewWorkplace) {
-            WorkplaceEditor(workplace: nil)
-        }
-        .sheet(isPresented: $addingLayer, onDismiss: selectNewLayer) {
-            LayerEditor(layer: store.newLayerDraft(), isNew: true)
-        }
-    }
-
-    // MARK: レイヤー
-
-    /// 選べるレイヤー。勤務予定は職場がレイヤーを兼ねるので、職場以外(自分で作ったもの)だけ
-    private var selectableLayers: [Layer] { isWork ? store.layers : store.allLayers }
-
-    private func isLayerOn(_ id: String) -> Bool {
-        id == Layer.mineId ? includesMine : extraLayers.contains(id)
-    }
-
-    private func toggleLayer(_ id: String) {
-        if isLayerOn(id) {
-            // 通常予定は、最後の 1 つを外せない
-            let selected = (includesMine ? 1 : 0) + extraLayers.count
-            if !isWork, selected <= 1 { return }
-            if id == Layer.mineId { includesMine = false } else { extraLayers.removeAll { $0 == id } }
-        } else {
-            if id == Layer.mineId { includesMine = true } else { extraLayers.append(id) }
-        }
-    }
-
-    private func selectNewLayer() {
-        guard store.layers.count > layerCountBeforeAdd, let l = store.layers.last else { return }
-        extraLayers.append(l.id)
-    }
-
-    /// 保存する layerIds。「自分の予定」だけ(または何も無し)なら nil
-    private func builtLayerIds() -> [String]? {
-        let known = Set(store.layers.map(\.id))
-        let extras = extraLayers.filter { known.contains($0) }
-        if isWork {
-            // 勤務予定は、いつも「自分の予定」にも入る
-            return extras.isEmpty ? nil : [Layer.mineId] + extras
-        }
-        let ids = (includesMine ? [Layer.mineId] : []) + extras
-        return ids.isEmpty || ids == [Layer.mineId] ? nil : ids
-    }
-
-    private var layerChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(selectableLayers) { l in
-                    let on = isLayerOn(l.id)
-                    Button { toggleLayer(l.id) } label: {
-                        HStack(spacing: 6) {
-                            ColorDot(hex: l.color, size: 10)
-                            Text(l.name).font(.app(13)).foregroundStyle(.primary)
-                            if on {
-                                Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Theme.accent)
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color(.secondarySystemFill)))
-                        .overlay(Capsule().stroke(Theme.accent, lineWidth: on ? 2 : 0))
-                    }
-                    .buttonStyle(.borderless)
-                }
-                Button {
-                    layerCountBeforeAdd = store.layers.count
-                    addingLayer = true
-                } label: {
-                    Image(systemName: "plus").font(.footnote).foregroundStyle(Theme.accent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .overlay(Capsule().strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("レイヤーを追加")
+        .sheet(item: $picking) { kind in
+            switch kind {
+            case .workplace: WorkplacePickerSheet(selectedId: workplaceId, onSelect: selectWorkplace)
+            case .label: LabelPickerSheet(selectedId: labelId) { labelId = $0 }
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 3)
+        }
+    }
+
+    // MARK: 職場・ラベル・色
+
+    private var currentGroupColor: String {
+        store.groupColor(workplaceId: isWork ? workplaceId : nil, labelId: isWork ? nil : labelId)
+    }
+
+    /// 個別カラーのトグル。オンにしたときは、いま付いている色から選び始める
+    private var ownColorBinding: Binding<Bool> {
+        Binding(
+            get: { ownColor },
+            set: { on in
+                if on && !ownColor { color = currentGroupColor }
+                ownColor = on
+            })
+    }
+
+    private func choiceRow(symbol: String, title: String, name: String, color: String,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 24)
+                Text(title).foregroundStyle(.primary)
+                Spacer()
+                ColorDot(hex: color, size: 14)
+                Text(name).foregroundStyle(.secondary)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("\(title) \(name)")
+    }
+
+    /// 職場を選ぶ。タイトルが空か前の職場名のままなら、新しい職場名に合わせる
+    private func selectWorkplace(_ id: String?) {
+        let old = selectedWorkplace
+        workplaceId = id
+        let new = selectedWorkplace
+        if let new, title.isEmpty || title == old?.name {
+            title = new.name
+        } else if new == nil, title == old?.name {
+            title = ""
         }
     }
 
@@ -342,57 +316,14 @@ struct EventEditor: View {
             set: { new in
                 isWork = new
                 barShowsTitle = !new
-                // 通常予定にしたら職場を外す(職場名のままのタイトルと色も戻す)
-                if !new, let w = selectedWorkplace {
+                if new {
+                    labelId = nil
+                } else if let w = selectedWorkplace {
+                    // 通常予定にしたら職場を外す(職場名のままのタイトルも戻す)
                     workplaceId = nil
                     if title == w.name { title = "" }
-                    if color == w.color { color = Store.defaultColors[0] }
                 }
             })
-    }
-
-    private func selectNewWorkplace() {
-        guard store.workplaces.count > workplaceCountBeforeAdd, let w = store.workplaces.last else { return }
-        workplaceId = w.id
-        title = w.name
-        color = w.color
-    }
-
-    private var workplaceChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(store.workplaces) { w in
-                    Button {
-                        workplaceId = w.id
-                        title = w.name
-                        color = w.color
-                    } label: {
-                        HStack(spacing: 6) {
-                            ColorDot(hex: w.color, size: 10)
-                            Text(w.name).font(.app(13)).foregroundStyle(.primary)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color(.secondarySystemFill)))
-                        .overlay(Capsule().stroke(Theme.accent, lineWidth: selectedWorkplace?.id == w.id ? 2 : 0))
-                    }
-                    .buttonStyle(.borderless)
-                }
-                Button {
-                    workplaceCountBeforeAdd = store.workplaces.count
-                    addingWorkplace = true
-                } label: {
-                    Image(systemName: "plus").font(.footnote).foregroundStyle(Theme.accent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .overlay(Capsule().strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("職場を追加")
-            }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 3)
-        }
     }
 
     // MARK: 時刻入力
@@ -855,7 +786,8 @@ struct EventEditor: View {
         let sd = Rules.format(start)
         e.title = title.trimmingCharacters(in: .whitespaces)
         e.memo = memo
-        e.color = color
+        e.color = ownColor ? color : currentGroupColor
+        e.ownColor = ownColor
         if hasDate {
             e.startDate = sd
             e.endDate = Rules.resolveEndDate(start: sd, end: Rules.format(end), allDay: allDay, startTime: st, endTime: et)
@@ -871,7 +803,7 @@ struct EventEditor: View {
         e.workHours = Rules.workHours(startDate: e.startDate, startTime: st, endDate: e.endDate, endTime: et,
                                       allDay: allDay, breakMinutes: effectiveBreak)
         e.workplaceId = workplaceId
-        e.layerIds = builtLayerIds()
+        e.labelId = isWork ? nil : labelId
         e.breakInNight = breakInNight
         e.barShowsTitle = barShowsTitle ? true : nil
         e.adjustment = Int(adjustmentText).flatMap { $0 == 0 ? nil : $0 }

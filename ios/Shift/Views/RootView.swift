@@ -35,7 +35,7 @@ struct RootView: View {
     @State private var showSettings = false
     @State private var showFilter = false
     @State private var showDrawer = false
-    @State private var showLayers = false
+    @State private var showLabels = false
     @State private var showCreateCalendar = false
     @State private var showJoinCalendar = false
     @State private var calendarDetail: SharedCalendar?
@@ -127,7 +127,7 @@ struct RootView: View {
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showFilter) { FilterSheet() }
-        .sheet(isPresented: $showLayers) { LayerListView() }
+        .sheet(isPresented: $showLabels) { LabelManageView() }
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
         .sheet(isPresented: $showJoinCalendar) { CalendarJoinSheet() }
         .sheet(item: $calendarDetail) { CalendarDetailSheet(calendar: $0) }
@@ -162,7 +162,7 @@ struct RootView: View {
                     }
                 }
                 Divider().padding(.vertical, 8)
-                drawerRow(title: "レイヤーの管理", icon: "square.stack.3d.up") { closeDrawer { showLayers = true } }
+                drawerRow(title: "ラベルの管理", icon: "tag") { closeDrawer { showLabels = true } }
                 drawerRow(title: "設定", icon: "gearshape") { closeDrawer { showSettings = true } }
                 Spacer(minLength: 0)
             }

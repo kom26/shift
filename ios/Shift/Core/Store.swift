@@ -16,7 +16,7 @@ struct ColorTotal: Identifiable {
 final class Store {
     // ラベンダー, ミント, ピーチ, バター, スカイ, ピンク
     /// 色相環12色(紫から開始)+茶+灰。パステル
-    static let defaultColors = ["#bf8df2", "#f28de1", "#f28dae", "#f28d8d", "#f2bf8d", "#f2e18d", "#c8f28d", "#8df29d", "#8df2d9", "#8de1f2", "#8dbff2", "#8d8df2", "#cc9e76", "#bec1cc"]
+    static let defaultColors = ["#bec1cc", "#bf8df2", "#f28de1", "#f28dae", "#f28d8d", "#f2bf8d", "#f2e18d", "#c8f28d", "#8df29d", "#8df2d9", "#8de1f2", "#8dbff2", "#8d8df2", "#cc9e76"]
 
     static var defaultFileURL: URL {
         let dir = URL.applicationSupportDirectory
@@ -28,9 +28,10 @@ final class Store {
     private(set) var checkedWorkplaces: Set<String>
     private(set) var customColors: [String]
     private(set) var workplaces: [Workplace]
-    /// 自分で作ったレイヤー(標準の「自分の予定」は含まない)
-    private(set) var layers: [Layer]
-    private(set) var checkedLayers: Set<String>
+    /// 通常予定のラベル(「ラベルなし」は含まない)
+    private(set) var labels: [EventLabel]
+    /// 絞り込み中のラベル。「ラベルなし」は noLabelKey
+    private(set) var checkedLabels: Set<String>
     /// よく使う予定(日付なしのテンプレート)
     var favorites: [ShiftEvent] = []
     var anniversaries: [Anniversary] = []
@@ -49,8 +50,10 @@ final class Store {
         static let custom = "shift-custom-colors"
         static let workplaces = "shift-workplaces"
         static let hiddenSuggestions = "shift-hidden-suggestions"
-        static let layers = "shift-layers"
-        static let checkedLayers = "shift-checked-layers"
+        static let labels = "shift-labels"
+        static let checkedLabels = "shift-checked-labels"
+        /// 以前のレイヤー(読むだけ)
+        static let legacyLayers = "shift-layers"
     }
 
     init(fileURL: URL = Store.defaultFileURL, defaults: UserDefaults = .standard) {
@@ -61,9 +64,9 @@ final class Store {
         customColors = Array((defaults.stringArray(forKey: Keys.custom) ?? []).prefix(Self.maxRecentColors))
         workplaces = defaults.data(forKey: Keys.workplaces)
             .flatMap { try? JSONDecoder().decode([Workplace].self, from: $0) } ?? []
-        layers = defaults.data(forKey: Keys.layers)
-            .flatMap { try? JSONDecoder().decode([Layer].self, from: $0) } ?? []
-        checkedLayers = Set(defaults.stringArray(forKey: Keys.checkedLayers) ?? [])
+        labels = (defaults.data(forKey: Keys.labels) ?? defaults.data(forKey: Keys.legacyLayers))
+            .flatMap { try? JSONDecoder().decode([EventLabel].self, from: $0) } ?? []
+        checkedLabels = Set(defaults.stringArray(forKey: Keys.checkedLabels) ?? [])
         if let data = try? Data(contentsOf: Self.alarmsURL(for: fileURL)),
            let list = try? JSONDecoder().decode([AlarmEntry].self, from: data) {
             alarmEntries = list
@@ -92,25 +95,34 @@ final class Store {
     /// カスタム色の「最近」に残す最大数
     static let maxRecentColors = 7
 
-    /// 配置済みで、職場フィルタとレイヤーフィルタの両方を通る予定(フィルタが空なら全て)
+    /// 「ラベルなし」を表すフィルタ用の番兵ID
+    static let noLabelKey = ""
+
+    /// 配置済みで、絞り込みを通る予定(絞り込みが空なら全て)
     var visibleEvents: [ShiftEvent] {
         events.filter { $0.placed && $0.startDate != nil && passesFilters($0) }
     }
 
-    private func passesWorkplaceFilter(_ e: ShiftEvent) -> Bool {
-        checkedWorkplaces.isEmpty || checkedWorkplaces.contains(workplace(for: e)?.id ?? Store.noWorkplaceKey)
+    /// 勤務予定は職場、通常予定はラベルで絞る。2 つのくくりは別々の予定を指すので、どちらかに合えば出す
+    private func passesFilters(_ e: ShiftEvent) -> Bool {
+        if !isFiltering { return true }
+        if let w = workplace(for: e) { return checkedWorkplaces.contains(w.id) }
+        // 空のキー(以前の「通常予定すべて」)は、通常予定を全部通す
+        return checkedWorkplaces.contains(Store.noWorkplaceKey) || checkedLabels.contains(e.labelId ?? Store.noLabelKey)
     }
 
-    private func passesLayerFilter(_ e: ShiftEvent) -> Bool {
-        checkedLayers.isEmpty || e.effectiveLayerIds.contains { checkedLayers.contains($0) }
+    func label(for id: String?) -> EventLabel? {
+        guard let id else { return nil }
+        return labels.first { $0.id == id }
     }
 
-    private func passesFilters(_ e: ShiftEvent) -> Bool { passesWorkplaceFilter(e) && passesLayerFilter(e) }
+    /// 予定が付いていく色(職場、ラベル、なければグレー)
+    func groupColor(workplaceId: String?, labelId: String?) -> String {
+        if let id = workplaceId, let w = workplaces.first(where: { $0.id == id }) { return w.color }
+        return label(for: labelId)?.color ?? EventLabel.noneColor
+    }
 
-    /// 標準の「自分の予定」と、自分で作ったレイヤー
-    var allLayers: [Layer] { [Layer.mine] + layers }
-
-    var isFiltering: Bool { !checkedWorkplaces.isEmpty || !checkedLayers.isEmpty }
+    var isFiltering: Bool { !checkedWorkplaces.isEmpty || !checkedLabels.isEmpty }
 
     /// 開始日が from...to に入る予定を職場ごとに合計する(職場なしは色ごと)
     func totals(from: String, to: String, isHoliday: (String) -> Bool = { _ in false }, orderBy: [String]? = nil) -> [ColorTotal] {
@@ -226,8 +238,7 @@ final class Store {
     /// フィルタ中に、フィルタで隠れる予定が配置された(追加・編集・ドラッグ)ら、見えるようにフィルタを外す
     private func revealIfFiltered(_ event: ShiftEvent) {
         guard event.placed, event.startDate != nil else { return }
-        if !passesWorkplaceFilter(event) { clearWorkplaceFilter() }
-        if !passesLayerFilter(event) { clearLayerFilter() }
+        if !passesFilters(event) { clearFilters() }
     }
 
     func save(_ event: ShiftEvent) {
@@ -334,82 +345,103 @@ final class Store {
         defaults.set([String](), forKey: Keys.checked)
     }
 
-    func toggleLayerFilter(_ id: String) {
-        if checkedLayers.contains(id) { checkedLayers.remove(id) } else { checkedLayers.insert(id) }
-        defaults.set(Array(checkedLayers), forKey: Keys.checkedLayers)
+    func toggleLabelFilter(_ key: String) {
+        if checkedLabels.contains(key) { checkedLabels.remove(key) } else { checkedLabels.insert(key) }
+        defaults.set(Array(checkedLabels), forKey: Keys.checkedLabels)
     }
 
-    func clearLayerFilter() {
-        checkedLayers = []
-        defaults.set([String](), forKey: Keys.checkedLayers)
+    func clearLabelFilter() {
+        checkedLabels = []
+        defaults.set([String](), forKey: Keys.checkedLabels)
+    }
+
+    /// 勤務予定のくくりをまとめて選ぶ・外す(全部の職場)
+    func setWorkplaceGroup(_ on: Bool) {
+        checkedWorkplaces = on ? Set(workplaces.map(\.id)) : []
+        defaults.set(Array(checkedWorkplaces), forKey: Keys.checked)
+    }
+
+    /// 通常予定のくくりをまとめて選ぶ・外す(全部のラベルと「ラベルなし」)
+    func setLabelGroup(_ on: Bool) {
+        checkedLabels = on ? Set(labels.map(\.id) + [Store.noLabelKey]) : []
+        defaults.set(Array(checkedLabels), forKey: Keys.checkedLabels)
     }
 
     func clearFilters() {
         clearWorkplaceFilter()
-        clearLayerFilter()
+        clearLabelFilter()
     }
 
-    // MARK: レイヤー
+    // MARK: ラベル
 
     @discardableResult
-    func addLayer(name: String, color: String) -> Layer? {
+    func addLabel(name: String, color: String) -> EventLabel? {
         let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !n.isEmpty else { return nil }
-        let layer = Layer(id: UUID().uuidString, name: n, color: color)
-        layers.append(layer)
-        persistLayers()
-        return layer
+        let label = EventLabel(id: UUID().uuidString, name: n, color: color)
+        labels.append(label)
+        persistLabels()
+        return label
     }
 
-    func updateLayer(id: String, name: String, color: String) {
+    /// 名前と色を直す。個別カラーにしていない予定は、新しい色に付いていく
+    func updateLabel(id: String, name: String, color: String) {
         let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !n.isEmpty, let i = layers.firstIndex(where: { $0.id == id }) else { return }
-        layers[i].name = n
-        layers[i].color = color
-        persistLayers()
+        guard !n.isEmpty, let i = labels.firstIndex(where: { $0.id == id }) else { return }
+        let old = labels[i].color
+        labels[i].name = n
+        labels[i].color = color
+        persistLabels()
+        if old != color { recolorEvents(where: { $0.labelId == id && workplace(for: $0) == nil }, from: old, to: color) }
     }
 
-    /// レイヤーを消す。入っていた予定は消さず、そのレイヤーだけ外す(ほかに無ければ「自分の予定」に戻る)
-    func deleteLayer(id: String) {
-        guard layers.contains(where: { $0.id == id }) else { return }
-        layers.removeAll { $0.id == id }
+    /// ラベルを消す。付いていた予定は消さず「ラベルなし」に戻る(個別カラーでない予定はグレーになる)
+    func deleteLabel(id: String) {
+        guard let removed = labels.first(where: { $0.id == id }) else { return }
+        labels.removeAll { $0.id == id }
         var touched = false
-        for i in events.indices {
-            guard let ids = events[i].layerIds, ids.contains(id) else { continue }
-            let rest = ids.filter { $0 != id }
-            events[i].layerIds = rest.isEmpty ? nil : rest
+        for i in events.indices where events[i].labelId == id {
+            events[i].labelId = nil
+            if events[i].ownColor != true, events[i].color == removed.color { events[i].color = EventLabel.noneColor }
             touched = true
         }
-        for i in favorites.indices {
-            guard let ids = favorites[i].layerIds, ids.contains(id) else { continue }
-            let rest = ids.filter { $0 != id }
-            favorites[i].layerIds = rest.isEmpty ? nil : rest
+        for i in favorites.indices where favorites[i].labelId == id {
+            favorites[i].labelId = nil
             persistFavorites()
         }
-        if checkedLayers.contains(id) { toggleLayerFilter(id) }
-        persistLayers()
+        if checkedLabels.contains(id) { toggleLabelFilter(id) }
+        persistLabels()
         if touched { persist() }
     }
 
-    func layerEventCount(_ id: String) -> Int {
-        events.filter { $0.effectiveLayerIds.contains(id) }.count
+    func moveLabels(from source: IndexSet, to destination: Int) {
+        let moving = source.sorted().map { labels[$0] }
+        let before = source.filter { $0 < destination }.count
+        var rest = labels
+        for i in source.sorted(by: >) { rest.remove(at: i) }
+        rest.insert(contentsOf: moving, at: destination - before)
+        labels = rest
+        persistLabels()
     }
 
-    private func persistLayers() {
-        if let data = try? JSONEncoder().encode(layers) { defaults.set(data, forKey: Keys.layers) }
-        notifyChanged()
+    func labelEventCount(_ id: String?) -> Int {
+        events.filter { workplace(for: $0) == nil && $0.labelId == id }.count
     }
 
-    func rememberColor(_ color: String) {
-        guard !Self.defaultColors.contains(color) else { return }
-        customColors = Array(([color] + customColors.filter { $0 != color }).prefix(Self.maxRecentColors))
-        defaults.set(customColors, forKey: Keys.custom)
-        notifyChanged()
+    /// 個別カラーでない予定の色を、職場やラベルの色の変更に合わせる(古い予定は、旧色と同じものだけ)
+    private func recolorEvents(where match: (ShiftEvent) -> Bool, from old: String, to new: String) {
+        var touched = false
+        for i in events.indices where match(events[i]) {
+            let follows = events[i].ownColor == false || (events[i].ownColor == nil && events[i].color == old)
+            guard follows, events[i].color != new else { continue }
+            events[i].color = new
+            touched = true
+        }
+        if touched { persist() }
     }
 
-    func removeCustomColor(_ color: String) {
-        customColors.removeAll { $0 == color }
-        defaults.set(customColors, forKey: Keys.custom)
+    private func persistLabels() {
+        if let data = try? JSONEncoder().encode(labels) { defaults.set(data, forKey: Keys.labels) }
         notifyChanged()
     }
 
@@ -436,9 +468,11 @@ final class Store {
         let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !n.isEmpty, let i = workplaces.firstIndex(where: { $0.id == id }) else { return }
         let oldName = workplaces[i].name
+        let oldColor = workplaces[i].color
         workplaces[i].name = n
         workplaces[i].color = color
         persistWorkplaces()
+        if oldColor != color { recolorEvents(where: { $0.workplaceId == id || $0.title == oldName }, from: oldColor, to: color) }
         if applyToEvents {
             for j in events.indices where events[j].title == oldName {
                 events[j].title = n
@@ -500,7 +534,7 @@ final class Store {
     func syncSnapshot() -> SyncSnapshot {
         SyncSnapshot(events: events, workplaces: workplaces, favorites: favorites,
                      customColors: customColors, hiddenSuggestions: Array(hiddenSuggestions).sorted(),
-                     alarms: alarmEntries, anniversaries: anniversaries, layers: layers)
+                     alarms: alarmEntries, anniversaries: anniversaries, labels: labels)
     }
 
     /// iCloud から届いたデータで置き換える(同期の送り返しは起こさない)
@@ -523,13 +557,13 @@ final class Store {
             alarmEntries = alarms
             persistAlarms()
         }
-        if let list = snap.layers {
-            layers = list
-            persistLayers()
-            let known = Set(allLayers.map(\.id))
-            if !checkedLayers.isSubset(of: known) {
-                checkedLayers = checkedLayers.intersection(known)
-                defaults.set(Array(checkedLayers), forKey: Keys.checkedLayers)
+        if let list = snap.labels ?? snap.layers {
+            labels = list
+            persistLabels()
+            let known = Set(labels.map(\.id) + [Store.noLabelKey])
+            if !checkedLabels.isSubset(of: known) {
+                checkedLabels = checkedLabels.intersection(known)
+                defaults.set(Array(checkedLabels), forKey: Keys.checkedLabels)
             }
         }
         defaults.set(customColors, forKey: Keys.custom)

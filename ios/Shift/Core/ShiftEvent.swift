@@ -20,11 +20,18 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     var adjustment: Int? = nil
     /// 日給の職場での、その予定の日給(円・手入力)
     var dailyWage: Int? = nil
-    /// 入れるレイヤー(複数可)。nil・空は「自分の予定」。古いデータには無い
-    var layerIds: [String]? = nil
+    /// 通常予定のラベル(1 つだけ)。nil は「ラベルなし」。勤務予定には付けない
+    var labelId: String? = nil
+    /// 個別カラー。true はこの予定の色、nil・false は職場やラベルの色に付いていく
+    var ownColor: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle, adjustment, dailyWage, layerIds
+        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle, adjustment, dailyWage, labelId, ownColor
+    }
+
+    /// 以前のレイヤー(複数)。読むだけで、書き出さない
+    private enum LegacyKeys: String, CodingKey {
+        case layerIds
     }
 
     static func new(on date: String) -> ShiftEvent {
@@ -64,7 +71,14 @@ extension ShiftEvent {
         barShowsTitle = try c.decodeIfPresent(Bool.self, forKey: .barShowsTitle)
         adjustment = try c.decodeIfPresent(Int.self, forKey: .adjustment)
         dailyWage = try c.decodeIfPresent(Int.self, forKey: .dailyWage)
-        layerIds = try c.decodeIfPresent([String].self, forKey: .layerIds)
+        ownColor = try c.decodeIfPresent(Bool.self, forKey: .ownColor)
+        if let l = try c.decodeIfPresent(String.self, forKey: .labelId) {
+            labelId = l
+        } else if workplaceId == nil {
+            // レイヤーは、通常予定だけ最初の 1 つをラベルに引き継ぐ("mine" は「ラベルなし」)
+            let legacy = try decoder.container(keyedBy: LegacyKeys.self)
+            labelId = try legacy.decodeIfPresent([String].self, forKey: .layerIds)?.first { $0 != "mine" }
+        }
     }
 }
 
