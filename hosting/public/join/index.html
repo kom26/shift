@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>シフトパレットの共有カレンダーに招待されました</title>
+<style>
+  :root { --bg:#f4f3ef; --fg:#1c1b19; --mute:#6f6b64; --accent:#5b6cff; --on:#fff; --card:#fff; --line:#dedbd3; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141416; --fg:#ecebe8; --mute:#9b978f; --accent:#8c97ff; --on:#141416; --card:#1f1f22; --line:#38373a; } }
+  html { background: var(--bg); color: var(--fg); }
+  body { margin: 0; padding: 32px 20px; font: 16px/1.6 -apple-system, "Hiragino Sans", sans-serif; display: flex; justify-content: center; }
+  main { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  p { margin: 0; color: var(--mute); font-size: 14px; }
+  a.btn { display: block; text-align: center; padding: 14px; border-radius: 12px; text-decoration: none; font-weight: 700; background: var(--accent); color: var(--on); }
+  a.btn.sub { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+  code { display: block; padding: 10px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); word-break: break-all; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>共有カレンダーに招待されました</h1>
+  <p id="msg">アプリを開いています。開かないときは、下のボタンを押してください。</p>
+  <a class="btn" id="open" href="#">アプリで開く</a>
+  <a class="btn sub" id="install" href="https://testflight.apple.com/join/wwsStTJA">アプリを入れる(TestFlight)</a>
+  <p>アプリを入れたあと、このリンクをもう一度開くか、アプリのメニューの「招待で参加」に、次のコードを貼り付けてください。</p>
+  <code id="code"></code>
+</main>
+<script>
+(function () {
+  var TESTFLIGHT = "https://testflight.apple.com/join/wwsStTJA";
+  var parts = location.pathname.split("/").filter(Boolean);
+  var code = parts[parts.length - 1] === "join" ? "" : decodeURIComponent(parts[parts.length - 1] || "");
+  var valid = /^[a-z0-9]+-[a-z0-9]+$/i.test(code);
+  document.getElementById("code").textContent = valid ? code : "";
+  document.getElementById("code").hidden = !valid;
+  var appUrl = valid ? "shiftpalette://join/" + code : "shiftpalette://";
+  document.getElementById("open").href = appUrl;
+  if (!valid) {
+    document.getElementById("msg").textContent = "招待のリンクが正しくありません。送ってくれた人に確認してください。";
+    return;
+  }
+  // アプリが入っていれば、見えない枠でアプリを呼び出して開く(入っていなければ何も起きない)。
+  // しばらく経ってもこのページが見えたままなら、アプリが無いと見て TestFlight へ移る
+  var frame = document.createElement("iframe");
+  frame.style.display = "none";
+  frame.src = appUrl;
+  document.body.appendChild(frame);
+  var left = false;
+  document.addEventListener("visibilitychange", function () { if (document.hidden) left = true; });
+  window.addEventListener("pagehide", function () { left = true; });
+  setTimeout(function () {
+    if (!left && !document.hidden) location.href = TESTFLIGHT;
+  }, 1800);
+})();
+</script>
+</body>
+</html>
