@@ -20,7 +20,7 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     var adjustment: Int? = nil
     /// 日給の職場での、その予定の日給(円・手入力)
     var dailyWage: Int? = nil
-    /// 通常予定のラベル(1 つだけ)。nil は「ラベルなし」。勤務予定には付けない
+    /// 通常予定のラベル(1 つだけ)。nil は「指定なし」。勤務予定には付けない
     var labelId: String? = nil
     /// 個別カラー。true はこの予定の色、nil・false は職場やラベルの色に付いていく
     var ownColor: Bool? = nil
@@ -75,7 +75,7 @@ extension ShiftEvent {
         if let l = try c.decodeIfPresent(String.self, forKey: .labelId) {
             labelId = l
         } else if workplaceId == nil {
-            // レイヤーは、通常予定だけ最初の 1 つをラベルに引き継ぐ("mine" は「ラベルなし」)
+            // レイヤーは、通常予定だけ最初の 1 つをラベルに引き継ぐ("mine" は「指定なし」)
             let legacy = try decoder.container(keyedBy: LegacyKeys.self)
             labelId = try legacy.decodeIfPresent([String].self, forKey: .layerIds)?.first { $0 != "mine" }
         }

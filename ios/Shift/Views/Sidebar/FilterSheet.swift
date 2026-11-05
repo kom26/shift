@@ -57,7 +57,7 @@ struct FilterSheet: View {
                             store.toggleLabelFilter(l.id)
                         }
                     }
-                    childRow(name: "ラベルなし", color: EventLabel.noneColor, count: lCounts[Store.noLabelKey] ?? 0,
+                    childRow(name: "指定なし", color: EventLabel.noneColor, count: lCounts[Store.noLabelKey] ?? 0,
                              checked: store.checkedLabels.contains(Store.noLabelKey)) {
                         store.toggleLabelFilter(Store.noLabelKey)
                     }

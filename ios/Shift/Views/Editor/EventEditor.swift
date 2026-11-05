@@ -30,8 +30,6 @@ struct EventEditor: View {
     @State private var workplaceId: String?
     @State private var breakInNight: Bool?
     @State private var barShowsTitle: Bool
-    /// 予定形式。勤務予定のときだけ職場を選べる
-    @State private var isWork: Bool
     @State private var didSetup = false
     @State private var lastValidEndDate: Date
     @State private var lastValidEndTime: String
@@ -40,13 +38,12 @@ struct EventEditor: View {
     @State private var labelId: String?
     /// 個別カラー。オフのときは職場やラベルの色に付いていく
     @State private var ownColor: Bool
-    @State private var picking: PickerKind?
+    @State private var picking = false
     @FocusState private var focusedField: Field?
 
-    enum PickerKind: Identifiable {
-        case workplace, label
-        var id: Int { self == .workplace ? 0 : 1 }
-    }
+    /// 職場を選んだ予定が勤務予定。職場の指定なしは通常予定
+    private var isWork: Bool { workplaceId != nil }
+
     enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime, adjustment, dailyWage }
     enum TimePanel: Hashable { case start, end }
 
@@ -67,13 +64,13 @@ struct EventEditor: View {
         _endTime = State(initialValue: original.endTime ?? "18:00")
         _lastValidEndTime = State(initialValue: original.endTime ?? "18:00")
         _workplaceId = State(initialValue: original.workplaceId)
-        _isWork = State(initialValue: isNew || original.workplaceId != nil)
         _breakInNight = State(initialValue: original.breakInNight)
         _labelId = State(initialValue: original.labelId)
         _ownColor = State(initialValue: original.ownColor ?? false)
         _adjustmentText = State(initialValue: original.adjustment.map { $0 == 0 ? "" : String($0) } ?? "")
         _dailyWageText = State(initialValue: original.dailyWage.map { $0 == 0 ? "" : String($0) } ?? "")
-        _barShowsTitle = State(initialValue: original.barShowsTitle ?? false)
+        // 新しい予定は職場の指定なし(通常予定)から始まるので、バーには予定名を出す
+        _barShowsTitle = State(initialValue: original.barShowsTitle ?? isNew)
         // 保存済みの休憩分(既定と同じ値は onAppear で空に戻す)
         let savedBreak: String
         if let wh = original.workHours, !original.allDay,
@@ -126,20 +123,10 @@ struct EventEditor: View {
             ScrollViewReader { proxy in
             Form {
                 Section {
-                    Picker("予定形式", selection: kindBinding) {
-                        Text("勤務予定").tag(true)
-                        Text("通常予定").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                    if isWork {
-                        choiceRow(symbol: "building.2", title: "職場", name: selectedWorkplace?.name ?? "指定なし",
-                                  color: selectedWorkplace?.color ?? EventLabel.noneColor) { picking = .workplace }
-                    } else {
-                        choiceRow(symbol: "tag", title: "ラベル", name: store.label(for: labelId)?.name ?? "ラベルなし",
-                                  color: store.label(for: labelId)?.color ?? EventLabel.noneColor) { picking = .label }
-                    }
                     TextField("タイトル(必須)", text: $title)
                         .focused($focusedField, equals: .title)
+                    choiceRow(name: selectedWorkplace?.name ?? store.label(for: labelId)?.name ?? "指定なし",
+                              color: currentGroupColor) { picking = true }
                     Toggle("個別カラー", isOn: ownColorBinding)
                     if ownColor {
                         ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
@@ -232,8 +219,6 @@ struct EventEditor: View {
                 if selectedWorkplace == nil {
                     workplaceId = store.workplace(for: original)?.id
                 }
-                // 既存の予定は、職場があれば勤務予定、なければ通常予定
-                if !isNew { isWork = selectedWorkplace != nil }
                 if original.ownColor == nil, !isNew {
                     ownColor = original.color != currentGroupColor
                 }
@@ -257,18 +242,15 @@ struct EventEditor: View {
             }
         }
         .presentationDetents([.large])
-        .sheet(item: $picking) { kind in
-            switch kind {
-            case .workplace: WorkplacePickerSheet(selectedId: workplaceId, onSelect: selectWorkplace)
-            case .label: LabelPickerSheet(selectedId: labelId) { labelId = $0 }
-            }
+        .sheet(isPresented: $picking) {
+            WorkLabelSheet(workplaceId: workplaceId, labelId: labelId, onSelect: select)
         }
     }
 
     // MARK: 職場・ラベル・色
 
     private var currentGroupColor: String {
-        store.groupColor(workplaceId: isWork ? workplaceId : nil, labelId: isWork ? nil : labelId)
+        store.groupColor(workplaceId: workplaceId, labelId: labelId)
     }
 
     /// 個別カラーのトグル。オンにしたときは、いま付いている色から選び始める
@@ -281,12 +263,10 @@ struct EventEditor: View {
             })
     }
 
-    private func choiceRow(symbol: String, title: String, name: String, color: String,
-                           action: @escaping () -> Void) -> some View {
+    private func choiceRow(name: String, color: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 24)
-                Text(title).foregroundStyle(.primary)
+            HStack(spacing: 8) {
+                Text("職場・ラベル")
                 Spacer()
                 ColorDot(hex: color, size: 14)
                 Text(name).foregroundStyle(.secondary)
@@ -294,36 +274,24 @@ struct EventEditor: View {
             }
             .contentShape(Rectangle())
         }
-        .accessibilityLabel("\(title) \(name)")
+        .foregroundStyle(.primary)
+        .accessibilityLabel("職場・ラベル \(name)")
     }
 
-    /// 職場を選ぶ。タイトルが空か前の職場名のままなら、新しい職場名に合わせる
-    private func selectWorkplace(_ id: String?) {
+    /// 職場かラベルを選ぶ。職場を選ぶと勤務予定になり、ラベル・指定なしを選ぶと通常予定になる。
+    /// タイトルが空か前の職場名のままなら、新しい職場名に合わせる。バーの表記は、予定の種類が変わったときだけ既定に合わせる
+    private func select(workplaceId newWorkplace: String?, labelId newLabel: String?) {
         let old = selectedWorkplace
-        workplaceId = id
+        let wasWork = isWork
+        workplaceId = newWorkplace
+        labelId = newWorkplace == nil ? newLabel : nil
         let new = selectedWorkplace
         if let new, title.isEmpty || title == old?.name {
             title = new.name
         } else if new == nil, title == old?.name {
             title = ""
         }
-    }
-
-    /// 予定形式の切り替え(ユーザーが切り替えたときだけ動く)。バーの表記も形式の既定に合わせる
-    private var kindBinding: Binding<Bool> {
-        Binding(
-            get: { isWork },
-            set: { new in
-                isWork = new
-                barShowsTitle = !new
-                if new {
-                    labelId = nil
-                } else if let w = selectedWorkplace {
-                    // 通常予定にしたら職場を外す(職場名のままのタイトルも戻す)
-                    workplaceId = nil
-                    if title == w.name { title = "" }
-                }
-            })
+        if wasWork != isWork { barShowsTitle = !isWork }
     }
 
     // MARK: 時刻入力

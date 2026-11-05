@@ -14,98 +14,130 @@ extension Store {
     }
 }
 
-/// 職場・ラベルの 1 行ぶん
-struct ChoiceItem: Identifiable, Equatable {
-    let id: String
-    let name: String
-    let color: String
-}
-
-/// 下から出る選択シート。タップで選ぶ。右上の「編集」を押すと、行のタップが名前・色の編集になり、右端に並べ替えが出る。
-/// 職場とラベルで共通。「指定なし」「ラベルなし」は固定で、直せない
-struct ChoiceSheet<AddEditor: View, ItemEditor: View>: View {
-    let title: String
-    let noneTitle: String
-    let items: [ChoiceItem]
-    let selectedId: String?
-    let addTitle: String
-    let onSelect: (String?) -> Void
-    let onMove: (IndexSet, Int) -> Void
-    @ViewBuilder let addEditor: () -> AddEditor
-    @ViewBuilder let itemEditor: (String) -> ItemEditor
-
+/// 予定の編集画面の「職場・ラベル」から開く、下から出る選択シート。
+/// 職場を選ぶと勤務予定、ラベル(または指定なし)を選ぶと通常予定になる。
+/// 右上の「編集」を押すと、行のタップが名前・色の編集になり、右端に並べ替えが出る。「指定なし」は固定で、直せない
+struct WorkLabelSheet: View {
+    @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
+
+    let workplaceId: String?
+    let labelId: String?
+    let onSelect: (_ workplaceId: String?, _ labelId: String?) -> Void
+
+    private enum Adding: Identifiable {
+        case workplace, label
+        var id: Int { self == .workplace ? 0 : 1 }
+    }
+
     @State private var editing = false
-    @State private var adding = false
-    @State private var countBeforeAdd = 0
-    @State private var editingId: String?
+    @State private var adding: Adding?
+    @State private var workplaceCountBeforeAdd = 0
+    @State private var labelCountBeforeAdd = 0
+    @State private var editingWorkplace: Workplace?
+    @State private var editingLabel: LabelTarget?
 
     var body: some View {
         NavigationStack {
             List {
-                row(id: nil, name: noneTitle, color: EventLabel.noneColor)
-                ForEach(items) { item in
-                    row(id: item.id, name: item.name, color: item.color)
+                Section("職場") {
+                    ForEach(store.workplaces) { w in
+                        row(name: w.name, color: w.color, selected: workplaceId == w.id) {
+                            if editing { editingWorkplace = w } else { choose(workplace: w.id) }
+                        }
+                    }
+                    .onMove { store.moveWorkplaces(from: $0, to: $1) }
+                    if !editing {
+                        Button {
+                            workplaceCountBeforeAdd = store.workplaces.count
+                            adding = .workplace
+                        } label: {
+                            Label("職場を追加", systemImage: "plus")
+                        }
+                        if store.workplaces.isEmpty {
+                            Text("職場を追加すると給料計算ができます。")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
-                .onMove(perform: onMove)
-                if !editing {
-                    Button {
-                        countBeforeAdd = items.count
-                        adding = true
-                    } label: {
-                        Label(addTitle, systemImage: "plus").foregroundStyle(Theme.accent)
+                Section("ラベル") {
+                    row(name: "指定なし", color: EventLabel.noneColor, selected: workplaceId == nil && labelId == nil) {
+                        if !editing { choose(label: nil) }
+                    }
+                    .moveDisabled(true)
+                    ForEach(store.labels) { l in
+                        row(name: l.name, color: l.color, selected: workplaceId == nil && labelId == l.id) {
+                            if editing { editingLabel = LabelTarget(label: l, isNew: false) } else { choose(label: l.id) }
+                        }
+                    }
+                    .onMove { store.moveLabels(from: $0, to: $1) }
+                    if !editing {
+                        Button {
+                            labelCountBeforeAdd = store.labels.count
+                            adding = .label
+                        } label: {
+                            Label("ラベルを追加", systemImage: "plus")
+                        }
                     }
                 }
             }
-            .listStyle(.plain)
             .environment(\.editMode, .constant(editing ? .active : .inactive))
-            .navigationTitle(editing ? "\(title)を編集" : title)
+            .navigationTitle(editing ? "職場・ラベルを編集" : "職場・ラベル")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(editing ? "完了" : "編集") { withAnimation { editing.toggle() } }
-                        .disabled(!editing && items.isEmpty)
+                        .disabled(!editing && store.workplaces.isEmpty && store.labels.isEmpty)
                 }
             }
         }
         .presentationDetents([.medium, .large])
-        .sheet(isPresented: $adding, onDismiss: selectAdded) { addEditor() }
-        .sheet(item: Binding(get: { editingId.map { IdTarget(id: $0) } }, set: { editingId = $0?.id })) {
-            itemEditor($0.id)
+        .sheet(item: $adding, onDismiss: selectAdded) { kind in
+            switch kind {
+            case .workplace: WorkplaceEditor(workplace: nil)
+            case .label: LabelEditor(label: store.newLabelDraft(), isNew: true)
+            }
         }
+        .sheet(item: $editingWorkplace) { WorkplaceEditor(workplace: $0) }
+        .sheet(item: $editingLabel) { LabelEditor(label: $0.label, isNew: $0.isNew) }
     }
 
-    private struct IdTarget: Identifiable { let id: String }
-
-    private func row(id: String?, name: String, color: String) -> some View {
-        Button {
-            if editing {
-                if let id { editingId = id }
-            } else {
-                onSelect(id)
-                dismiss()
-            }
-        } label: {
+    private func row(name: String, color: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             HStack(spacing: 12) {
                 ColorDot(hex: color, size: 14)
                 Text(name)
                 Spacer()
                 if !editing {
-                    Image(systemName: selectedId == id ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(selectedId == id ? Color.primary : Color.secondary.opacity(0.5))
+                    Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(selected ? Color.primary : Color.secondary.opacity(0.5))
                 }
             }
             .contentShape(Rectangle())
         }
         .foregroundStyle(.primary)
-        .moveDisabled(id == nil)
+    }
+
+    private func choose(workplace id: String) {
+        onSelect(id, nil)
+        dismiss()
+    }
+
+    private func choose(label id: String?) {
+        onSelect(nil, id)
+        dismiss()
     }
 
     /// 追加したものは、そのまま選んでシートを閉じる
     private func selectAdded() {
-        guard items.count > countBeforeAdd, let last = items.last else { return }
-        onSelect(last.id)
-        dismiss()
+        if store.workplaces.count > workplaceCountBeforeAdd, let w = store.workplaces.last {
+            workplaceCountBeforeAdd = store.workplaces.count
+            choose(workplace: w.id)
+        } else if store.labels.count > labelCountBeforeAdd, let l = store.labels.last {
+            labelCountBeforeAdd = store.labels.count
+            choose(label: l.id)
+        }
     }
 }
 
@@ -121,7 +153,7 @@ struct LabelManageView: View {
                 Section {
                     HStack(spacing: 12) {
                         ColorDot(hex: EventLabel.noneColor, size: 14)
-                        Text("ラベルなし")
+                        Text("指定なし")
                         Spacer()
                         Text("\(store.labelEventCount(nil))件").foregroundStyle(.secondary)
                     }
@@ -140,7 +172,7 @@ struct LabelManageView: View {
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
                 } footer: {
-                    Text("ラベルは通常予定の分類で、1 つの予定に 1 つ付けられます。勤務予定は職場でまとまるので、ラベルは付けません。職場は設定から直せます。")
+                    Text("ラベルは、職場を選ばない予定の分類で、1 つの予定に 1 つ付けられます。職場は設定から直せます。")
                 }
                 Section {
                     Button { target = LabelTarget(label: store.newLabelDraft(), isNew: true) } label: {
@@ -186,7 +218,7 @@ struct LabelEditor: View {
                     Section {
                         Button("このラベルを削除", role: .destructive) { confirmDelete = true }
                     } footer: {
-                        Text("削除すると、\(store.labelEventCount(label.id))件の予定は「ラベルなし」に戻ります。予定は消えません。")
+                        Text("削除すると、\(store.labelEventCount(label.id))件の予定は「指定なし」に戻ります。予定は消えません。")
                     }
                 }
             }
@@ -216,39 +248,5 @@ struct LabelEditor: View {
             store.updateLabel(id: label.id, name: name, color: color)
         }
         dismiss()
-    }
-}
-
-/// 予定の編集画面の「職場」から開く選択シート
-struct WorkplacePickerSheet: View {
-    @Environment(Store.self) private var store
-    let selectedId: String?
-    let onSelect: (String?) -> Void
-
-    var body: some View {
-        ChoiceSheet(title: "職場", noneTitle: "指定なし",
-                    items: store.workplaces.map { ChoiceItem(id: $0.id, name: $0.name, color: $0.color) },
-                    selectedId: selectedId, addTitle: "職場を追加", onSelect: onSelect,
-                    onMove: { store.moveWorkplaces(from: $0, to: $1) },
-                    addEditor: { WorkplaceEditor(workplace: nil) },
-                    itemEditor: { id in WorkplaceEditor(workplace: store.workplaces.first { $0.id == id }) })
-    }
-}
-
-/// 予定の編集画面の「ラベル」から開く選択シート
-struct LabelPickerSheet: View {
-    @Environment(Store.self) private var store
-    let selectedId: String?
-    let onSelect: (String?) -> Void
-
-    var body: some View {
-        ChoiceSheet(title: "ラベル", noneTitle: "ラベルなし",
-                    items: store.labels.map { ChoiceItem(id: $0.id, name: $0.name, color: $0.color) },
-                    selectedId: selectedId, addTitle: "ラベルを追加", onSelect: onSelect,
-                    onMove: { store.moveLabels(from: $0, to: $1) },
-                    addEditor: { LabelEditor(label: store.newLabelDraft(), isNew: true) },
-                    itemEditor: { id in
-                        if let l = store.label(for: id) { LabelEditor(label: l, isNew: false) }
-                    })
     }
 }

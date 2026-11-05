@@ -28,9 +28,9 @@ final class Store {
     private(set) var checkedWorkplaces: Set<String>
     private(set) var customColors: [String]
     private(set) var workplaces: [Workplace]
-    /// 通常予定のラベル(「ラベルなし」は含まない)
+    /// 通常予定のラベル(「指定なし」は含まない)
     private(set) var labels: [EventLabel]
-    /// 絞り込み中のラベル。「ラベルなし」は noLabelKey
+    /// 絞り込み中のラベル。「指定なし」は noLabelKey
     private(set) var checkedLabels: Set<String>
     /// よく使う予定(日付なしのテンプレート)
     var favorites: [ShiftEvent] = []
@@ -95,7 +95,7 @@ final class Store {
     /// カスタム色の「最近」に残す最大数
     static let maxRecentColors = 7
 
-    /// 「ラベルなし」を表すフィルタ用の番兵ID
+    /// 「指定なし」を表すフィルタ用の番兵ID
     static let noLabelKey = ""
 
     /// 配置済みで、絞り込みを通る予定(絞り込みが空なら全て)
@@ -361,7 +361,7 @@ final class Store {
         defaults.set(Array(checkedWorkplaces), forKey: Keys.checked)
     }
 
-    /// 通常予定のくくりをまとめて選ぶ・外す(全部のラベルと「ラベルなし」)
+    /// 通常予定のくくりをまとめて選ぶ・外す(全部のラベルと「指定なし」)
     func setLabelGroup(_ on: Bool) {
         checkedLabels = on ? Set(labels.map(\.id) + [Store.noLabelKey]) : []
         defaults.set(Array(checkedLabels), forKey: Keys.checkedLabels)
@@ -395,7 +395,7 @@ final class Store {
         if old != color { recolorEvents(where: { $0.labelId == id && workplace(for: $0) == nil }, from: old, to: color) }
     }
 
-    /// ラベルを消す。付いていた予定は消さず「ラベルなし」に戻る(個別カラーでない予定はグレーになる)
+    /// ラベルを消す。付いていた予定は消さず「指定なし」に戻る(個別カラーでない予定はグレーになる)
     func deleteLabel(id: String) {
         guard let removed = labels.first(where: { $0.id == id }) else { return }
         labels.removeAll { $0.id == id }

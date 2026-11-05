@@ -9,6 +9,6 @@ struct EventLabel: Codable, Identifiable, Equatable {
 }
 
 extension EventLabel {
-    /// ラベルなし・職場の指定なしの色(グレー)
+    /// 指定なし(職場もラベルも選ばない)の色(グレー)
     static let noneColor = Store.defaultColors[0]
 }
