@@ -6,44 +6,69 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // 共有カレンダー。members に入っている人だけが読める
+    // 共有カレンダー。参加している人だけが読める。許可制のカレンダーでは、承認されるまで中身は読めない
     match /calendars/{cid} {
       function signedIn() { return request.auth != null; }
+      function cal() { return get(/databases/$(database)/documents/calendars/$(cid)).data; }
+      function myMember() { return get(/databases/$(database)/documents/calendars/$(cid)/members/$(request.auth.uid)).data; }
+      // 参加の申し込み中も含めて、members に入っている
       function isMember() {
         return signedIn() && exists(/databases/$(database)/documents/calendars/$(cid)/members/$(request.auth.uid));
       }
-      function isOwner() {
-        return signedIn() && resource.data.ownerUid == request.auth.uid;
-      }
+      // 承認済み(許可制でなければ、参加した時点で承認済み)
+      function isActive() { return isMember() && myMember().status == 'active'; }
+      function isOwner() { return signedIn() && cal().ownerUid == request.auth.uid; }
       // 期限内で、無効化されていない招待があるか
       function validInvite(token) {
         let inv = get(/databases/$(database)/documents/calendars/$(cid)/invites/$(token)).data;
         return inv.revoked == false && inv.expiresAt > request.time.toMillis();
       }
+      // 見せるだけのカレンダーでは、書けるのは持ち主だけ
+      function canShare() { return cal().kind == 'mutual' || isOwner(); }
 
       allow read: if isMember();
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
       allow update, delete: if isOwner();
 
       match /members/{mid} {
-        allow read: if isMember();
-        // 持ち主は作成と同時に自分を入れる。ほかの人は有効な招待があるときだけ入れる
+        // 自分の分は、承認待ちでも読める。ほかの人の分は、承認済みの人だけ
+        allow read: if isActive() || (signedIn() && request.auth.uid == mid);
+        // 持ち主は作成と同時に自分を入れる。ほかの人は有効な招待があるときだけ入れる(許可制なら承認待ちで)
         allow create: if signedIn() && request.auth.uid == mid && (
-          (request.resource.data.role == 'owner'
+          (request.resource.data.role == 'owner' && request.resource.data.status == 'active'
             && getAfter(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == mid)
-          || (request.resource.data.role == 'member' && validInvite(request.resource.data.token))
+          || (request.resource.data.role == 'member' && validInvite(request.resource.data.token)
+            && request.resource.data.status == (cal().requireApproval ? 'pending' : 'active'))
         );
-        allow delete: if signedIn() && (
-          request.auth.uid == mid
-          || get(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == request.auth.uid
+        // 自分の名前と共有する項目は変えられる。承認と役割は、持ち主だけ
+        allow update: if signedIn() && (
+          isOwner()
+          || (request.auth.uid == mid
+              && request.resource.data.status == resource.data.status
+              && request.resource.data.role == resource.data.role)
         );
+        allow delete: if signedIn() && (request.auth.uid == mid || isOwner());
       }
 
       match /invites/{token} {
-        allow read: if isMember();
+        // 招待を持っている人は、中身(名前と種類)を見てから参加できる。コードは推測できない長さにしてある
+        allow get: if signedIn();
+        allow list: if isActive();
         // 作成と同じ書き込みの中でカレンダーができるので、書き込み後の状態(getAfter)で持ち主を調べる
         allow create, update, delete: if signedIn()
           && getAfter(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == request.auth.uid;
+      }
+
+      // 共有する予定のコピー(公開できる項目だけ)と、共有カレンダーの中で作った予定
+      match /events/{eid} {
+        allow read: if isActive();
+        allow create, update: if isActive() && canShare() && (
+          request.resource.data.ownerUid == request.auth.uid
+          || request.resource.data.sourceKey == 'calendar'
+        );
+        allow delete: if isActive() && canShare() && (
+          resource.data.ownerUid == request.auth.uid || resource.data.sourceKey == 'calendar'
+        );
       }
     }
   }

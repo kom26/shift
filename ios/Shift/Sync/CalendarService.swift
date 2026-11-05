@@ -1,11 +1,62 @@
 import Foundation
 import Observation
 
+/// 共有カレンダーの種類
+enum CalendarKind: String, CaseIterable {
+    /// 持ち主の予定を、招待した相手が見るだけ
+    case oneway
+    /// 参加した全員が、自分の予定を見せ合う
+    case mutual
+
+    var title: String { self == .oneway ? "見せるだけ" : "相互に共有" }
+    var detail: String {
+        self == .oneway ? "あなたの予定を、招待した相手が見るだけです。" : "参加した全員が、自分の予定を見せ合います。"
+    }
+}
+
+enum MemberStatus: String {
+    case active, pending
+}
+
 /// 参加している共有カレンダー
 struct SharedCalendar: Equatable, Identifiable {
     let id: String
     var name: String
     let ownerUid: String
+    var kind: CalendarKind = .mutual
+    var requireApproval = false
+    /// 自分の参加の状態。許可制で持ち主が承認するまでは pending
+    var status: MemberStatus = .active
+}
+
+/// 共有カレンダーの参加者
+struct CalendarMember: Equatable, Identifiable {
+    let id: String
+    var displayName: String
+    var isOwner: Bool
+    var status: MemberStatus
+    /// 共有に出している職場・ラベル(ShareKey の文字列)
+    var sharedKeys: [String]
+}
+
+/// 共有に出す項目のキー。職場は "w:<id>"、ラベルは "l:<id>"(「指定なし」は "l:")
+enum ShareKey {
+    static func workplace(_ id: String) -> String { "w:" + id }
+    static func label(_ id: String?) -> String { "l:" + (id ?? "") }
+
+    /// 予定が属する項目のキー。職場があれば職場、なければラベル
+    static func of(_ event: ShiftEvent, store: Store) -> String {
+        if let w = store.workplace(for: event) { return workplace(w.id) }
+        return label(event.labelId)
+    }
+}
+
+/// 招待の内容(参加する前に見せる)
+struct InvitePreview: Equatable {
+    let calendarName: String
+    let ownerName: String
+    let kind: CalendarKind
+    let requireApproval: Bool
 }
 
 /// 招待コード。共有カレンダーの ID と招待の合言葉をつなげたもの(英数字とハイフンだけ)
@@ -15,10 +66,14 @@ struct InviteCode: Equatable {
 
     var text: String { "\(calendarId)-\(token)" }
 
+    /// 招待リンクの置き場所(Firebase Hosting)。開くとアプリが開く。アプリが無ければ TestFlight へ移る
+    static let linkBase = "https://shift-palette.web.app/join/"
+    var link: URL? { URL(string: Self.linkBase + text) }
+
     /// 貼り付けた文字から取り出す。前後の空白や、リンクの途中にあっても最後の 1 区切りを見る
     static func parse(_ raw: String) -> InviteCode? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let last = trimmed.split(whereSeparator: { $0 == "/" || $0 == " " }).last.map(String.init) ?? ""
+        let last = trimmed.split(whereSeparator: { $0 == "/" || $0 == " " || $0 == "\n" }).last.map(String.init) ?? ""
         let parts = last.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
         guard parts.count == 2, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(isAllowed) }) else { return nil }
         return InviteCode(calendarId: parts[0], token: parts[1])
@@ -32,23 +87,38 @@ struct InviteCode: Equatable {
     }
 }
 
+/// 作成時に決めること
+struct NewCalendar: Equatable {
+    var name: String
+    /// 相手に見える自分の名前
+    var displayName: String
+    var kind: CalendarKind
+    var requireApproval: Bool
+    var sharedKeys: [String]
+}
+
 /// 共有カレンダーのクラウド側(テストでは差し替える)
 protocol CalendarBacking: AnyObject {
-    /// カレンダーを作り、作った人を持ち主として参加させる。最初の招待コードを返す
-    func create(uid: String, name: String) async throws -> (calendar: SharedCalendar, invite: InviteCode)
+    func create(uid: String, spec: NewCalendar) async throws -> (calendar: SharedCalendar, invite: InviteCode)
     func joined(uid: String) async throws -> [SharedCalendar]
-    /// 招待コードで参加する。コードが無効なら CalendarError.invalidInvite
-    func join(uid: String, code: InviteCode) async throws -> SharedCalendar
+    /// 招待の内容を見る。無効なら CalendarError.invalidInvite
+    func preview(code: InviteCode) async throws -> InvitePreview
+    /// 招待コードで参加する。許可制なら pending で入る。コードが無効なら CalendarError.invalidInvite
+    func join(uid: String, code: InviteCode, displayName: String, sharedKeys: [String]) async throws -> SharedCalendar
     /// 有効な招待コード。無ければ作る
     func currentInvite(uid: String, calendar: SharedCalendar) async throws -> InviteCode
     func leave(uid: String, calendarId: String) async throws
+    func members(calendarId: String) async throws -> [CalendarMember]
+    func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws
+    func removeMember(calendarId: String, uid: String) async throws
+    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String]) async throws
 }
 
 enum CalendarError: Error, Equatable {
     case invalidInvite
 }
 
-/// 共有カレンダーの一覧と、作成・参加・退出
+/// 共有カレンダーの一覧と、作成・参加・退出・参加者の管理
 @MainActor
 @Observable
 final class CalendarService {
@@ -81,26 +151,37 @@ final class CalendarService {
     }
 
     @discardableResult
-    func create(name: String) async -> (calendar: SharedCalendar, invite: InviteCode)? {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let uid, !trimmed.isEmpty else { return nil }
+    func create(_ spec: NewCalendar) async -> (calendar: SharedCalendar, invite: InviteCode)? {
+        var spec = spec
+        spec.name = spec.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        spec.displayName = spec.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let uid, !spec.name.isEmpty, !spec.displayName.isEmpty else { return nil }
         return await run("共有カレンダーを作れませんでした") {
-            let made = try await self.backing.create(uid: uid, name: trimmed)
+            let made = try await self.backing.create(uid: uid, spec: spec)
             self.calendars.append(made.calendar)
             return made
         }
     }
 
-    @discardableResult
-    func join(code raw: String) async -> SharedCalendar? {
-        guard let uid else { return nil }
+    func preview(code raw: String) async -> (code: InviteCode, preview: InvitePreview)? {
+        guard uid != nil else { return nil }
         guard let code = InviteCode.parse(raw) else {
             errorMessage = "招待コードの形が正しくありません"
             return nil
         }
+        return await run("招待を確認できませんでした", invalid: "招待コードが無効か、期限が切れています") {
+            let p = try await self.backing.preview(code: code)
+            return (code, p)
+        }
+    }
+
+    @discardableResult
+    func join(code: InviteCode, displayName: String, sharedKeys: [String]) async -> SharedCalendar? {
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let uid, !name.isEmpty else { return nil }
         if let existing = calendars.first(where: { $0.id == code.calendarId }) { return existing }
         return await run("参加できませんでした", invalid: "招待コードが無効か、期限が切れています") {
-            let joined = try await self.backing.join(uid: uid, code: code)
+            let joined = try await self.backing.join(uid: uid, code: code, displayName: name, sharedKeys: sharedKeys)
             self.calendars.append(joined)
             return joined
         }
@@ -119,6 +200,38 @@ final class CalendarService {
             try await self.backing.leave(uid: uid, calendarId: calendar.id)
             self.calendars.removeAll { $0.id == calendar.id }
         }
+    }
+
+    func members(of calendar: SharedCalendar) async -> [CalendarMember]? {
+        await run("参加者を取得できませんでした") { try await self.backing.members(calendarId: calendar.id) }
+    }
+
+    /// 持ち主が、承認待ちの人を承認する
+    func approve(_ member: CalendarMember, in calendar: SharedCalendar) async -> Bool {
+        guard uid == calendar.ownerUid else { return false }
+        return await run("承認できませんでした") {
+            try await self.backing.setStatus(calendarId: calendar.id, uid: member.id, status: .active)
+            return true
+        } ?? false
+    }
+
+    /// 持ち主が、参加者を削除する(承認待ちの却下も同じ)
+    func remove(_ member: CalendarMember, from calendar: SharedCalendar) async -> Bool {
+        guard uid == calendar.ownerUid, member.id != uid else { return false }
+        return await run("削除できませんでした") {
+            try await self.backing.removeMember(calendarId: calendar.id, uid: member.id)
+            return true
+        } ?? false
+    }
+
+    /// 自分の共有者名と、共有に出す項目を変える
+    func updateMine(in calendar: SharedCalendar, displayName: String, sharedKeys: [String]) async -> Bool {
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let uid, !name.isEmpty else { return false }
+        return await run("保存できませんでした") {
+            try await self.backing.updateMine(calendarId: calendar.id, uid: uid, displayName: name, sharedKeys: sharedKeys)
+            return true
+        } ?? false
     }
 
     private func run<T>(_ failure: String, invalid: String? = nil, _ body: () async throws -> T) async -> T? {

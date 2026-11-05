@@ -27,6 +27,7 @@ targets:
       path: ShiftInfo.plist
       properties:
         NSAlarmKitUsageDescription: 出勤前のアラームをセットするために使います
+        NSPhotoLibraryAddUsageDescription: 招待の QR コードを画像として写真に保存するために使います
         CFBundleURLTypes:
           - CFBundleURLName: com.kom26.shift
             CFBundleURLSchemes:

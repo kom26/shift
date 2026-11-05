@@ -38,6 +38,8 @@ struct RootView: View {
     @State private var showLabels = false
     @State private var showCreateCalendar = false
     @State private var showJoinCalendar = false
+    /// 招待リンクから開いたときの招待コード
+    @State private var joinCode = ""
     @State private var calendarDetail: SharedCalendar?
     @State private var paydayTarget: PaydayTarget?
     @State private var dayTarget: DayTarget?
@@ -105,6 +107,16 @@ struct RootView: View {
             selectedDate = nil
         }
         .onOpenURL { url in
+            // 招待リンクから: shiftpalette://join/<招待コード> で、参加の確認を開く(ログイン前なら設定へ)
+            if url.scheme == "shiftpalette", url.host == "join", let code = url.pathComponents.last, code != "/" {
+                if auth.account == nil {
+                    showSettings = true
+                } else {
+                    joinCode = code
+                    showJoinCalendar = true
+                }
+                return
+            }
             // ウィジェットから: shiftpalette://day/2026-10-30 でその日の予定一覧を開く
             guard url.scheme == "shiftpalette", url.host == "day",
                   let date = url.pathComponents.last, Rules.parse(date) != nil else { return }
@@ -129,7 +141,7 @@ struct RootView: View {
         .sheet(isPresented: $showFilter) { FilterSheet() }
         .sheet(isPresented: $showLabels) { LabelManageView() }
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
-        .sheet(isPresented: $showJoinCalendar) { CalendarJoinSheet() }
+        .sheet(isPresented: $showJoinCalendar, onDismiss: { joinCode = "" }) { CalendarJoinSheet(code: joinCode) }
         .sheet(item: $calendarDetail) { CalendarDetailSheet(calendar: $0) }
     }
 
@@ -155,7 +167,7 @@ struct RootView: View {
                         drawerRow(title: cal.name, icon: "person.2") { closeDrawer { calendarDetail = cal } }
                     }
                     drawerRow(title: "共有カレンダーを作る", icon: "plus.circle") { closeDrawer { showCreateCalendar = true } }
-                    drawerRow(title: "招待コードで参加", icon: "link") { closeDrawer { showJoinCalendar = true } }
+                    drawerRow(title: "招待で参加", icon: "link") { closeDrawer { joinCode = ""; showJoinCalendar = true } }
                 } else {
                     drawerRow(title: "ログインして共有カレンダーを使う", icon: "person.crop.circle.badge.plus") {
                         closeDrawer { showSettings = true }
