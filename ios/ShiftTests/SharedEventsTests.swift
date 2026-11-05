@@ -166,3 +166,61 @@ struct SharedEventsTests {
         #expect(Set(plain.events.map(\.title)) == ["ランチ", "早番"])
     }
 }
+
+@MainActor
+struct SharedCalendarEventTests {
+    @Test func newEventInACalendarIsCalendarOwnedAndHasNoPayFields() {
+        let e = SharedEvent.newInCalendar(uid: "me", date: "2026-11-10")
+        #expect(e.isCalendarOwned)
+        #expect(e.id.hasPrefix("cal_"))
+        #expect(e.allDay)
+        #expect(e.startDate == "2026-11-10" && e.endDate == "2026-11-10")
+        #expect(e.name == "")
+    }
+
+    @Test func calendarEventsHaveNoPersonPrefixButMembersEventsDo() {
+        let own = SharedEvent.newInCalendar(uid: "me", date: "2026-11-10")
+        var titled = own
+        titled = SharedEvent(id: own.id, ownerUid: "me", sourceKey: SharedEvent.calendarKey, title: "旅行の日",
+                             startDate: "2026-11-10", endDate: "2026-11-10", startTime: nil, endTime: nil,
+                             allDay: true, name: "", color: own.color)
+        let mine = SharedEvent(id: "me_a", ownerUid: "me", sourceKey: "l:", title: "ランチ", startDate: "2026-11-10",
+                               endDate: "2026-11-10", startTime: nil, endTime: nil, allDay: true, name: "", color: "#bec1cc")
+        let store = SharedViewState.makeStore(events: [titled, mine], names: ["me": "ゆう"], showNames: true)
+        #expect(Set(store.events.map(\.title)) == ["旅行の日", "ゆう｜ランチ"])
+    }
+
+    @Test func editorCombinesDateAndTime() {
+        let d = SharedEventEditor.combine("2026-11-10", "09:30", fallbackHour: 18)
+        let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+        #expect(c.hour == 9 && c.minute == 30)
+        let f = SharedEventEditor.combine("2026-11-10", nil, fallbackHour: 18)
+        #expect(Calendar.current.component(.hour, from: f) == 18)
+    }
+
+    @Test func myPublishedCopiesAreCleanedButCalendarEventsAreKept() async {
+        let backing = FakeSharedEventsForCalendar()
+        backing.docs["c1"] = [
+            "cal_x": SharedEvent.newInCalendar(uid: "me", date: "2026-11-10"),
+            "me_old": SharedEvent(id: "me_old", ownerUid: "me", sourceKey: "l:", title: "古い", startDate: "2026-11-01",
+                                  endDate: "2026-11-01", startTime: nil, endTime: nil, allDay: true, name: "", color: "#bec1cc"),
+        ]
+        let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString + ".json"),
+                          defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let cal = SharedCalendar(id: "c1", name: "家族", ownerUid: "me", kind: .mutual, requireApproval: false,
+                                 status: .active, mySharedKeys: ["l:"])
+        let publisher = SharedPublisher(backing: backing, store: store, calendars: { [cal] in [cal] }, uid: { "me" })
+        await publisher.syncNow()
+        #expect(Set(backing.docs["c1"]?.keys.map { $0 } ?? []) == ["cal_x"])
+    }
+}
+
+private final class FakeSharedEventsForCalendar: SharedEventsBacking {
+    var docs: [String: [String: SharedEvent]] = [:]
+    func fetch(calendarId: String) async throws -> [SharedEvent] { Array((docs[calendarId] ?? [:]).values) }
+    func set(calendarId: String, event: SharedEvent) async throws { docs[calendarId, default: [:]][event.id] = event }
+    func delete(calendarId: String, id: String) async throws { docs[calendarId]?[id] = nil }
+    func mineIds(calendarId: String, uid: String) async throws -> Set<String> {
+        Set((docs[calendarId] ?? [:]).values.filter { $0.ownerUid == uid }.map(\.id))
+    }
+}

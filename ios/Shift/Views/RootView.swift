@@ -39,6 +39,7 @@ struct RootView: View {
     @State private var showLabels = false
     @State private var showCreateCalendar = false
     @State private var showJoinCalendar = false
+    @State private var sharedEditing: SharedEditTarget?
     /// 招待リンクから開いたときの招待コード
     @State private var joinCode = ""
     @State private var calendarDetail: SharedCalendar?
@@ -135,7 +136,7 @@ struct RootView: View {
         }) { EventEditor(original: $0.event, isNew: $0.isNew, favoriteMode: $0.favorite) }
         .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
         .sheet(item: $dayTarget) { t in
-            DaySheet(date: t.date, canAdd: !sharedView.isOpen, onSelectEvent: { ev in
+            DaySheet(date: t.date, canAdd: !sharedView.isOpen || sharedView.canCreate, onSelectEvent: { ev in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { edit(ev) }
             }, onSelectPayday: { date in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: date) }
@@ -147,6 +148,7 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showFilter) { FilterSheet() }
         .sheet(isPresented: $showLabels) { LabelManageView() }
+        .sheet(item: $sharedEditing) { SharedEventEditor(target: $0) }
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
         .sheet(isPresented: $showJoinCalendar, onDismiss: { joinCode = "" }) { CalendarJoinSheet(code: joinCode) }
         .sheet(item: $calendarDetail) { CalendarDetailSheet(calendar: $0) }
@@ -216,11 +218,11 @@ struct RootView: View {
         }
     }
 
-    /// 共有カレンダーを開いている間の帯。見るだけで、自分の予定には触れないことを示す
+    /// 共有カレンダーを開いている間の帯。ほかの人の予定は見るだけで、自分の予定には触れないことを示す
     private var sharedBanner: some View {
         HStack(spacing: 8) {
             Image(systemName: "person.2.fill")
-            Text("\(sharedView.calendar?.name ?? "") (見るだけ)")
+            Text("\(sharedView.calendar?.name ?? "")" + (sharedView.canCreate ? "" : " (見るだけ)"))
                 .font(.app(13, weight: .semibold))
                 .lineLimit(1)
             Spacer(minLength: 4)
@@ -279,15 +281,15 @@ struct RootView: View {
                     Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
                     Spacer(minLength: 0)
                     Button { addFromHeader() } label: {
-                        Text(sharedView.isOpen ? "見るだけ" : addButtonTitle)
+                        Text(sharedView.isOpen ? (sharedView.canCreate ? "＋ 共有に追加" : "見るだけ") : addButtonTitle)
                             .font(.app(15, weight: .semibold))
                             .foregroundStyle(Theme.onAccent)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(Theme.accent, in: Capsule())
                     }
-                    .disabled(sharedView.isOpen)
-                    .opacity(sharedView.isOpen ? 0.5 : 1)
+                    .disabled(sharedView.isOpen && !sharedView.canCreate)
+                    .opacity(sharedView.isOpen && !sharedView.canCreate ? 0.5 : 1)
                 }
             }
             HStack(spacing: 10) {
@@ -489,13 +491,20 @@ struct RootView: View {
     }
 
     private func createEvent(on date: String) {
-        guard !sharedView.isOpen else { return }
+        if sharedView.isOpen {
+            // 共有カレンダーの中に予定を作る(参加者全員が直せる)
+            if let e = sharedView.newEvent(on: date) {
+                selectedDate = date
+                sharedEditing = SharedEditTarget(event: e, isNew: true)
+            }
+            return
+        }
         selectedDate = date
         editing = EditorTarget(event: .new(on: date), isNew: true)
     }
 
     private func addFromHeader() {
-        if let d = selectedDate { createEvent(on: d) } else { addUnplaced() }
+        if let d = selectedDate { createEvent(on: d) } else if sharedView.isOpen { createEvent(on: Rules.today()) } else { addUnplaced() }
     }
 
     private func addEvent(on date: String) {
@@ -523,7 +532,13 @@ struct RootView: View {
     }
 
     private func edit(_ event: ShiftEvent) {
-        guard !sharedView.isOpen else { return }
+        if sharedView.isOpen {
+            // 共有カレンダーの中で作った予定だけ直せる。ほかの人の予定は見るだけ
+            if sharedView.isEditable(event.id), let e = sharedView.event(event.id) {
+                sharedEditing = SharedEditTarget(event: e, isNew: false)
+            }
+            return
+        }
         editing = EditorTarget(event: event, isNew: false)
     }
 
