@@ -1,3 +1,4 @@
+import UIKit
 import Foundation
 import Testing
 @testable import Shift
@@ -185,6 +186,23 @@ struct SharedEventsTests {
         #expect(UserAvatar.color(for: "abc123") == UserAvatar.color(for: "abc123"))
         #expect(UserAvatar.initial(of: " ゆう ") == "ゆ")
         #expect(UserAvatar.initial(of: "") == "?")
+    }
+
+    @Test func photoAvatarIsCroppedToASquareAndRoundTrips() throws {
+        // 横長(400x200)の写真でも、正方形に切り取って取り込む
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let wide = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 200), format: format).image { c in
+            UIColor.red.setFill()
+            c.fill(CGRect(x: 0, y: 0, width: 400, height: 200))
+        }
+        let encoded = try #require(AvatarPhoto.encode(try #require(wide.pngData())))
+        #expect(AvatarPhoto.isPhoto(encoded))
+        let decoded = try #require(AvatarPhoto.image(from: encoded))
+        #expect(decoded.size.width == decoded.size.height)
+        #expect(!AvatarPhoto.isPhoto("🐶"))
+        #expect(AvatarPhoto.image(from: "🐶") == nil)
+        #expect(AvatarPhoto.encode(Data([1, 2, 3])) == nil)
     }
 }
 

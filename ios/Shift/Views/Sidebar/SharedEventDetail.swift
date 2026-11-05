@@ -31,12 +31,61 @@ struct UserAvatar: View {
     }
 
     var body: some View {
-        Text(avatar.isEmpty ? Self.initial(of: name) : avatar)
-            .font(.system(size: size * (avatar.isEmpty ? 0.46 : 0.58), weight: .bold))
-            .foregroundStyle(Color.white)
-            .frame(width: size, height: size)
-            .background(Circle().fill(Color(hex: Self.color(for: uid))))
-            .accessibilityLabel(name.isEmpty ? "参加者" : name)
+        Group {
+            if let photo = AvatarPhoto.image(from: avatar) {
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+            } else {
+                Text(avatar.isEmpty ? Self.initial(of: name) : avatar)
+                    .font(.system(size: size * (avatar.isEmpty ? 0.46 : 0.58), weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: size, height: size)
+                    .background(Circle().fill(Color(hex: Self.color(for: uid))))
+            }
+        }
+        .accessibilityLabel(name.isEmpty ? "参加者" : name)
+    }
+}
+
+/// 写真のアバター。正方形に中央でクロップして小さくし、文字列(`img:` + base64 の JPEG)にして
+/// 絵文字と同じ avatar 欄に入れる。数 KB なので、別の保存場所はいらない
+enum AvatarPhoto {
+    static let prefix = "img:"
+    /// 取り込む一辺(px)。表示は最大 56pt なので 3 倍でも足りる
+    static let side: CGFloat = 168
+
+    private static let cache = NSCache<NSString, UIImage>()
+
+    static func isPhoto(_ avatar: String) -> Bool { avatar.hasPrefix(prefix) }
+
+    static func image(from avatar: String) -> UIImage? {
+        guard isPhoto(avatar) else { return nil }
+        let key = avatar as NSString
+        if let hit = cache.object(forKey: key) { return hit }
+        guard let data = Data(base64Encoded: String(avatar.dropFirst(prefix.count))),
+              let img = UIImage(data: data) else { return nil }
+        cache.setObject(img, forKey: key)
+        return img
+    }
+
+    /// 写真のデータから avatar 文字列を作る。正方形でなければ、中央を正方形に切り取る
+    static func encode(_ data: Data) -> String? {
+        guard let src = UIImage(data: data), src.size.width > 0, src.size.height > 0 else { return nil }
+        let shortSide = min(src.size.width, src.size.height)
+        let scale = side / shortSide
+        let drawn = CGSize(width: src.size.width * scale, height: src.size.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let square = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { _ in
+            src.draw(in: CGRect(x: (side - drawn.width) / 2, y: (side - drawn.height) / 2,
+                                width: drawn.width, height: drawn.height))
+        }
+        guard let jpeg = square.jpegData(compressionQuality: 0.75) else { return nil }
+        return prefix + jpeg.base64EncodedString()
     }
 }
 

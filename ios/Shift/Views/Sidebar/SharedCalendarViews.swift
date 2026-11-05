@@ -1,4 +1,5 @@
 import CoreImage.CIFilterBuiltins
+import PhotosUI
 import SwiftUI
 
 /// 共有に出す職場・ラベルを選ぶ(複数)
@@ -235,6 +236,7 @@ struct CalendarDetailSheet: View {
     @State private var loaded = false
     @State private var actionError: String?
     @State private var avatar = ""
+    @State private var photoItem: PhotosPickerItem?
 
     private var uid: String? { auth.account?.uid }
     private var isOwner: Bool { calendar.ownerUid == uid }
@@ -270,7 +272,7 @@ struct CalendarDetailSheet: View {
                     } header: {
                         Text("アバター")
                     } footer: {
-                        Text("この共有カレンダーの中で、あなたの予定のそばに表示されます。")
+                        Text("この共有カレンダーの中で、あなたの予定のそばに表示されます。写真は正方形に切り取って丸く表示します。")
                     }
                     if canShareMine {
                         ShareItemsSection(selection: $shared)
@@ -343,10 +345,44 @@ struct CalendarDetailSheet: View {
     private var avatarPicker: some View {
         let columns = [GridItem(.adaptive(minimum: 48), spacing: 10)]
         return LazyVGrid(columns: columns, spacing: 10) {
+            photoCell
             avatarCell("", label: "文字")
             ForEach(UserAvatar.choices, id: \.self) { avatarCell($0, label: $0) }
         }
         .padding(.vertical, 4)
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task {
+                // 正方形でない写真は、中央を正方形に切り取って取り込む
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let encoded = AvatarPhoto.encode(data) {
+                    avatar = encoded
+                } else {
+                    actionError = "写真を読み込めませんでした"
+                }
+                photoItem = nil
+            }
+        }
+    }
+
+    /// 写真から選ぶ。選んだ写真があれば、それを丸く見せる
+    private var photoCell: some View {
+        PhotosPicker(selection: $photoItem, matching: .images) {
+            Group {
+                if AvatarPhoto.isPhoto(avatar) {
+                    UserAvatar(uid: uid ?? "", name: displayName, avatar: avatar, size: 44)
+                } else {
+                    Image(systemName: "photo")
+                        .font(.system(size: 18))
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(Color(.tertiarySystemFill)))
+                }
+            }
+            .overlay(Circle().stroke(Theme.accent, lineWidth: AvatarPhoto.isPhoto(avatar) ? 3 : 0).padding(-3))
+            .frame(maxWidth: .infinity)
+        }
+        .accessibilityLabel("写真から選ぶ")
     }
 
     private func avatarCell(_ value: String, label: String) -> some View {
