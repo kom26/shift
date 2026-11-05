@@ -445,6 +445,19 @@ final class Store {
         notifyChanged()
     }
 
+    func rememberColor(_ color: String) {
+        guard !Self.defaultColors.contains(color) else { return }
+        customColors = Array(([color] + customColors.filter { $0 != color }).prefix(Self.maxRecentColors))
+        defaults.set(customColors, forKey: Keys.custom)
+        notifyChanged()
+    }
+
+    func removeCustomColor(_ color: String) {
+        customColors.removeAll { $0 == color }
+        defaults.set(customColors, forKey: Keys.custom)
+        notifyChanged()
+    }
+
     // MARK: 職場
 
     func addWorkplace(name: String, color: String) {
