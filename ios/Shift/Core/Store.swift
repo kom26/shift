@@ -428,11 +428,11 @@ final class Store {
         events.filter { workplace(for: $0) == nil && $0.labelId == id }.count
     }
 
-    /// 個別カラーでない予定の色を、職場やラベルの色の変更に合わせる(古い予定は、旧色と同じものだけ)
-    private func recolorEvents(where match: (ShiftEvent) -> Bool, from old: String, to new: String) {
+    /// 個別カラーでない予定の色を、職場やラベルの色の変更に合わせる(古い予定は、includeLegacy のとき旧色と同じものだけ)
+    private func recolorEvents(where match: (ShiftEvent) -> Bool, from old: String, to new: String, includeLegacy: Bool = true) {
         var touched = false
         for i in events.indices where match(events[i]) {
-            let follows = events[i].ownColor == false || (events[i].ownColor == nil && events[i].color == old)
+            let follows = events[i].ownColor == false || (includeLegacy && events[i].ownColor == nil && events[i].color == old)
             guard follows, events[i].color != new else { continue }
             events[i].color = new
             touched = true
@@ -485,7 +485,7 @@ final class Store {
         workplaces[i].name = n
         workplaces[i].color = color
         persistWorkplaces()
-        if oldColor != color { recolorEvents(where: { $0.workplaceId == id || $0.title == oldName }, from: oldColor, to: color) }
+        if oldColor != color { recolorEvents(where: { $0.workplaceId == id || $0.title == oldName }, from: oldColor, to: color, includeLegacy: applyToEvents) }
         if applyToEvents {
             for j in events.indices where events[j].title == oldName {
                 events[j].title = n
