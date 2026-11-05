@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "PQ42DR2BS2.com.kom26.shift"
+        ],
+        "components": [
+          {
+            "/": "/join/*"
+          }
+        ]
+      }
+    ]
+  }
+}

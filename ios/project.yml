@@ -41,6 +41,9 @@ targets:
       properties:
         com.apple.developer.applesignin:
           - Default
+        # QR や招待リンク(https://shift-palette.web.app/join/...)を、アプリで直接開く
+        com.apple.developer.associated-domains:
+          - applinks:shift-palette.web.app
         com.apple.security.application-groups:
           - group.com.kom26.shift
     dependencies:

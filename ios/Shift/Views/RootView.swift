@@ -124,7 +124,10 @@ struct RootView: View {
         }
         .onOpenURL { url in
             // 招待リンクから: shiftpalette://join/<招待コード> で、参加の確認を開く(ログイン前なら設定へ)
-            if url.scheme == "shiftpalette", url.host == "join", let code = url.pathComponents.last, code != "/" {
+            // https://shift-palette.web.app/join/<招待コード> (QR やリンク。Universal Links)でも同じ
+            let isJoin = (url.scheme == "shiftpalette" && url.host == "join")
+                || (url.scheme == "https" && url.host == "shift-palette.web.app" && url.pathComponents.dropFirst().first == "join")
+            if isJoin, let code = url.pathComponents.last, code != "/", code != "join" {
                 if auth.account == nil {
                     showSettings = true
                 } else {

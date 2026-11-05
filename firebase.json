@@ -3,6 +3,10 @@
   "hosting": {
     "public": "hosting/public",
     "cleanUrls": true,
-    "rewrites": [{ "source": "/join/**", "destination": "/join/index.html" }]
+    "ignore": ["firebase.json", "**/node_modules/**"],
+    "rewrites": [{ "source": "/join/**", "destination": "/join/index.html" }],
+    "headers": [
+      { "source": "/.well-known/apple-app-site-association", "headers": [{ "key": "Content-Type", "value": "application/json" }] }
+    ]
   }
 }
