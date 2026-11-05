@@ -21,7 +21,7 @@
 <body>
 <main>
   <h1>共有カレンダーに招待されました</h1>
-  <p id="msg">アプリを開いています。開かないときは、下のボタンを押してください。</p>
+  <p id="msg">「開く」を選ぶと、アプリで参加の確認が出ます。開かないときは、下のボタンを押してください。</p>
   <a class="btn" id="open" href="#">アプリで開く</a>
   <a class="btn sub" id="install" href="https://testflight.apple.com/join/wwsStTJA">アプリを入れる(TestFlight)</a>
   <p>アプリを入れたあと、このリンクをもう一度開くか、アプリのメニューの「招待で参加」に、次のコードを貼り付けてください。</p>
@@ -41,18 +41,9 @@
     document.getElementById("msg").textContent = "招待のリンクが正しくありません。送ってくれた人に確認してください。";
     return;
   }
-  // アプリが入っていれば、見えない枠でアプリを呼び出して開く(入っていなければ何も起きない)。
-  // しばらく経ってもこのページが見えたままなら、アプリが無いと見て TestFlight へ移る
-  var frame = document.createElement("iframe");
-  frame.style.display = "none";
-  frame.src = appUrl;
-  document.body.appendChild(frame);
-  var left = false;
-  document.addEventListener("visibilitychange", function () { if (document.hidden) left = true; });
-  window.addEventListener("pagehide", function () { left = true; });
-  setTimeout(function () {
-    if (!left && !document.hidden) location.href = TESTFLIGHT;
-  }, 1800);
+  // アプリが入っていれば、Safari が「シフトパレットで開きますか?」と聞いてアプリが開く。
+  // 入っていないと何も起きないので、TestFlight へは自動で飛ばさず、下のボタンで選んでもらう
+  location.href = appUrl;
 })();
 </script>
 </body>
