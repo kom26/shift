@@ -125,6 +125,7 @@ struct EventEditor: View {
                 Section {
                     TextField("タイトル(必須)", text: $title)
                         .focused($focusedField, equals: .title)
+                        .id(Self.titleRowId)
                     choiceRow(name: selectedWorkplace?.name ?? store.label(for: labelId)?.name ?? "指定なし",
                               color: currentGroupColor) { picking = true }
                     Toggle("個別カラー", isOn: ownColorBinding)
@@ -172,6 +173,7 @@ struct EventEditor: View {
                 Section {
                     TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
                         .focused($focusedField, equals: .memo)
+                        .id(Self.memoRowId)
                 }
                 if !favoriteMode {
                     Section {
@@ -196,6 +198,8 @@ struct EventEditor: View {
                 if new == .breakMinutes { scrollToBottom(Self.breakRowId, proxy: proxy) }
                 if new == .adjustment { scrollToBottom(Self.adjustmentRowId, proxy: proxy) }
                 if new == .dailyWage { scrollToBottom(Self.dailyWageRowId, proxy: proxy) }
+                if new == .memo { scrollToBottom(Self.memoRowId, proxy: proxy) }
+                if new == .title { scrollToBottom(Self.titleRowId, proxy: proxy) }
             }
             }
             .navigationTitle(favoriteMode ? (isNew ? "よく使う予定を追加" : "よく使う予定を編集") : (isNew ? "予定を追加" : "予定を編集"))
@@ -203,13 +207,16 @@ struct EventEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isNew ? "追加" : "保存") { commit(duplicate: false) }.disabled(!canSave)
+                    Button(isNew ? "追加" : "保存") { commit(duplicate: false) }.disabled(!canSave || focusedField != nil)
                 }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("確定") { closeTimePanel() }
+                    Button { closeTimePanel() } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
+                    .accessibilityLabel("キーボードを閉じる")
                 }
             }
             .onAppear {
@@ -341,6 +348,8 @@ struct EventEditor: View {
     private static let breakRowId = "breakRow"
     private static let adjustmentRowId = "adjustmentRow"
     private static let dailyWageRowId = "dailyWageRow"
+    private static let memoRowId = "memoRow"
+    private static let titleRowId = "titleRow"
 
     /// 行の展開とキーボードの表示が落ち着いてから、1回だけスクロールして下端を見せる
     /// (展開・キーボード・スクロールのアニメーションが重なるとカクつく)
@@ -454,15 +463,6 @@ struct EventEditor: View {
         }
         if openPanel == p {
             VStack(spacing: 0) {
-                // キーボードが閉じてもパネルを閉じられるよう、確定ボタンをパネルの右上に置く
-                HStack {
-                    Spacer()
-                    Button("確定") { closeTimePanel() }
-                        .font(.app(15, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 6)
-                }
                 wheelPanel(p)
                 TextField("", text: typedBinding)
                     .keyboardType(.numberPad)

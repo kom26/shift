@@ -101,7 +101,10 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("完了") { gapFocused = false }
+                    Button { gapFocused = false } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
+                    .accessibilityLabel("キーボードを閉じる")
                 }
             }
             .sheet(isPresented: $showBarFont) { BarFontSheet() }

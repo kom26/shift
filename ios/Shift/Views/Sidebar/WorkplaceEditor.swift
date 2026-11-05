@@ -217,13 +217,16 @@ struct WorkplaceEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }.disabled(trimmed.isEmpty)
+                    Button("保存") { save() }.disabled(trimmed.isEmpty || focus != nil)
                 }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("完了") { focus = nil }
+                    Button { focus = nil } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                }
+                .accessibilityLabel("キーボードを閉じる")
                 }
             }
             .confirmationDialog(

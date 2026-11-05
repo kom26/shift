@@ -75,7 +75,10 @@ struct AlarmPage: View {
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("完了") { typing = false; typed = "" }
+                Button { typing = false; typed = "" } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                }
+                .accessibilityLabel("キーボードを閉じる")
             }
         }
     }
