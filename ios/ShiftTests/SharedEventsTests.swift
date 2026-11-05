@@ -196,7 +196,8 @@ struct SharedEventsTests {
             UIColor.red.setFill()
             c.fill(CGRect(x: 0, y: 0, width: 400, height: 200))
         }
-        let encoded = try #require(AvatarPhoto.encode(try #require(wide.pngData())))
+        let png = try #require(wide.pngData())
+        let encoded = try #require(AvatarPhoto.encode(png))
         #expect(AvatarPhoto.isPhoto(encoded))
         let decoded = try #require(AvatarPhoto.image(from: encoded))
         #expect(decoded.size.width == decoded.size.height)
