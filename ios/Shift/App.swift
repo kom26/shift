@@ -12,6 +12,7 @@ struct ShiftApp: App {
     @State private var sharedView: SharedViewState
     @State private var publisher: SharedPublisher
     @AppStorage("startMonday") private var startMonday = false
+    @AppStorage(Appearance.key) private var appearance = Appearance.system
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -60,6 +61,7 @@ struct ShiftApp: App {
                 .environment(sharedView)
                 .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
                 .tint(Theme.accent)
+                .preferredColorScheme(appearance.colorScheme)
                 .overlay {
                     if sync.status.restoring || sync.status.choice != nil { RestoringOverlay(sync: sync) }
                 }

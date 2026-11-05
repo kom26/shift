@@ -9,12 +9,19 @@ struct SettingsView: View {
     @AppStorage("payBasis") private var payBasis = PayBasis.work.rawValue
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
+    @AppStorage(Appearance.key) private var appearance = Appearance.system
     @FocusState private var gapFocused: Bool
     @State private var showBarFont = false
 
     var body: some View {
         NavigationStack {
             Form {
+                Section("表示") {
+                    Picker("外観", selection: $appearance) {
+                        ForEach(Appearance.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
                 Section("カレンダー") {
                     Toggle("週の始まりを月曜にする", isOn: $startMonday)
                     Button { showBarFont = true } label: {
