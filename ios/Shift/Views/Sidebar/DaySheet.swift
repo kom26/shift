@@ -4,6 +4,7 @@ struct DaySheet: View {
     @Environment(Store.self) private var store
     @Environment(Holidays.self) private var holidays
     @Environment(\.dismiss) private var dismiss
+    @Environment(SharedViewState.self) private var shared
 
     /// 表示中の日。横にスワイプすると前日・翌日に移る
     @State private var date: String
@@ -216,6 +217,10 @@ struct DaySheet: View {
                 }
             }
             Spacer(minLength: 0)
+            // 共有カレンダーでは、誰の予定かをアバターで見せる(共有カレンダーの中で作った予定は、みんなのものなので出さない)
+            if shared.isOpen, shared.event(ev.id)?.isCalendarOwned == false, let o = shared.owner(of: ev.id) {
+                UserAvatar(uid: o.uid, name: o.name, size: 28)
+            }
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())

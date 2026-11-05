@@ -18,6 +18,7 @@ struct MonthView: View {
     let onLongPressDay: (String) -> Void
 
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
+    @Environment(\.isSharedView) private var isSharedView
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @State private var dropTarget: String?
     @State private var annivTarget: AnnivTarget?
@@ -39,7 +40,7 @@ struct MonthView: View {
         let annivMap: [String: [Anniversary]] = summaryOn ? [:] : Dictionary(
             weeks.flatMap { $0 }.map { ($0, store.anniversaries(on: $0)) }.filter { !$0.1.isEmpty },
             uniquingKeysWith: { a, _ in a })
-        let conflictDays: Set<String> = conflictWarningOn ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
+        let conflictDays: Set<String> = conflictWarningOn && !isSharedView ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(Array(Rules.weekdayLabels(startMonday: startMonday).enumerated()), id: \.offset) { i, label in

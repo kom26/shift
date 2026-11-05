@@ -18,6 +18,7 @@ struct WeekView: View {
     let onLongPressDay: (String) -> Void
 
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
+    @Environment(\.isSharedView) private var isSharedView
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @AppStorage(BarFontSize.weekKey) private var fontDelta = 0.0
     @State private var dropTarget: String?
@@ -29,7 +30,7 @@ struct WeekView: View {
     var body: some View {
         let start = Rules.weekStart(of: anchor, startMonday: startMonday)
         let days = (0..<7).map { Rules.addDays(start, $0) }
-        let conflictDays: Set<String> = conflictWarningOn ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
+        let conflictDays: Set<String> = conflictWarningOn && !isSharedView ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
         let allDayRows = SpanLayout.rows(events: store.visibleEvents.filter(\.allDay), weekCells: days.map { Optional($0) })
         VStack(spacing: 0) {
             HStack(spacing: 0) {

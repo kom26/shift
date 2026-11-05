@@ -41,9 +41,9 @@ struct SharedEvent: Equatable, Identifiable {
                            color: e.color)
     }
 
-    /// 共有カレンダーの画面で、同じカレンダー部品に表示するための予定(見るだけ)
-    func shiftEvent(prefix: String) -> ShiftEvent {
-        ShiftEvent(id: id, title: prefix + title, memo: "", color: color, startDate: startDate, endDate: endDate,
+    /// 共有カレンダーの画面で、同じカレンダー部品に表示するための予定(見るだけ)。バーはタイトルだけ
+    func shiftEvent(color shownColor: String? = nil) -> ShiftEvent {
+        ShiftEvent(id: id, title: title, memo: "", color: shownColor ?? color, startDate: startDate, endDate: endDate,
                    placed: true, allDay: allDay, startTime: startTime, endTime: endTime, workHours: nil,
                    barShowsTitle: true)
     }
@@ -52,6 +52,8 @@ struct SharedEvent: Equatable, Identifiable {
 /// 共有カレンダーの予定のクラウド側(テストでは差し替える)
 protocol SharedEventsBacking: AnyObject {
     func fetch(calendarId: String) async throws -> [SharedEvent]
+    /// 予定が変わるたびに、全部の予定が届く。戻り値で購読をやめる
+    func listen(calendarId: String, onChange: @escaping ([SharedEvent]) -> Void) -> () -> Void
     func set(calendarId: String, event: SharedEvent) async throws
     func delete(calendarId: String, id: String) async throws
     /// 自分が出した予定の ID
@@ -135,7 +137,8 @@ final class SharedPublisher {
     }
 }
 
-/// 共有カレンダーを開いている間の表示。参加者の予定を 1 つのカレンダーに重ねる(見るだけ)
+/// 共有カレンダーを開いている間の表示。参加者の予定を 1 つのカレンダーに重ねる。
+/// ほかの人の予定は見るだけで、共有カレンダーの中で作った予定だけ直せる。予定は変わるたびに自動で更新される
 @MainActor
 @Observable
 final class SharedViewState {
@@ -144,15 +147,25 @@ final class SharedViewState {
     private(set) var store: Store?
     private(set) var loading = false
     private(set) var failed = false
-    /// いま表示している予定(ID から引ける)。共有カレンダーの中で作った予定だけ、ここから直せる
+    /// いま表示している予定(ID から引ける)
     private(set) var items: [String: SharedEvent] = [:]
+    /// 参加者の名前(uid から引ける)
+    private(set) var names: [String: String] = [:]
+    /// この端末だけで効く、共有カレンダー上の職場・ラベルの色(キーは colorKey)
+    private(set) var overrides: [String: String] = [:]
 
     @ObservationIgnored private let events: SharedEventsBacking
     @ObservationIgnored private let calendars: CalendarService
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private var unlisten: (() -> Void)?
+    @ObservationIgnored private var latest: [SharedEvent] = []
 
-    init(events: SharedEventsBacking, calendars: CalendarService) {
+    private static let overridesKey = "shared-color-overrides"
+
+    init(events: SharedEventsBacking, calendars: CalendarService, defaults: UserDefaults = .standard) {
         self.events = events
         self.calendars = calendars
+        self.defaults = defaults
     }
 
     var isOpen: Bool { calendar != nil }
@@ -167,48 +180,44 @@ final class SharedViewState {
 
     func event(_ id: String) -> SharedEvent? { items[id] }
 
+    /// 予定をつくった人(日の一覧のアバター用)
+    func owner(of id: String) -> (uid: String, name: String)? {
+        guard let e = items[id] else { return nil }
+        return (e.ownerUid, names[e.ownerUid] ?? "")
+    }
+
     /// 新しい予定の下書き
     func newEvent(on date: String) -> SharedEvent? {
         guard canCreate, let uid = calendars.myUid else { return nil }
         return SharedEvent.newInCalendar(uid: uid, date: date)
     }
 
-    /// 共有カレンダーの中の予定を保存して、表示を更新する
-    func save(_ e: SharedEvent) async -> Bool {
-        guard let cal = calendar, canCreate, e.isCalendarOwned else { return false }
-        do {
-            try await events.set(calendarId: cal.id, event: e)
-        } catch {
-            return false
-        }
-        await refresh()
-        return true
-    }
-
-    func delete(id: String) async -> Bool {
-        guard let cal = calendar, isEditable(id) else { return false }
-        do {
-            try await events.delete(calendarId: cal.id, id: id)
-        } catch {
-            return false
-        }
-        await refresh()
-        return true
-    }
-
     func open(_ cal: SharedCalendar) async {
+        close()
         calendar = cal
-        store = Self.makeStore(events: [], names: [:], showNames: false)
+        overrides = Self.loadOverrides(defaults: defaults)[cal.id] ?? [:]
+        store = Self.makeStore(events: [], overrides: [:])
+        loading = true
+        await loadNames()
+        // 予定が変わるたびに届く(最初の 1 回も、ここから届く)
+        unlisten = events.listen(calendarId: cal.id) { [weak self] list in
+            Task { @MainActor in self?.apply(list, for: cal.id) }
+        }
         await refresh()
     }
 
     func close() {
+        unlisten?()
+        unlisten = nil
         calendar = nil
         store = nil
         items = [:]
+        latest = []
         failed = false
+        loading = false
     }
 
+    /// 手動の更新と、アプリに戻ったときの取り直し
     func refresh() async {
         guard let cal = calendar else { return }
         loading = true
@@ -216,26 +225,90 @@ final class SharedViewState {
         defer { loading = false }
         do {
             let list = try await events.fetch(calendarId: cal.id)
-            let members = await calendars.members(of: cal) ?? []
-            let names = Dictionary(members.map { ($0.id, $0.displayName) }, uniquingKeysWith: { a, _ in a })
-            guard calendar?.id == cal.id else { return }
-            items = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-            store = Self.makeStore(events: list, names: names, showNames: cal.kind == .mutual)
+            apply(list, for: cal.id)
         } catch {
             failed = true
         }
     }
 
-    /// 参加者の予定から、表示用の入れ物を組み立てる(名前つきの予定名にする。見せるだけでは持ち主だけなので名前は付けない)
-    static func makeStore(events: [SharedEvent], names: [String: String], showNames: Bool) -> Store {
+    /// 共有カレンダーの中の予定を保存する(表示は自動で更新される)
+    func save(_ e: SharedEvent) async -> Bool {
+        guard let cal = calendar, canCreate, e.isCalendarOwned else { return false }
+        do {
+            try await events.set(calendarId: cal.id, event: e)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func delete(id: String) async -> Bool {
+        guard let cal = calendar, isEditable(id) else { return false }
+        do {
+            try await events.delete(calendarId: cal.id, id: id)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    // MARK: 色(この端末の、共有カレンダー上だけ)
+
+    /// 色を変える単位。ほかの人の職場・ラベルは、持ち主ごとに別。共有カレンダーの中で作った予定は 1 つにまとまる
+    static func colorKey(for e: SharedEvent) -> String {
+        e.isCalendarOwned ? SharedEvent.calendarKey : "\(e.ownerUid)|\(e.sourceKey)"
+    }
+
+    /// 共有カレンダー上での、その予定の職場・ラベルの色
+    func color(for e: SharedEvent) -> String { overrides[Self.colorKey(for: e)] ?? e.color }
+
+    /// 色を変える。nil で元の色に戻す
+    func setColor(_ color: String?, for e: SharedEvent) {
+        guard let cal = calendar else { return }
+        let key = Self.colorKey(for: e)
+        if let color { overrides[key] = color } else { overrides[key] = nil }
+        var all = Self.loadOverrides(defaults: defaults)
+        all[cal.id] = overrides
+        if let data = try? JSONEncoder().encode(all) { defaults.set(data, forKey: Self.overridesKey) }
+        rebuild()
+    }
+
+    private static func loadOverrides(defaults: UserDefaults) -> [String: [String: String]] {
+        defaults.data(forKey: overridesKey).flatMap { try? JSONDecoder().decode([String: [String: String]].self, from: $0) } ?? [:]
+    }
+
+    // MARK: 内部
+
+    private func loadNames() async {
+        guard let cal = calendar else { return }
+        let members = await calendars.members(of: cal) ?? []
+        guard calendar?.id == cal.id else { return }
+        names = Dictionary(members.map { ($0.id, $0.displayName) }, uniquingKeysWith: { a, _ in a })
+    }
+
+    private func apply(_ list: [SharedEvent], for id: String) {
+        guard calendar?.id == id else { return }
+        latest = list
+        items = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        loading = false
+        rebuild()
+        // 名前を知らない参加者の予定が届いたら、参加者を取り直す
+        if list.contains(where: { names[$0.ownerUid] == nil }) {
+            Task { await loadNames() }
+        }
+    }
+
+    private func rebuild() {
+        store = Self.makeStore(events: latest, overrides: overrides)
+    }
+
+    /// 参加者の予定から、表示用の入れ物を組み立てる。バーはタイトルだけ(誰の予定かは日の一覧のアバターで見せる)。
+    /// 色は、この端末で変えていればそれを使う
+    static func makeStore(events: [SharedEvent], overrides: [String: String]) -> Store {
         let name = "shared-" + UUID().uuidString
         let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: name + ".json"),
                           defaults: UserDefaults(suiteName: name) ?? .standard)
-        let list = events.map { e -> ShiftEvent in
-            let who = names[e.ownerUid] ?? ""
-            // 共有カレンダーの中で作った予定は、みんなのものなので名前は付けない
-            return e.shiftEvent(prefix: showNames && !e.isCalendarOwned && !who.isEmpty ? who + "｜" : "")
-        }
+        let list = events.map { $0.shiftEvent(color: overrides[colorKey(for: $0)] ?? $0.color) }
         store.applySnapshot(SyncSnapshot(events: list, workplaces: [], favorites: [], customColors: [], hiddenSuggestions: []))
         return store
     }

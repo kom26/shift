@@ -50,6 +50,12 @@ private final class FakeCalendars: CalendarBacking {
         membersByCalendar[calendarId]?.removeAll { $0.id == uid }
     }
 
+    func deleteCalendar(calendarId: String, uid: String) async throws {
+        calendars[calendarId] = nil
+        membersByCalendar[calendarId] = nil
+        validTokens[calendarId] = nil
+    }
+
     func members(calendarId: String) async throws -> [CalendarMember] { membersByCalendar[calendarId] ?? [] }
 
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws {
@@ -251,6 +257,21 @@ struct CalendarServiceTests {
         #expect(guest.calendars.isEmpty)
         await owner.leave(made.calendar)
         #expect(owner.calendars.map(\.id) == [made.calendar.id])
+    }
+
+    @Test func onlyTheOwnerCanDeleteACalendar() async {
+        let backing = FakeCalendars()
+        let owner = CalendarService(backing: backing)
+        await owner.start(uid: "owner")
+        let made = await owner.create(spec())!
+        let guest = CalendarService(backing: backing)
+        await guest.start(uid: "guest")
+        let joined = await guest.join(code: made.invite, displayName: "ゲスト", sharedKeys: [])!
+        #expect(await guest.delete(joined) == false)
+        #expect(backing.calendars[made.calendar.id] != nil)
+        #expect(await owner.delete(made.calendar))
+        #expect(owner.calendars.isEmpty)
+        #expect(backing.calendars[made.calendar.id] == nil)
     }
 
     @Test func stopClearsTheList() async {

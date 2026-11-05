@@ -8,6 +8,7 @@ private final class FakeSharedEvents: SharedEventsBacking {
     var deletes = 0
 
     func fetch(calendarId: String) async throws -> [SharedEvent] { Array((docs[calendarId] ?? [:]).values) }
+    func listen(calendarId: String, onChange: @escaping ([SharedEvent]) -> Void) -> () -> Void { {} }
 
     func set(calendarId: String, event: SharedEvent) async throws {
         sets += 1
@@ -152,18 +153,38 @@ struct SharedEventsTests {
         #expect(calendar(keys: [], kind: .oneway, owner: "me").canPublish(uid: "me"))
     }
 
-    @Test func sharedViewStoreShowsEveryMembersEventsWithNames() {
+    private func shared(_ id: String, owner: String, key: String, title: String, name: String = "", color: String = "#bec1cc") -> SharedEvent {
+        SharedEvent(id: id, ownerUid: owner, sourceKey: key, title: title, startDate: "2026-11-10", endDate: "2026-11-10",
+                    startTime: nil, endTime: nil, allDay: true, name: name, color: color)
+    }
+
+    @Test func sharedViewStoreShowsEveryMembersEventsWithPlainTitles() {
         let events = [
-            SharedEvent(id: "me_a", ownerUid: "me", sourceKey: "l:", title: "ランチ", startDate: "2026-11-10",
-                        endDate: "2026-11-10", startTime: "12:00", endTime: "13:00", allDay: false, name: "", color: "#bec1cc"),
-            SharedEvent(id: "you_b", ownerUid: "you", sourceKey: "w:w1", title: "早番", startDate: "2026-11-10",
-                        endDate: "2026-11-10", startTime: nil, endTime: nil, allDay: true, name: "ドンキ", color: "#ef4444"),
+            shared("me_a", owner: "me", key: "l:", title: "ランチ"),
+            shared("you_b", owner: "you", key: "w:w1", title: "早番", name: "ドンキ", color: "#ef4444"),
         ]
-        let store = SharedViewState.makeStore(events: events, names: ["me": "ゆう", "you": "あい"], showNames: true)
-        #expect(Set(store.events.map(\.title)) == ["ゆう｜ランチ", "あい｜早番"])
+        let store = SharedViewState.makeStore(events: events, overrides: [:])
+        #expect(Set(store.events.map(\.title)) == ["ランチ", "早番"])
         #expect(store.events.allSatisfy { $0.placed && $0.barShowsTitle == true })
-        let plain = SharedViewState.makeStore(events: events, names: ["me": "ゆう"], showNames: false)
-        #expect(Set(plain.events.map(\.title)) == ["ランチ", "早番"])
+    }
+
+    @Test func colorOverridesApplyPerOwnerAndSourceNotToOthers() {
+        let mine = shared("me_a", owner: "me", key: "w:w1", title: "早番", color: "#ef4444")
+        let yours = shared("you_a", owner: "you", key: "w:w1", title: "早番", color: "#ef4444")
+        let calendarOwned = SharedEvent.newInCalendar(uid: "me", date: "2026-11-10")
+        let overrides = [SharedViewState.colorKey(for: mine): "#111111", SharedViewState.colorKey(for: calendarOwned): "#222222"]
+        #expect(SharedViewState.colorKey(for: mine) != SharedViewState.colorKey(for: yours))
+        let store = SharedViewState.makeStore(events: [mine, yours, calendarOwned], overrides: overrides)
+        func color(_ id: String) -> String? { store.events.first { $0.id == id }?.color }
+        #expect(color("me_a") == "#111111")
+        #expect(color("you_a") == "#ef4444")
+        #expect(color(calendarOwned.id) == "#222222")
+    }
+
+    @Test func avatarColorIsStableAndInitialIsTheFirstCharacter() {
+        #expect(UserAvatar.color(for: "abc123") == UserAvatar.color(for: "abc123"))
+        #expect(UserAvatar.initial(of: " ゆう ") == "ゆ")
+        #expect(UserAvatar.initial(of: "") == "?")
     }
 }
 
@@ -176,18 +197,6 @@ struct SharedCalendarEventTests {
         #expect(e.allDay)
         #expect(e.startDate == "2026-11-10" && e.endDate == "2026-11-10")
         #expect(e.name == "")
-    }
-
-    @Test func calendarEventsHaveNoPersonPrefixButMembersEventsDo() {
-        let own = SharedEvent.newInCalendar(uid: "me", date: "2026-11-10")
-        var titled = own
-        titled = SharedEvent(id: own.id, ownerUid: "me", sourceKey: SharedEvent.calendarKey, title: "旅行の日",
-                             startDate: "2026-11-10", endDate: "2026-11-10", startTime: nil, endTime: nil,
-                             allDay: true, name: "", color: own.color)
-        let mine = SharedEvent(id: "me_a", ownerUid: "me", sourceKey: "l:", title: "ランチ", startDate: "2026-11-10",
-                               endDate: "2026-11-10", startTime: nil, endTime: nil, allDay: true, name: "", color: "#bec1cc")
-        let store = SharedViewState.makeStore(events: [titled, mine], names: ["me": "ゆう"], showNames: true)
-        #expect(Set(store.events.map(\.title)) == ["旅行の日", "ゆう｜ランチ"])
     }
 
     @Test func editorCombinesDateAndTime() {
@@ -218,6 +227,7 @@ struct SharedCalendarEventTests {
 private final class FakeSharedEventsForCalendar: SharedEventsBacking {
     var docs: [String: [String: SharedEvent]] = [:]
     func fetch(calendarId: String) async throws -> [SharedEvent] { Array((docs[calendarId] ?? [:]).values) }
+    func listen(calendarId: String, onChange: @escaping ([SharedEvent]) -> Void) -> () -> Void { {} }
     func set(calendarId: String, event: SharedEvent) async throws { docs[calendarId, default: [:]][event.id] = event }
     func delete(calendarId: String, id: String) async throws { docs[calendarId]?[id] = nil }
     func mineIds(calendarId: String, uid: String) async throws -> Set<String> {

@@ -73,7 +73,7 @@ service cloud.firestore {
         );
         allow delete: if isActive() && canShare() && (
           resource.data.ownerUid == request.auth.uid || resource.data.sourceKey == 'calendar'
-        );
+        ) || (isActive() && isOwner());
       }
     }
   }

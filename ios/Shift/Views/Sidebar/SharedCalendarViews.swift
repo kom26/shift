@@ -217,8 +217,10 @@ struct CalendarDetailSheet: View {
     @Environment(CalendarService.self) private var service
     @Environment(AuthService.self) private var auth
     @Environment(Store.self) private var store
+    @Environment(SharedViewState.self) private var sharedView
     @Environment(\.dismiss) private var dismiss
     let calendar: SharedCalendar
+    @State private var confirmDelete = false
     @State private var invite: InviteCode?
     @State private var members: [CalendarMember] = []
     @State private var displayName = ""
@@ -279,15 +281,35 @@ struct CalendarDetailSheet: View {
                     Section {
                         Button("このカレンダーから退出", role: .destructive) { confirmLeave = true }
                     }
+                } else {
+                    Section {
+                        Button("このカレンダーを削除", role: .destructive) { confirmDelete = true }
+                    } footer: {
+                        Text("参加者の画面からも消えます。共有カレンダーの中で作った予定も消えます。それぞれの元の予定は消えません。")
+                    }
                 }
             }
             .navigationTitle(calendar.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } } }
             .task { await load() }
+            .confirmationDialog("「\(calendar.name)」を削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("削除", role: .destructive) {
+                    Task {
+                        if sharedView.calendar?.id == calendar.id { sharedView.close() }
+                        if await service.delete(calendar) { dismiss() }
+                    }
+                }
+            } message: {
+                Text("この操作は取り消せません。")
+            }
             .confirmationDialog("退出しますか?", isPresented: $confirmLeave, titleVisibility: .visible) {
                 Button("退出", role: .destructive) {
-                    Task { await service.leave(calendar); dismiss() }
+                    Task {
+                        if sharedView.calendar?.id == calendar.id { sharedView.close() }
+                        await service.leave(calendar)
+                        dismiss()
+                    }
                 }
             } message: {
                 Text("もう一度参加するには、招待が必要です。")

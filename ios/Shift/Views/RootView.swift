@@ -40,6 +40,7 @@ struct RootView: View {
     @State private var showCreateCalendar = false
     @State private var showJoinCalendar = false
     @State private var sharedEditing: SharedEditTarget?
+    @State private var sharedDetail: SharedDetailTarget?
     /// 招待リンクから開いたときの招待コード
     @State private var joinCode = ""
     @State private var calendarDetail: SharedCalendar?
@@ -149,6 +150,7 @@ struct RootView: View {
         .sheet(isPresented: $showFilter) { FilterSheet() }
         .sheet(isPresented: $showLabels) { LabelManageView() }
         .sheet(item: $sharedEditing) { SharedEventEditor(target: $0) }
+        .sheet(item: $sharedDetail) { SharedEventDetail(eventId: $0.eventId) }
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
         .sheet(isPresented: $showJoinCalendar, onDismiss: { joinCode = "" }) { CalendarJoinSheet(code: joinCode) }
         .sheet(item: $calendarDetail) { CalendarDetailSheet(calendar: $0) }
@@ -383,6 +385,7 @@ struct RootView: View {
             .transition(.opacity)
             .environment(\.isStamping, stampId != nil || alarmStamp != nil)
             .environment(displayStore)
+            .environment(\.isSharedView, sharedView.isOpen)
     }
 
     /// カレンダー部品が読む予定の入れ物。共有カレンダーを開いている間は、参加者の予定を入れた表示用のもの(自分のデータには触れない)
@@ -533,10 +536,8 @@ struct RootView: View {
 
     private func edit(_ event: ShiftEvent) {
         if sharedView.isOpen {
-            // 共有カレンダーの中で作った予定だけ直せる。ほかの人の予定は見るだけ
-            if sharedView.isEditable(event.id), let e = sharedView.event(event.id) {
-                sharedEditing = SharedEditTarget(event: e, isNew: false)
-            }
+            // 共有カレンダーでは、自分の予定もほかの人の予定も、詳細を見せる(直せるのは共有カレンダーの中で作った予定だけ)
+            if sharedView.event(event.id) != nil { sharedDetail = SharedDetailTarget(eventId: event.id) }
             return
         }
         editing = EditorTarget(event: event, isNew: false)

@@ -199,6 +199,7 @@ struct EventEditor: View {
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
                 guard let id = scrollTarget else { return }
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+                scrollTarget = nil
             }
             .onChange(of: focusedField) { _, new in
                 if new == nil { scrollTarget = nil }
@@ -217,15 +218,7 @@ struct EventEditor: View {
                     Button(isNew ? "追加" : "保存") { commit(duplicate: false) }.disabled(!canSave || focusedField != nil)
                 }
             }
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button { closeTimePanel() } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
-                    }
-                    .accessibilityLabel("キーボードを閉じる")
-                }
-            }
+            .keyboardDismissBar { closeTimePanel() }
             .onAppear {
                 guard !didSetup else { return }
                 didSetup = true
@@ -364,10 +357,12 @@ struct EventEditor: View {
     private func scrollToBottom(_ id: String, proxy: ScrollViewProxy) {
         scrollTarget = id
         // キーボードの出る早さは一定でないので、少し間をおいて数回合わせる(すでに見えていれば動かない)
-        for delay in [0.2, 0.5, 0.9] {
+        for (n, delay) in [0.25, 0.6].enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard scrollTarget == id else { return }
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+                // 最後の 1 回のあとは、ユーザーが自由にスクロールできるよう、見せたい行の指定を外す
+                if n == 1 { scrollTarget = nil }
             }
         }
     }

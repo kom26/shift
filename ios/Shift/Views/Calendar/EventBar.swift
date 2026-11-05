@@ -91,6 +91,16 @@ extension EnvironmentValues {
     }
 }
 
+private struct SharedViewKey: EnvironmentKey { static let defaultValue = false }
+
+extension EnvironmentValues {
+    /// 共有カレンダーを表示している間は true(重複予定の赤表示などを出さない)
+    var isSharedView: Bool {
+        get { self[SharedViewKey.self] }
+        set { self[SharedViewKey.self] = newValue }
+    }
+}
+
 /// 月/週ビュー共用: SpanLayout の行を上から積んで描画する
 struct SpanBars: View {
     @Environment(Store.self) private var store

@@ -113,6 +113,8 @@ protocol CalendarBacking: AnyObject {
     /// 有効な招待コード。無ければ作る
     func currentInvite(uid: String, calendar: SharedCalendar) async throws -> InviteCode
     func leave(uid: String, calendarId: String) async throws
+    /// 持ち主が、カレンダーを予定・招待・参加者ごと消す
+    func deleteCalendar(calendarId: String, uid: String) async throws
     func members(calendarId: String) async throws -> [CalendarMember]
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws
     func removeMember(calendarId: String, uid: String) async throws
@@ -216,6 +218,17 @@ final class CalendarService {
             self.calendars.removeAll { $0.id == calendar.id }
             self.onChange?()
         }
+    }
+
+    /// 持ち主が、共有カレンダーを消す。参加者の画面からも消える(予定のコピーも消えるが、みんなの元の予定は消えない)
+    func delete(_ calendar: SharedCalendar) async -> Bool {
+        guard let uid, calendar.ownerUid == uid else { return false }
+        return await run("削除できませんでした") {
+            try await self.backing.deleteCalendar(calendarId: calendar.id, uid: uid)
+            self.calendars.removeAll { $0.id == calendar.id }
+            self.onChange?()
+            return true
+        } ?? false
     }
 
     func members(of calendar: SharedCalendar) async -> [CalendarMember]? {

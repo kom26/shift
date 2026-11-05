@@ -72,15 +72,7 @@ struct AlarmPage: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 6)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button { typing = false; typed = "" } label: {
-                    Image(systemName: "keyboard.chevron.compact.down")
-                }
-                .accessibilityLabel("キーボードを閉じる")
-            }
-        }
+        .keyboardDismissBar { typing = false; typed = "" }
     }
 
     private func start() {

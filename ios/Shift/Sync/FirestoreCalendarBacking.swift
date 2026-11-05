@@ -131,6 +131,21 @@ final class FirestoreCalendarBacking: CalendarBacking {
         try await index(uid).document(calendarId).delete()
     }
 
+    func deleteCalendar(calendarId: String, uid: String) async throws {
+        let cal = calendar(calendarId)
+        // 予定 → 招待 → 参加者 → カレンダー本体の順。持ち主の参加者情報は、予定を消し終えるまで残す必要がある
+        for sub in ["events", "invites", "members"] {
+            let docs = try await cal.collection(sub).getDocuments().documents
+            for chunk in stride(from: 0, to: docs.count, by: 400).map({ Array(docs[$0..<min($0 + 400, docs.count)]) }) {
+                let batch = db.batch()
+                chunk.forEach { batch.deleteDocument($0.reference) }
+                try await batch.commit()
+            }
+        }
+        try await cal.delete()
+        try await index(uid).document(calendarId).delete()
+    }
+
     func members(calendarId: String) async throws -> [CalendarMember] {
         let snap = try await calendar(calendarId).collection("members").getDocuments()
         return snap.documents.map { d in

@@ -99,14 +99,8 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button { gapFocused = false } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
-                    }
-                    .accessibilityLabel("キーボードを閉じる")
-                }
             }
+            .keyboardDismissBar { gapFocused = false }
             .sheet(isPresented: $showBarFont) { BarFontSheet() }
             .sheet(item: $editingWorkplace) { WorkplaceEditor(workplace: $0) }
             .sheet(isPresented: $addingWorkplace) { WorkplaceEditor(workplace: nil) }

@@ -220,15 +220,7 @@ struct WorkplaceEditor: View {
                     Button("保存") { save() }.disabled(trimmed.isEmpty || focus != nil)
                 }
             }
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button { focus = nil } label: {
-                    Image(systemName: "keyboard.chevron.compact.down")
-                }
-                .accessibilityLabel("キーボードを閉じる")
-                }
-            }
+            .keyboardDismissBar { focus = nil }
             .confirmationDialog(
                 "タイトルが『\(workplace?.name ?? "")』の予定 \(affectedCount) 件にも変更を反映しますか?",
                 isPresented: $confirmApply, titleVisibility: .visible

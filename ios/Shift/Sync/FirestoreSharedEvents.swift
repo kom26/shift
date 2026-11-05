@@ -23,6 +23,14 @@ final class FirestoreSharedEvents: SharedEventsBacking {
         try await col(calendarId).getDocuments().documents.compactMap(Self.event)
     }
 
+    func listen(calendarId: String, onChange: @escaping ([SharedEvent]) -> Void) -> () -> Void {
+        let registration = col(calendarId).addSnapshotListener { snap, _ in
+            guard let snap else { return }
+            onChange(snap.documents.compactMap(Self.event))
+        }
+        return { registration.remove() }
+    }
+
     func set(calendarId: String, event e: SharedEvent) async throws {
         var data: [String: Any] = [
             "ownerUid": e.ownerUid, "sourceKey": e.sourceKey, "title": e.title,
