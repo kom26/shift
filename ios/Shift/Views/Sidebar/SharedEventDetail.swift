@@ -89,10 +89,9 @@ struct SharedEventDetail: View {
 
             Button { pickingColor = true } label: {
                 HStack(spacing: 8) {
-                    Text("職場・ラベルカラー")
+                    Text("予定の色")
                     Spacer()
                     ColorDot(hex: shared.color(for: e), size: 16)
-                    Text(groupName(e)).foregroundStyle(.secondary)
                     Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                 }
                 .contentShape(Rectangle())
@@ -101,11 +100,6 @@ struct SharedEventDetail: View {
         }
         .listStyle(.plain)
         .sheet(isPresented: $pickingColor) { SharedColorSheet(event: e) }
-    }
-
-    private func groupName(_ e: SharedEvent) -> String {
-        if e.isCalendarOwned { return "共有カレンダー" }
-        return e.name.isEmpty ? "指定なし" : e.name
     }
 
     private static func dateText(_ ds: String) -> String {
@@ -152,17 +146,13 @@ struct SharedColorSheet: View {
         _color = State(initialValue: event.color)
     }
 
-    private var groupName: String {
-        event.isCalendarOwned ? "共有カレンダーの予定" : (event.name.isEmpty ? "指定なし" : event.name)
-    }
-
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
                 } footer: {
-                    Text("「\(groupName)」の予定の色を、この共有カレンダーの中だけで変えます。ほかの人の画面や、元の予定の色は変わりません。")
+                    Text("同じ職場・ラベルの予定は、すべて同じ色に変わります。変わるのは、この共有カレンダーのあなたの画面上だけです。ほかの人の画面や、元の予定の色は変わりません。")
                 }
                 Section {
                     Button("元の色に戻す") {
@@ -172,7 +162,7 @@ struct SharedColorSheet: View {
                     .disabled(shared.color(for: event) == event.color)
                 }
             }
-            .navigationTitle("\(groupName)の色")
+            .navigationTitle("予定の色")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
