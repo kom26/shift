@@ -319,15 +319,15 @@ struct RootView: View {
                 }
                 Spacer(minLength: 0)
                 if sharedView.isOpen {
-                    // 共有カレンダーでは、週計の代わりに設定を開く
-                    Button { showSettings = true } label: {
+                    // 共有カレンダーでは、週計の代わりに、その共有カレンダーの設定(インフォ)を開く
+                    Button { calendarDetail = sharedView.calendar } label: {
                         Image(systemName: "gearshape")
                             .font(.app(20))
                             .foregroundStyle(Color.primary)
                             .frame(minWidth: 36, minHeight: 36)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("設定")
+                    .accessibilityLabel("共有カレンダーの設定")
                 } else {
                 Button { toggleSummary() } label: {
                     Text("週計")

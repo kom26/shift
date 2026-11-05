@@ -99,8 +99,11 @@ final class Store {
     static let noLabelKey = ""
 
     /// 配置済みで、絞り込みを通る予定(絞り込みが空なら全て)
-    var visibleEvents: [ShiftEvent] {
-        events.filter { $0.placed && $0.startDate != nil && passesFilters($0) } + overlayEvents
+    var visibleEvents: [ShiftEvent] { ownVisibleEvents + overlayEvents }
+
+    /// 重ねて見せている共有カレンダーの予定を除いた、自分の予定(労働時間や給料の集計はこちらだけ)
+    private var ownVisibleEvents: [ShiftEvent] {
+        events.filter { $0.placed && $0.startDate != nil && passesFilters($0) }
     }
 
     /// 自分のカレンダーに重ねて見せる共有カレンダーの予定。見るだけで、保存も同期もしない(絞り込みの対象でもない)
@@ -135,7 +138,8 @@ final class Store {
     func totals(from: String, to: String, isHoliday: (String) -> Bool = { _ in false }, orderBy: [String]? = nil) -> [ColorTotal] {
         var order: [String] = []
         var map: [String: ColorTotal] = [:]
-        for ev in visibleEvents {
+        // 重ねた共有カレンダーの予定は、ラベルと同じ見せるだけの扱いで、集計に入れない
+        for ev in ownVisibleEvents {
             guard let sd = ev.startDate, sd >= from, sd <= to,
                   let h = ev.effectiveHours, h > 0,
                   let w = workplace(for: ev) else { continue }   // 通常予定(職場なし)は集計しない
