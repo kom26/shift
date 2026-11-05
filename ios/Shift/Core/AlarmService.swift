@@ -18,6 +18,14 @@ final class AlarmService {
         case noShift, past, denied, unsupported, failed
     }
 
+    /// 設定のスヌーズの分数(0 はスヌーズなし)。これからセットするアラームに使う
+    static let snoozeKey = "alarmSnoozeMinutes"
+    static let snoozeChoices = [0, 5, 9, 10, 15, 20]
+
+    static var snoozeMinutes: Int {
+        UserDefaults.standard.object(forKey: snoozeKey) as? Int ?? 9
+    }
+
     static var isSupported: Bool {
         if #available(iOS 26.0, *) { return true }
         return false
@@ -116,20 +124,32 @@ final class AlarmService {
         #if canImport(AlarmKit)
         if #available(iOS 26.0, *), let uuid = UUID(uuidString: id) {
             let title = LocalizedStringResource(stringLiteral: "シフト(\(spec.label))")
+            // スヌーズ(設定の分数。0 ならボタンを出さない)。押すと、その分あとにもう一度鳴る
+            let snoozeMinutes = Self.snoozeMinutes
+            let snooze: AlarmButton? = snoozeMinutes > 0
+                ? AlarmButton(text: LocalizedStringResource(stringLiteral: "スヌーズ"),
+                              textColor: Color.white, systemImageName: "zzz")
+                : nil
             let alert: AlarmPresentation.Alert
             if #available(iOS 26.1, *) {
-                alert = AlarmPresentation.Alert(title: title)
+                alert = AlarmPresentation.Alert(title: title, secondaryButton: snooze,
+                                                secondaryButtonBehavior: snooze == nil ? nil : .countdown)
             } else {
                 let stop = AlarmButton(text: LocalizedStringResource(stringLiteral: "停止"),
                                        textColor: Color.white, systemImageName: "stop.circle")
-                alert = AlarmPresentation.Alert(title: title, stopButton: stop)
+                alert = AlarmPresentation.Alert(title: title, stopButton: stop, secondaryButton: snooze,
+                                                secondaryButtonBehavior: snooze == nil ? nil : .countdown)
             }
             let attributes = AlarmAttributes<ShiftAlarmMetadata>(
                 presentation: AlarmPresentation(alert: alert),
                 metadata: ShiftAlarmMetadata(),
                 tintColor: Color.orange)
-            let config = AlarmManager.AlarmConfiguration<ShiftAlarmMetadata>.alarm(
-                schedule: .fixed(date), attributes: attributes)
+            let countdown = snoozeMinutes > 0
+                ? Alarm.CountdownDuration(preAlert: nil, postAlert: TimeInterval(snoozeMinutes * 60))
+                : nil
+            let config = AlarmManager.AlarmConfiguration<ShiftAlarmMetadata>(
+                countdownDuration: countdown, schedule: .fixed(date), attributes: attributes,
+                stopIntent: nil, secondaryIntent: nil, sound: .default)
             do {
                 _ = try await AlarmManager.shared.schedule(id: uuid, configuration: config)
                 return true
