@@ -234,6 +234,7 @@ struct CalendarDetailSheet: View {
     @State private var removing: CalendarMember?
     @State private var loaded = false
     @State private var actionError: String?
+    @State private var avatar = ""
 
     private var uid: String? { auth.account?.uid }
     private var isOwner: Bool { calendar.ownerUid == uid }
@@ -263,6 +264,13 @@ struct CalendarDetailSheet: View {
                     }
                     Section("相手に見える自分の名前") {
                         TextField("名前", text: $displayName)
+                    }
+                    Section {
+                        avatarPicker
+                    } header: {
+                        Text("アバター")
+                    } footer: {
+                        Text("この共有カレンダーの中で、あなたの予定のそばに表示されます。")
                     }
                     if canShareMine {
                         ShareItemsSection(selection: $shared)
@@ -332,9 +340,29 @@ struct CalendarDetailSheet: View {
         .presentationDetents([.large])
     }
 
+    private var avatarPicker: some View {
+        let columns = [GridItem(.adaptive(minimum: 48), spacing: 10)]
+        return LazyVGrid(columns: columns, spacing: 10) {
+            avatarCell("", label: "文字")
+            ForEach(UserAvatar.choices, id: \.self) { avatarCell($0, label: $0) }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func avatarCell(_ value: String, label: String) -> some View {
+        Button { avatar = value } label: {
+            UserAvatar(uid: uid ?? "", name: displayName, avatar: value, size: 44)
+                .overlay(Circle().stroke(Theme.accent, lineWidth: avatar == value ? 3 : 0).padding(-3))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(value.isEmpty ? "名前の頭文字" : label)
+    }
+
     @ViewBuilder
     private func memberRow(_ m: CalendarMember) -> some View {
         HStack {
+            UserAvatar(uid: m.id, name: m.displayName, avatar: m.avatar, size: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text(m.displayName.isEmpty ? "(名前なし)" : m.displayName)
                 if m.isOwner {
@@ -364,7 +392,7 @@ struct CalendarDetailSheet: View {
     /// 自分の設定を保存して、そのカレンダーを開く
     private func save() async {
         let ok = await service.updateMine(in: calendar, displayName: displayName,
-                                          sharedKeys: canShareMine ? shared.sorted() : [])
+                                          sharedKeys: canShareMine ? shared.sorted() : [], avatar: avatar)
         guard ok else {
             actionError = service.errorMessage ?? "保存できませんでした"
             return
@@ -392,6 +420,7 @@ struct CalendarDetailSheet: View {
         if let me = members.first(where: { $0.id == uid }) {
             displayName = me.displayName
             shared = Set(me.sharedKeys)
+            avatar = me.avatar
         }
     }
 }

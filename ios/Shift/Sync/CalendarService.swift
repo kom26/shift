@@ -42,6 +42,8 @@ struct CalendarMember: Equatable, Identifiable {
     var status: MemberStatus
     /// 共有に出している職場・ラベル(ShareKey の文字列)
     var sharedKeys: [String]
+    /// アバター。空なら名前の頭文字、それ以外は絵文字
+    var avatar: String = ""
 }
 
 /// 共有に出す項目のキー。職場は "w:<id>"、ラベルは "l:<id>"(「指定なし」は "l:")
@@ -118,7 +120,7 @@ protocol CalendarBacking: AnyObject {
     func members(calendarId: String) async throws -> [CalendarMember]
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws
     func removeMember(calendarId: String, uid: String) async throws
-    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String]) async throws
+    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws
 }
 
 enum CalendarError: Error, Equatable {
@@ -261,11 +263,11 @@ final class CalendarService {
     }
 
     /// 自分の共有者名と、共有に出す項目を変える
-    func updateMine(in calendar: SharedCalendar, displayName: String, sharedKeys: [String]) async -> Bool {
+    func updateMine(in calendar: SharedCalendar, displayName: String, sharedKeys: [String], avatar: String = "") async -> Bool {
         let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let uid, !name.isEmpty else { return false }
         return await run("保存できませんでした") {
-            try await self.backing.updateMine(calendarId: calendar.id, uid: uid, displayName: name, sharedKeys: sharedKeys)
+            try await self.backing.updateMine(calendarId: calendar.id, uid: uid, displayName: name, sharedKeys: sharedKeys, avatar: avatar)
             if let i = self.calendars.firstIndex(where: { $0.id == calendar.id }) { self.calendars[i].mySharedKeys = sharedKeys }
             self.onChange?()
             return true

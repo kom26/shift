@@ -10,14 +10,11 @@ struct SettingsView: View {
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @FocusState private var gapFocused: Bool
-    @State private var editingWorkplace: Workplace?
-    @State private var addingWorkplace = false
     @State private var showBarFont = false
 
     var body: some View {
         NavigationStack {
             Form {
-                AccountSection()
                 Section("カレンダー") {
                     Toggle("週の始まりを月曜にする", isOn: $startMonday)
                     Button { showBarFont = true } label: {
@@ -67,33 +64,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("※終日予定は重複にカウントされません。\n初期設定(0分):予定が1分でも重なる場合")
                 }
-                Section {
-                    if store.workplaces.isEmpty {
-                        Text("職場が登録されていません")
-                            .font(.app(13))
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(store.workplaces) { w in
-                        Button { editingWorkplace = w } label: {
-                            HStack(spacing: 10) {
-                                ColorDot(hex: w.color, size: 12)
-                                Text(w.name).foregroundStyle(.primary)
-                            }
-                        }
-                    }
-                    .onDelete { offsets in
-                        let ids = offsets.map { store.workplaces[$0].id }
-                        ids.forEach { store.deleteWorkplace(id: $0) }
-                    }
-                    .onMove { store.moveWorkplaces(from: $0, to: $1) }
-                    Button("＋ 職場を追加") { addingWorkplace = true }
-                } header: {
-                    HStack {
-                        Text("職場")
-                        Spacer()
-                        EditButton().font(.app(13))
-                    }
-                }
+                AccountSection()
             }
             .navigationTitle("設定")
             .navigationBarTitleDisplayMode(.inline)
@@ -102,8 +73,6 @@ struct SettingsView: View {
             }
             .keyboardDismissBar { gapFocused = false }
             .sheet(isPresented: $showBarFont) { BarFontSheet() }
-            .sheet(item: $editingWorkplace) { WorkplaceEditor(workplace: $0) }
-            .sheet(isPresented: $addingWorkplace) { WorkplaceEditor(workplace: nil) }
         }
     }
 }

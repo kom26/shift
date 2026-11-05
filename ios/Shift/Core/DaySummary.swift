@@ -17,7 +17,7 @@ extension Store {
     func daySummary(date: String, isHoliday: (String) -> Bool = { _ in false }) -> DaySummary {
         var allDay: [DayEventRow] = []
         var timed: [(top: Double, row: DayEventRow)] = []
-        for ev in events where ev.placed {
+        for ev in events + overlayEvents where ev.placed {
             guard let sd = ev.startDate else { continue }
             let cont = sd != date
             if ev.allDay {

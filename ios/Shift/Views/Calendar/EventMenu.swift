@@ -10,6 +10,10 @@ struct EventMenu<Preview: View>: ViewModifier {
     func body(content: Content) -> some View {
         content
             .contextMenu {
+                if store.isOverlay(event.id) {
+                    // 重ねて見せている共有カレンダーの予定は、詳細を見るだけ
+                    Button { onEdit(event) } label: { Label("詳細", systemImage: "info.circle") }
+                } else {
                 Button { onEdit(event) } label: { Label("編集", systemImage: "pencil") }
                 Button { store.duplicate(id: event.id) } label: { Label("複製", systemImage: "plus.square.on.square") }
                 Button { showCopy = true } label: { Label("日付を選択して一括コピー", systemImage: "calendar.badge.plus") }
@@ -18,6 +22,7 @@ struct EventMenu<Preview: View>: ViewModifier {
                     Button { store.unplace(id: event.id) } label: { Label("未配置に戻す", systemImage: "tray.and.arrow.down") }
                 }
                 Button(role: .destructive) { store.delete(id: event.id) } label: { Label("削除", systemImage: "trash") }
+                }
             } preview: {
                 preview
             }

@@ -160,30 +160,64 @@ final class SharedViewState {
     @ObservationIgnored private var unlisten: (() -> Void)?
     @ObservationIgnored private var latest: [SharedEvent] = []
 
+    /// 参加者のアバター(uid から引ける。空は頭文字)
+    private(set) var avatars: [String: String] = [:]
+
+    /// 自分のカレンダーに重ねている共有カレンダー
+    private(set) var overlayIds: Set<String>
+    /// 重ねている予定(ID から引ける)
+    private(set) var overlayItems: [String: SharedEvent] = [:]
+    @ObservationIgnored private weak var mainStore: Store?
+    @ObservationIgnored private var overlayListeners: [String: () -> Void] = [:]
+    @ObservationIgnored private var overlayLatest: [String: [SharedEvent]] = [:]
+    /// 重ねている予定が、どの共有カレンダーのものか
+    @ObservationIgnored private var overlayCalendarOf: [String: String] = [:]
+    /// 重ねている共有カレンダーごとの、参加者(uid から引ける)
+    @ObservationIgnored private var overlayMembers: [String: [String: CalendarMember]] = [:]
+
     private static let overridesKey = "shared-color-overrides"
+    private static let overlayKey = "shared-overlay-ids"
 
     init(events: SharedEventsBacking, calendars: CalendarService, defaults: UserDefaults = .standard) {
         self.events = events
         self.calendars = calendars
         self.defaults = defaults
+        overlayIds = Set(defaults.stringArray(forKey: Self.overlayKey) ?? [])
+    }
+
+    /// 重ねた予定を入れる、自分の予定の入れ物
+    func attach(store: Store) {
+        mainStore = store
+        rebuildOverlay()
     }
 
     var isOpen: Bool { calendar != nil }
 
     /// このカレンダーの中に予定を作れるか。見せるだけのカレンダーでは、持ち主だけ
-    var canCreate: Bool {
-        guard let c = calendar, let uid = calendars.myUid else { return false }
+    var canCreate: Bool { canWrite(in: calendar) }
+
+    private func canWrite(in c: SharedCalendar?) -> Bool {
+        guard let c, let uid = calendars.myUid else { return false }
         return c.status == .active && (c.kind == .mutual || c.ownerUid == uid)
     }
 
-    func isEditable(_ id: String) -> Bool { canCreate && items[id]?.isCalendarOwned == true }
+    /// その予定がある共有カレンダー(開いているものか、重ねているもの)
+    private func calendarOf(_ id: String) -> SharedCalendar? {
+        if items[id] != nil { return calendar }
+        guard let cid = overlayCalendarOf[id] else { return nil }
+        return calendars.calendars.first { $0.id == cid }
+    }
 
-    func event(_ id: String) -> SharedEvent? { items[id] }
+    func isEditable(_ id: String) -> Bool { event(id)?.isCalendarOwned == true && canWrite(in: calendarOf(id)) }
+
+    func event(_ id: String) -> SharedEvent? { items[id] ?? overlayItems[id] }
 
     /// 予定をつくった人(日の一覧のアバター用)
-    func owner(of id: String) -> (uid: String, name: String)? {
-        guard let e = items[id] else { return nil }
-        return (e.ownerUid, names[e.ownerUid] ?? "")
+    func owner(of id: String) -> (uid: String, name: String, avatar: String)? {
+        guard let e = event(id) else { return nil }
+        if items[id] != nil { return (e.ownerUid, names[e.ownerUid] ?? "", avatars[e.ownerUid] ?? "") }
+        let m = overlayCalendarOf[id].flatMap { overlayMembers[$0]?[e.ownerUid] }
+        return (e.ownerUid, m?.displayName ?? "", m?.avatar ?? "")
     }
 
     /// 新しい予定の下書き
@@ -233,7 +267,7 @@ final class SharedViewState {
 
     /// 共有カレンダーの中の予定を保存する(表示は自動で更新される)
     func save(_ e: SharedEvent) async -> Bool {
-        guard let cal = calendar, canCreate, e.isCalendarOwned else { return false }
+        guard let cal = calendarOf(e.id) ?? calendar, canWrite(in: cal), e.isCalendarOwned else { return false }
         do {
             try await events.set(calendarId: cal.id, event: e)
             return true
@@ -243,7 +277,7 @@ final class SharedViewState {
     }
 
     func delete(id: String) async -> Bool {
-        guard let cal = calendar, isEditable(id) else { return false }
+        guard let cal = calendarOf(id), isEditable(id) else { return false }
         do {
             try await events.delete(calendarId: cal.id, id: id)
             return true
@@ -260,17 +294,100 @@ final class SharedViewState {
     }
 
     /// 共有カレンダー上での、その予定の職場・ラベルの色
-    func color(for e: SharedEvent) -> String { overrides[Self.colorKey(for: e)] ?? e.color }
+    func color(for e: SharedEvent) -> String { overrideMap(for: e)[Self.colorKey(for: e)] ?? e.color }
+
+    private func overrideMap(for e: SharedEvent) -> [String: String] {
+        if calendar != nil, items[e.id] != nil { return overrides }
+        if let cid = overlayCalendarOf[e.id] { return Self.loadOverrides(defaults: defaults)[cid] ?? [:] }
+        return overrides
+    }
 
     /// 色を変える。nil で元の色に戻す
     func setColor(_ color: String?, for e: SharedEvent) {
-        guard let cal = calendar else { return }
         let key = Self.colorKey(for: e)
-        if let color { overrides[key] = color } else { overrides[key] = nil }
+        let inOpen = calendar != nil && items[e.id] != nil
+        guard let cid = inOpen ? calendar?.id : overlayCalendarOf[e.id] else { return }
         var all = Self.loadOverrides(defaults: defaults)
-        all[cal.id] = overrides
+        var map = all[cid] ?? [:]
+        if let color { map[key] = color } else { map[key] = nil }
+        all[cid] = map
         if let data = try? JSONEncoder().encode(all) { defaults.set(data, forKey: Self.overridesKey) }
-        rebuild()
+        if inOpen {
+            overrides = map
+            rebuild()
+        }
+        rebuildOverlay()
+    }
+
+    // MARK: 自分のカレンダーに重ねる
+
+    func isOverlaid(_ id: String) -> Bool { overlayIds.contains(id) }
+
+    /// 共有カレンダーを重ねる・外す
+    func setOverlay(_ ids: [String], on: Bool) {
+        if on { overlayIds.formUnion(ids) } else { overlayIds.subtract(ids) }
+        defaults.set(overlayIds.sorted(), forKey: Self.overlayKey)
+        syncOverlay()
+    }
+
+    /// 参加している共有カレンダーの一覧が変わったとき、重ねる対象と購読をそろえる
+    func syncOverlay() {
+        let active = calendars.calendars.filter { $0.status == .active && overlayIds.contains($0.id) }
+        let want = Set(active.map(\.id))
+        for (id, stop) in overlayListeners where !want.contains(id) {
+            stop()
+            overlayListeners[id] = nil
+            overlayLatest[id] = nil
+            overlayMembers[id] = nil
+        }
+        for cal in active where overlayListeners[cal.id] == nil {
+            let cid = cal.id
+            overlayListeners[cid] = events.listen(calendarId: cid) { [weak self] list in
+                Task { @MainActor in self?.applyOverlay(list, for: cid) }
+            }
+            Task { await loadOverlayMembers(cid) }
+        }
+        rebuildOverlay()
+    }
+
+    private func loadOverlayMembers(_ cid: String) async {
+        guard let cal = calendars.calendars.first(where: { $0.id == cid }) else { return }
+        let members = await calendars.members(of: cal) ?? []
+        guard overlayListeners[cid] != nil else { return }
+        overlayMembers[cid] = Dictionary(members.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+    }
+
+    private func applyOverlay(_ list: [SharedEvent], for cid: String) {
+        guard overlayListeners[cid] != nil else { return }
+        overlayLatest[cid] = list
+        rebuildOverlay()
+        if list.contains(where: { overlayMembers[cid]?[$0.ownerUid] == nil }) {
+            Task { await loadOverlayMembers(cid) }
+        }
+    }
+
+    /// 重ねる予定を組み立てて、自分の入れ物に渡す。自分が共有に出した予定(コピー)は、元の予定がすでに出ているので除く。
+    /// 同じ予定が複数のカレンダーにあっても 1 つだけ出す
+    private func rebuildOverlay() {
+        let me = calendars.myUid
+        var seen = Set<String>()
+        var items: [String: SharedEvent] = [:]
+        var owners: [String: String] = [:]
+        var shown: [ShiftEvent] = []
+        let saved = Self.loadOverrides(defaults: defaults)
+        for cid in overlayListeners.keys.sorted() {
+            let map = saved[cid] ?? [:]
+            for e in overlayLatest[cid] ?? [] {
+                if !e.isCalendarOwned, let me, e.ownerUid == me { continue }
+                guard seen.insert(e.id).inserted else { continue }
+                items[e.id] = e
+                owners[e.id] = cid
+                shown.append(e.shiftEvent(color: map[Self.colorKey(for: e)] ?? e.color))
+            }
+        }
+        overlayItems = items
+        overlayCalendarOf = owners
+        mainStore?.setOverlay(shown)
     }
 
     private static func loadOverrides(defaults: UserDefaults) -> [String: [String: String]] {
@@ -284,6 +401,7 @@ final class SharedViewState {
         let members = await calendars.members(of: cal) ?? []
         guard calendar?.id == cal.id else { return }
         names = Dictionary(members.map { ($0.id, $0.displayName) }, uniquingKeysWith: { a, _ in a })
+        avatars = Dictionary(members.map { ($0.id, $0.avatar) }, uniquingKeysWith: { a, _ in a })
     }
 
     private func apply(_ list: [SharedEvent], for id: String) {

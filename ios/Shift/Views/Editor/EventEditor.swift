@@ -130,9 +130,14 @@ struct EventEditor: View {
                         .id(Self.titleRowId)
                     choiceRow(name: selectedWorkplace?.name ?? store.label(for: labelId)?.name ?? "指定なし",
                               color: currentGroupColor) { picking = true }
-                    Toggle("個別カラー", isOn: ownColorBinding)
-                    if ownColor {
+                    if noGroup {
+                        // 職場もラベルも指定しないときは、色をそのまま選べる
                         ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
+                    } else {
+                        Toggle("個別カラー", isOn: ownColorBinding)
+                        if ownColor {
+                            ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
+                        }
                     }
                 }
                 Section {
@@ -256,6 +261,9 @@ struct EventEditor: View {
 
     // MARK: 職場・ラベル・色
 
+    /// 職場もラベルも指定していない(指定なし)
+    private var noGroup: Bool { workplaceId == nil && labelId == nil }
+
     private var currentGroupColor: String {
         store.groupColor(workplaceId: workplaceId, labelId: labelId)
     }
@@ -299,6 +307,12 @@ struct EventEditor: View {
             title = ""
         }
         if wasWork != isWork { barShowsTitle = !isWork }
+        // 職場・ラベルを選んだら個別カラーはオフ。指定なしに戻したら、色は選び直せる(個別の色がなければグレーから)
+        if newWorkplace != nil || labelId != nil {
+            ownColor = false
+        } else if !ownColor {
+            color = EventLabel.noneColor
+        }
     }
 
     // MARK: 時刻入力
@@ -762,8 +776,8 @@ struct EventEditor: View {
         let sd = Rules.format(start)
         e.title = title.trimmingCharacters(in: .whitespaces)
         e.memo = memo
-        e.color = ownColor ? color : currentGroupColor
-        e.ownColor = ownColor
+        e.color = (noGroup || ownColor) ? color : currentGroupColor
+        e.ownColor = noGroup ? (color != EventLabel.noneColor) : ownColor
         if hasDate {
             e.startDate = sd
             e.endDate = Rules.resolveEndDate(start: sd, end: Rules.format(end), allDay: allDay, startTime: st, endTime: et)

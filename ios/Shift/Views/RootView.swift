@@ -37,6 +37,7 @@ struct RootView: View {
     @State private var showFilter = false
     @State private var showDrawer = false
     @State private var showLabels = false
+    @State private var showWorkplaces = false
     @State private var showCreateCalendar = false
     @State private var showJoinCalendar = false
     @State private var sharedEditing: SharedEditTarget?
@@ -109,6 +110,13 @@ struct RootView: View {
             selectedDate = selectTodayAfterMove ? Rules.today() : nil
             selectTodayAfterMove = false
         }
+        .onChange(of: stampId) { _, new in
+            // スタンプで置いた予定が、絞り込みで隠れて消えたように見えないよう、スタンプを始めるときは全部表示にする
+            if new != nil { store.clearFilters() }
+        }
+        .onChange(of: alarmStamp) { _, new in
+            if new != nil { store.clearFilters() }
+        }
         .onChange(of: mode) { _, new in
             // 日付を選んだまま週表示にしたら、その日を含む週を出す
             if new == .week, let d = selectedDate { anchor = d }
@@ -151,6 +159,7 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showFilter) { FilterSheet() }
         .sheet(isPresented: $showLabels) { LabelManageView() }
+        .sheet(isPresented: $showWorkplaces) { WorkplaceManageView() }
         .sheet(item: $sharedEditing) { SharedEventEditor(target: $0) }
         .sheet(item: $sharedDetail) { SharedEventDetail(eventId: $0.eventId) }
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
@@ -190,6 +199,7 @@ struct RootView: View {
                     }
                 }
                 Divider().padding(.vertical, 8)
+                drawerRow(title: "職場の管理", icon: "briefcase") { closeDrawer { showWorkplaces = true } }
                 drawerRow(title: "ラベルの管理", icon: "tag") { closeDrawer { showLabels = true } }
                 drawerRow(title: "設定", icon: "gearshape") { closeDrawer { showSettings = true } }
                 Spacer(minLength: 0)
@@ -329,11 +339,11 @@ struct RootView: View {
                 }
                 if !sharedView.isOpen {
                 Button { showFilter = true } label: {
-                    Image(systemName: store.isFiltering
+                    Image(systemName: store.isFiltering || !sharedView.overlayIds.isEmpty
                           ? "line.3.horizontal.decrease.circle.fill"
                           : "line.3.horizontal.decrease.circle")
                         .font(.app(20))
-                        .foregroundStyle(store.isFiltering ? Theme.accent : Color.primary)
+                        .foregroundStyle(store.isFiltering || !sharedView.overlayIds.isEmpty ? Theme.accent : Color.primary)
                         .frame(minWidth: 36, minHeight: 36)
                         .contentShape(Rectangle())
                 }
@@ -547,16 +557,17 @@ struct RootView: View {
     }
 
     private func edit(_ event: ShiftEvent) {
-        if sharedView.isOpen {
-            // 共有カレンダーでは、自分の予定もほかの人の予定も、詳細を見せる(直せるのは共有カレンダーの中で作った予定だけ)
-            if sharedView.event(event.id) != nil { sharedDetail = SharedDetailTarget(eventId: event.id) }
+        // 共有カレンダーの予定は、自分の予定もほかの人の予定も、詳細を見せる(直せるのは共有カレンダーの中で作った予定だけ)
+        if sharedView.event(event.id) != nil {
+            sharedDetail = SharedDetailTarget(eventId: event.id)
             return
         }
+        if sharedView.isOpen { return }
         editing = EditorTarget(event: event, isNew: false)
     }
 
     private func drop(id: String, on date: String) {
-        guard !sharedView.isOpen else { return }
+        guard !sharedView.isOpen, !store.isOverlay(id) else { return }
         if id.hasPrefix(Store.favoritePrefix) {
             withAnimation(.snappy) { store.stampCopy(favoriteId: String(id.dropFirst(Store.favoritePrefix.count)), on: date) }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()

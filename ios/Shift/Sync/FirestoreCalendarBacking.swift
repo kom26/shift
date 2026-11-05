@@ -154,7 +154,8 @@ final class FirestoreCalendarBacking: CalendarBacking {
                                   displayName: x["displayName"] as? String ?? "",
                                   isOwner: x["role"] as? String == "owner",
                                   status: MemberStatus(rawValue: x["status"] as? String ?? "") ?? .active,
-                                  sharedKeys: x["sharedKeys"] as? [String] ?? [])
+                                  sharedKeys: x["sharedKeys"] as? [String] ?? [],
+                                  avatar: x["avatar"] as? String ?? "")
         }
         .sorted { ($0.isOwner ? 0 : 1, $0.displayName) < ($1.isOwner ? 0 : 1, $1.displayName) }
     }
@@ -167,7 +168,7 @@ final class FirestoreCalendarBacking: CalendarBacking {
         try await member(calendarId, uid).delete()
     }
 
-    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String]) async throws {
-        try await member(calendarId, uid).updateData(["displayName": displayName, "sharedKeys": sharedKeys])
+    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws {
+        try await member(calendarId, uid).updateData(["displayName": displayName, "sharedKeys": sharedKeys, "avatar": avatar])
     }
 }

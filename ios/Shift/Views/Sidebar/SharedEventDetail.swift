@@ -9,7 +9,14 @@ struct SharedDetailTarget: Identifiable {
 struct UserAvatar: View {
     let uid: String
     let name: String
+    /// 選んだ絵文字。空なら名前の頭文字
+    var avatar: String = ""
     var size: CGFloat = 28
+
+    /// 選べるアバター
+    static let choices = ["🐶", "🐱", "🐰", "🐻", "🐼", "🦊", "🐯", "🐸", "🐵", "🐧", "🐥", "🦄",
+                          "🐢", "🐳", "🦋", "🌸", "🌻", "🍀", "🍎", "🍓", "🍙", "🍣", "☕️", "🍺",
+                          "⚽️", "🎮", "🎧", "🎨", "📚", "✈️", "🚗", "🌙", "⭐️", "🔥", "💎", "👑"]
 
     private static let palette = ["#6a8cf0", "#e0707a", "#4fae8a", "#d9993d", "#a36ad9", "#4aa3c7", "#c9688f", "#7d8a3a"]
 
@@ -24,8 +31,8 @@ struct UserAvatar: View {
     }
 
     var body: some View {
-        Text(Self.initial(of: name))
-            .font(.system(size: size * 0.46, weight: .bold))
+        Text(avatar.isEmpty ? Self.initial(of: name) : avatar)
+            .font(.system(size: size * (avatar.isEmpty ? 0.46 : 0.58), weight: .bold))
             .foregroundStyle(Color.white)
             .frame(width: size, height: size)
             .background(Circle().fill(Color(hex: Self.color(for: uid))))
@@ -73,7 +80,7 @@ struct SharedEventDetail: View {
         return List {
             VStack(spacing: 10) {
                 if !e.isCalendarOwned, let owner {
-                    UserAvatar(uid: owner.uid, name: owner.name, size: 56)
+                    UserAvatar(uid: owner.uid, name: owner.name, avatar: owner.avatar, size: 56)
                     if !owner.name.isEmpty { Text(owner.name).font(.app(13)).foregroundStyle(.secondary) }
                 } else {
                     Image(systemName: "person.2.fill").font(.title).foregroundStyle(.secondary)

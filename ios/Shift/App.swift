@@ -23,7 +23,12 @@ struct ShiftApp: App {
         let eventsBacking = FirestoreSharedEvents()
         let pub = SharedPublisher(backing: eventsBacking, store: s,
                                   calendars: { [weak cal] in cal?.calendars ?? [] }, uid: { [weak cal] in cal?.myUid })
-        cal.onChange = { [weak pub] in pub?.schedule() }
+        let shared = SharedViewState(events: eventsBacking, calendars: cal)
+        shared.attach(store: s)
+        cal.onChange = { [weak pub, weak shared] in
+            pub?.schedule()
+            shared?.syncOverlay()
+        }
         s.onLocalChange = { [weak a, weak s, weak pub] in
             a?.localChanged()
             pub?.schedule()
@@ -39,7 +44,7 @@ struct ShiftApp: App {
         _auth = State(initialValue: AuthService())
         _calendars = State(initialValue: cal)
         _publisher = State(initialValue: pub)
-        _sharedView = State(initialValue: SharedViewState(events: eventsBacking, calendars: cal))
+        _sharedView = State(initialValue: shared)
     }
 
     var body: some Scene {

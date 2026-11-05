@@ -68,10 +68,11 @@ private final class FakeCalendars: CalendarBacking {
         membersByCalendar[calendarId]?.removeAll { $0.id == uid }
     }
 
-    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String]) async throws {
+    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws {
         if let i = membersByCalendar[calendarId]?.firstIndex(where: { $0.id == uid }) {
             membersByCalendar[calendarId]?[i].displayName = displayName
             membersByCalendar[calendarId]?[i].sharedKeys = sharedKeys
+            membersByCalendar[calendarId]?[i].avatar = avatar
         }
     }
 }
@@ -281,5 +282,64 @@ struct CalendarServiceTests {
         service.stop()
         #expect(service.calendars.isEmpty)
         #expect(await service.create(spec("また")) == nil)
+    }
+}
+
+private final class ListeningEvents: SharedEventsBacking {
+    var docs: [String: [SharedEvent]] = [:]
+    func fetch(calendarId: String) async throws -> [SharedEvent] { docs[calendarId] ?? [] }
+    func listen(calendarId: String, onChange: @escaping ([SharedEvent]) -> Void) -> () -> Void {
+        onChange(docs[calendarId] ?? [])
+        return {}
+    }
+    func set(calendarId: String, event: SharedEvent) async throws {}
+    func delete(calendarId: String, id: String) async throws {}
+    func mineIds(calendarId: String, uid: String) async throws -> Set<String> { [] }
+}
+
+@MainActor
+struct OverlayTests {
+    private func plain(_ id: String, owner: String, key: String = "l:") -> SharedEvent {
+        SharedEvent(id: id, ownerUid: owner, sourceKey: key, title: id, startDate: "2026-11-10", endDate: "2026-11-10",
+                    startTime: nil, endTime: nil, allDay: true, name: "", color: "#bec1cc")
+    }
+
+    private func makeStore() -> Store {
+        let name = UUID().uuidString
+        return Store(fileURL: FileManager.default.temporaryDirectory.appending(path: "\(name).json"),
+                     defaults: UserDefaults(suiteName: name)!)
+    }
+
+    @Test func storeShowsOverlayEventsButNeverSavesOrFiltersThem() {
+        let store = makeStore()
+        store.setOverlay([ev("x", "2026-11-10")])
+        #expect(store.events.isEmpty)
+        #expect(store.visibleEvents.map(\.id) == ["x"])
+        #expect(store.daySummary(date: "2026-11-10").events.map(\.event.id) == ["x"])
+        #expect(store.isOverlay("x"))
+        store.toggleLabelFilter("none-such")
+        #expect(store.visibleEvents.map(\.id) == ["x"])
+    }
+
+    @Test func overlayShowsOthersAndCalendarEventsButNotMyOwnCopies() async throws {
+        let service = CalendarService(backing: FakeCalendars())
+        await service.start(uid: "me")
+        let made = try #require(await service.create(NewCalendar(name: "家族", displayName: "わたし", kind: .mutual,
+                                                                  requireApproval: false, sharedKeys: [])))
+        let backing = ListeningEvents()
+        let calendarOwned = SharedEvent.newInCalendar(uid: "you", date: "2026-11-10")
+        backing.docs[made.calendar.id] = [plain("me_a", owner: "me"), plain("you_b", owner: "you"), calendarOwned]
+        let name = UUID().uuidString
+        let view = SharedViewState(events: backing, calendars: service, defaults: UserDefaults(suiteName: name)!)
+        let store = makeStore()
+        view.attach(store: store)
+        view.setOverlay([made.calendar.id], on: true)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(Set(store.overlayEvents.map(\.id)) == ["you_b", calendarOwned.id])
+        #expect(view.event("you_b") != nil)
+        #expect(view.event("me_a") == nil)
+        // 外すと消える
+        view.setOverlay([made.calendar.id], on: false)
+        #expect(store.overlayEvents.isEmpty)
     }
 }

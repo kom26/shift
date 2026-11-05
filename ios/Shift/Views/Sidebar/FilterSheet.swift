@@ -4,6 +4,8 @@ import SwiftUI
 /// くくりをタップすると中身がまとめて選ばれ、中身を 1 つずつ選ぶこともできる。何も選ばなければ全て表示する
 struct FilterSheet: View {
     @Environment(Store.self) private var store
+    @Environment(CalendarService.self) private var calendarService
+    @Environment(SharedViewState.self) private var sharedView
     @Environment(\.dismiss) private var dismiss
 
     private enum Mark { case off, partial, on }
@@ -30,6 +32,8 @@ struct FilterSheet: View {
         let wCounts = workCounts
         let lCounts = labelCounts
         let labelKeys = store.labels.map(\.id) + [Store.noLabelKey]
+        let sharedCals = calendarService.calendars.filter { $0.status == .active }
+        let overlaid = sharedCals.filter { sharedView.isOverlaid($0.id) }.count
         NavigationStack {
             List {
                 if !store.workplaces.isEmpty {
@@ -62,6 +66,18 @@ struct FilterSheet: View {
                         store.toggleLabelFilter(Store.noLabelKey)
                     }
                 }
+                if !sharedCals.isEmpty {
+                    Section {
+                        groupRow("共有カレンダー", mark: mark(selected: overlaid, of: sharedCals.count)) {
+                            sharedView.setOverlay(sharedCals.map(\.id), on: overlaid < sharedCals.count)
+                        }
+                        ForEach(sharedCals) { c in
+                            calendarRow(c)
+                        }
+                    } footer: {
+                        Text("チェックした共有カレンダーの予定を、自分のカレンダーに重ねて表示します。あなたが共有した予定は、ダブらず 1 つだけ表示されます。")
+                    }
+                }
             }
             .navigationTitle("絞り込み")
             .navigationBarTitleDisplayMode(.inline)
@@ -88,6 +104,20 @@ struct FilterSheet: View {
                 Text(title).font(.app(16, weight: .semibold))
                 Spacer()
             }
+            .contentShape(Rectangle())
+        }
+        .foregroundStyle(.primary)
+    }
+
+    private func calendarRow(_ c: SharedCalendar) -> some View {
+        Button { sharedView.setOverlay([c.id], on: !sharedView.isOverlaid(c.id)) } label: {
+            HStack(spacing: 12) {
+                box(sharedView.isOverlaid(c.id) ? .on : .off)
+                Image(systemName: "person.2").foregroundStyle(.secondary).frame(width: 14)
+                Text(c.name)
+                Spacer()
+            }
+            .padding(.leading, 20)
             .contentShape(Rectangle())
         }
         .foregroundStyle(.primary)

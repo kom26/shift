@@ -100,8 +100,15 @@ final class Store {
 
     /// 配置済みで、絞り込みを通る予定(絞り込みが空なら全て)
     var visibleEvents: [ShiftEvent] {
-        events.filter { $0.placed && $0.startDate != nil && passesFilters($0) }
+        events.filter { $0.placed && $0.startDate != nil && passesFilters($0) } + overlayEvents
     }
+
+    /// 自分のカレンダーに重ねて見せる共有カレンダーの予定。見るだけで、保存も同期もしない(絞り込みの対象でもない)
+    private(set) var overlayEvents: [ShiftEvent] = []
+
+    func setOverlay(_ list: [ShiftEvent]) { overlayEvents = list }
+
+    func isOverlay(_ id: String) -> Bool { overlayEvents.contains { $0.id == id } }
 
     /// 勤務予定は職場、通常予定はラベルで絞る。2 つのくくりは別々の予定を指すので、どちらかに合えば出す
     private func passesFilters(_ e: ShiftEvent) -> Bool {

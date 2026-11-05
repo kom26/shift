@@ -218,8 +218,8 @@ struct DaySheet: View {
             }
             Spacer(minLength: 0)
             // 共有カレンダーでは、誰の予定かをアバターで見せる(共有カレンダーの中で作った予定は、みんなのものなので出さない)
-            if shared.isOpen, shared.event(ev.id)?.isCalendarOwned == false, let o = shared.owner(of: ev.id) {
-                UserAvatar(uid: o.uid, name: o.name, size: 28)
+            if shared.event(ev.id)?.isCalendarOwned == false, let o = shared.owner(of: ev.id) {
+                UserAvatar(uid: o.uid, name: o.name, avatar: o.avatar, size: 28)
             }
         }
         .padding(.vertical, 4)
