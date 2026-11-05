@@ -21,7 +21,7 @@ struct ChoiceItem: Identifiable, Equatable {
     let color: String
 }
 
-/// 下から出る選択シート。タップで選ぶ。右上の「編集」で、名前の左に ⚙(名前・色の編集)、右端に並べ替えが出る。
+/// 下から出る選択シート。タップで選ぶ。右上の「編集」を押すと、行のタップが名前・色の編集になり、右端に並べ替えが出る。
 /// 職場とラベルで共通。「指定なし」「ラベルなし」は固定で、直せない
 struct ChoiceSheet<AddEditor: View, ItemEditor: View>: View {
     let title: String
@@ -79,20 +79,14 @@ struct ChoiceSheet<AddEditor: View, ItemEditor: View>: View {
 
     private func row(id: String?, name: String, color: String) -> some View {
         Button {
-            if !editing { onSelect(id); dismiss() }
+            if editing {
+                if let id { editingId = id }
+            } else {
+                onSelect(id)
+                dismiss()
+            }
         } label: {
             HStack(spacing: 12) {
-                if editing {
-                    if let id {
-                        Button { editingId = id } label: {
-                            Image(systemName: "gearshape").foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("\(name)を編集")
-                    } else {
-                        Color.clear.frame(width: 22, height: 22)
-                    }
-                }
                 ColorDot(hex: color, size: 14)
                 Text(name)
                 Spacer()
@@ -126,7 +120,6 @@ struct LabelManageView: View {
             List {
                 Section {
                     HStack(spacing: 12) {
-                        Color.clear.frame(width: 22, height: 22)
                         ColorDot(hex: EventLabel.noneColor, size: 14)
                         Text("ラベルなし")
                         Spacer()
@@ -134,17 +127,16 @@ struct LabelManageView: View {
                     }
                     .moveDisabled(true)
                     ForEach(store.labels) { l in
-                        HStack(spacing: 12) {
-                            Button { target = LabelTarget(label: l, isNew: false) } label: {
-                                Image(systemName: "gearshape").foregroundStyle(.secondary)
+                        Button { target = LabelTarget(label: l, isNew: false) } label: {
+                            HStack(spacing: 12) {
+                                ColorDot(hex: l.color, size: 14)
+                                Text(l.name)
+                                Spacer()
+                                Text("\(store.labelEventCount(l.id))件").foregroundStyle(.secondary)
                             }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("\(l.name)を編集")
-                            ColorDot(hex: l.color, size: 14)
-                            Text(l.name)
-                            Spacer()
-                            Text("\(store.labelEventCount(l.id))件").foregroundStyle(.secondary)
+                            .contentShape(Rectangle())
                         }
+                        .foregroundStyle(.primary)
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
                 } footer: {
