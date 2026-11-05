@@ -8,7 +8,7 @@ struct ShareItemsSection: View {
 
     var body: some View {
         if !store.workplaces.isEmpty {
-            Section("共有する職場") {
+            Section("共有する勤務予定") {
                 ForEach(store.workplaces) { w in
                     row(name: w.name, color: w.color, key: ShareKey.workplace(w.id))
                 }
@@ -22,7 +22,7 @@ struct ShareItemsSection: View {
         } header: {
             Text("共有するラベル")
         } footer: {
-            Text("選んだ職場・ラベルの予定だけが、タイトルと日時・職場名とラベル名・色だけの形で相手に見えます。給料やメモは見えません。")
+            Text("選んだ勤務予定・ラベルの予定だけが、タイトルと日時・職場名とラベル名・色だけの形で相手に見えます。給料やメモは見えません。")
         }
     }
 
@@ -74,9 +74,11 @@ struct CalendarCreateSheet: View {
                 if let made {
                     InviteSection(code: made.invite, calendarName: made.calendar.name)
                 } else {
-                    Section {
+                    Section("カレンダー名") {
                         TextField("カレンダー名", text: $name)
-                        TextField("相手に見える自分の名前", text: $displayName)
+                    }
+                    Section("相手に見える自分の名前") {
+                        TextField("名前", text: $displayName)
                     }
                     Section {
                         Picker("種類", selection: $kind) {
@@ -159,8 +161,8 @@ struct CalendarJoinSheet: View {
                     } footer: {
                         Text(found.preview.requireApproval ? "許可制です。持ち主が承認するまで予定は見られません。" : "")
                     }
-                    Section {
-                        TextField("相手に見える自分の名前", text: $displayName)
+                    Section("相手に見える自分の名前") {
+                        TextField("名前", text: $displayName)
                     }
                     if found.preview.kind == .mutual {
                         ShareItemsSection(selection: $shared)
@@ -259,8 +261,8 @@ struct CalendarDetailSheet: View {
                     Section("参加者") {
                         ForEach(members) { m in memberRow(m) }
                     }
-                    Section {
-                        TextField("相手に見える自分の名前", text: $displayName)
+                    Section("相手に見える自分の名前") {
+                        TextField("名前", text: $displayName)
                     }
                     if canShareMine {
                         ShareItemsSection(selection: $shared)
