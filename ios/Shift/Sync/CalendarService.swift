@@ -223,12 +223,19 @@ final class CalendarService {
     /// 持ち主が、共有カレンダーを消す。参加者の画面からも消える(予定のコピーも消えるが、みんなの元の予定は消えない)
     func delete(_ calendar: SharedCalendar) async -> Bool {
         guard let uid, calendar.ownerUid == uid else { return false }
-        return await run("削除できませんでした") {
-            try await self.backing.deleteCalendar(calendarId: calendar.id, uid: uid)
-            self.calendars.removeAll { $0.id == calendar.id }
-            self.onChange?()
+        busy = true
+        errorMessage = nil
+        defer { busy = false }
+        do {
+            try await backing.deleteCalendar(calendarId: calendar.id, uid: uid)
+            calendars.removeAll { $0.id == calendar.id }
+            onChange?()
             return true
-        } ?? false
+        } catch {
+            // 原因が分かるように、元のエラーも添える
+            errorMessage = "削除できませんでした\n\(error.localizedDescription)"
+            return false
+        }
     }
 
     func members(of calendar: SharedCalendar) async -> [CalendarMember]? {

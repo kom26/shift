@@ -86,12 +86,15 @@ struct MonthView: View {
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
-            SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
-                         fill: Theme.accentSoft, labelColor: Color.secondary, fontSize: 10)
-                .frame(height: monthStripH)
-                .overlay(alignment: .top) {
-                    Rectangle().fill(Color(.separator)).frame(height: 0.5)
-                }
+            // 共有カレンダーには、月計も週計も出さない
+            if !isSharedView {
+                SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
+                             fill: Theme.accentSoft, labelColor: Color.secondary, fontSize: 10)
+                    .frame(height: monthStripH)
+                    .overlay(alignment: .top) {
+                        Rectangle().fill(Color(.separator)).frame(height: 0.5)
+                    }
+            }
         }
         .background {
             ZStack {

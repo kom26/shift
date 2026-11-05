@@ -54,6 +54,7 @@ struct CalendarCreateSheet: View {
     @Environment(CalendarService.self) private var service
     @Environment(AuthService.self) private var auth
     @Environment(Store.self) private var store
+    @Environment(SharedViewState.self) private var sharedView
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var displayName = ""
@@ -105,6 +106,8 @@ struct CalendarCreateSheet: View {
                                 made = await service.create(NewCalendar(name: name, displayName: displayName, kind: kind,
                                                                         requireApproval: requireApproval,
                                                                         sharedKeys: shared.sorted()))
+                                // 作ったカレンダーを開いておく(シートを閉じると、そのカレンダーが見える)
+                                if let made { await sharedView.open(made.calendar) }
                             }
                         }
                         .disabled(service.busy || !canCreate)
@@ -164,11 +167,11 @@ struct CalendarJoinSheet: View {
                     }
                 } else {
                     Section {
-                        TextField("招待コードまたはリンク", text: $code)
+                        TextField("招待リンク", text: $code)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     } footer: {
-                        Text("共有してくれた人から届いた招待コードか、リンクを貼り付けてください。")
+                        Text("共有してくれた人から届いた招待リンクを貼り付けてください。")
                     }
                 }
                 if joined == nil, let message = service.errorMessage {
@@ -228,7 +231,7 @@ struct CalendarDetailSheet: View {
     @State private var confirmLeave = false
     @State private var removing: CalendarMember?
     @State private var loaded = false
-    @State private var savedNote = false
+    @State private var actionError: String?
 
     private var uid: String? { auth.account?.uid }
     private var isOwner: Bool { calendar.ownerUid == uid }
@@ -262,20 +265,6 @@ struct CalendarDetailSheet: View {
                     if canShareMine {
                         ShareItemsSection(selection: $shared)
                     }
-                    Section {
-                        Button("自分の設定を保存") {
-                            Task {
-                                if await service.updateMine(in: calendar, displayName: displayName,
-                                                            sharedKeys: canShareMine ? shared.sorted() : []) {
-                                    savedNote = true
-                                    members = await service.members(of: calendar) ?? members
-                                }
-                            }
-                        }
-                        .disabled(displayName.trimmingCharacters(in: .whitespaces).isEmpty)
-                    } footer: {
-                        if savedNote { Text("保存しました。") }
-                    }
                 }
                 if !isOwner {
                     Section {
@@ -291,17 +280,27 @@ struct CalendarDetailSheet: View {
             }
             .navigationTitle(calendar.name)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } } }
-            .task { await load() }
-            .confirmationDialog("「\(calendar.name)」を削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("削除", role: .destructive) {
-                    Task {
-                        if sharedView.calendar?.id == calendar.id { sharedView.close() }
-                        if await service.delete(calendar) { dismiss() }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
+                if calendar.status == .active {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("保存") { Task { await save() } }
+                            .disabled(service.busy || displayName.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 }
+            }
+            .task { await load() }
+            .alert("削除しますか?", isPresented: $confirmDelete) {
+                Button("削除", role: .destructive) { Task { await deleteCalendar() } }
+                Button("キャンセル", role: .cancel) {}
             } message: {
-                Text("この操作は取り消せません。")
+                Text("「\(calendar.name)」を削除します。この操作は取り消せません。")
+            }
+            .alert("できませんでした", isPresented: Binding(
+                get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
+                Button("OK") { actionError = nil }
+            } message: {
+                Text(actionError ?? "")
             }
             .confirmationDialog("退出しますか?", isPresented: $confirmLeave, titleVisibility: .visible) {
                 Button("退出", role: .destructive) {
@@ -360,6 +359,28 @@ struct CalendarDetailSheet: View {
         }
     }
 
+    /// 自分の設定を保存して、そのカレンダーを開く
+    private func save() async {
+        let ok = await service.updateMine(in: calendar, displayName: displayName,
+                                          sharedKeys: canShareMine ? shared.sorted() : [])
+        guard ok else {
+            actionError = service.errorMessage ?? "保存できませんでした"
+            return
+        }
+        let updated = service.calendars.first { $0.id == calendar.id } ?? calendar
+        dismiss()
+        await sharedView.open(updated)
+    }
+
+    private func deleteCalendar() async {
+        if sharedView.calendar?.id == calendar.id { sharedView.close() }
+        if await service.delete(calendar) {
+            dismiss()
+        } else {
+            actionError = service.errorMessage ?? "削除できませんでした"
+        }
+    }
+
     private func load() async {
         guard !loaded else { return }
         loaded = true
@@ -373,7 +394,7 @@ struct CalendarDetailSheet: View {
     }
 }
 
-/// 招待の表示。QR(画像で保存できる)、リンク、コード
+/// 招待の表示。QR(画像で保存できる)とリンク
 private struct InviteSection: View {
     let code: InviteCode
     let calendarName: String
@@ -404,10 +425,6 @@ private struct InviteSection: View {
                     Label("招待リンクを送る", systemImage: "square.and.arrow.up")
                 }
             }
-            Text(code.text)
-                .font(.system(.footnote, design: .monospaced))
-                .textSelection(.enabled)
-            Button("コードをコピー") { UIPasteboard.general.string = code.text }
         }
     }
 }

@@ -42,7 +42,7 @@ struct WeekView: View {
             grid(days, conflictDays: conflictDays)
             let b = Rules.monthBounds(of: anchor)
             let monthTotals = store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil })
-            if summaryOn {
+            if summaryOn && !isSharedView {
                 Divider()
                 SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthTotals.map(\.key)), emptyText: "データなし",
                              fill: Color(.systemBackground), labelColor: Color.secondary)
@@ -50,9 +50,12 @@ struct WeekView: View {
             } else {
                 Divider()
             }
-            SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
-                         fill: Theme.accentSoft, labelColor: Color.secondary)
-                .frame(height: 20)
+            // 共有カレンダーには、月計も週計も出さない
+            if !isSharedView {
+                SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
+                             fill: Theme.accentSoft, labelColor: Color.secondary)
+                    .frame(height: 20)
+            }
         }
         .background { MonthWatermark(number: Rules.ymd(days[3]).month) }
     }

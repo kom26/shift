@@ -128,6 +128,8 @@ struct RootView: View {
             // ウィジェットから: shiftpalette://day/2026-10-30 でその日の予定一覧を開く
             guard url.scheme == "shiftpalette", url.host == "day",
                   let date = url.pathComponents.last, Rules.parse(date) != nil else { return }
+            // 共有カレンダーを開いていても、ウィジェットからは自分のカレンダーで開く
+            sharedView.close()
             anchor = date
             dayTarget = DayTarget(date: date)
         }
@@ -230,10 +232,8 @@ struct RootView: View {
             Spacer(minLength: 4)
             if sharedView.loading { ProgressView().controlSize(.small) }
             if sharedView.failed { Text("読み込めませんでした").font(.app(11)) }
-            Button { Task { await sharedView.refresh() } } label: { Image(systemName: "arrow.clockwise") }
-                .accessibilityLabel("更新")
             Button { sharedView.close() } label: {
-                Text("自分のカレンダーへ")
+                Text("自分のカレンダーに戻る")
                     .font(.app(12, weight: .bold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 3)
@@ -305,6 +305,17 @@ struct RootView: View {
                     Text("今日").font(.app(15)).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
                 }
                 Spacer(minLength: 0)
+                if sharedView.isOpen {
+                    // 共有カレンダーでは、週計の代わりに設定を開く
+                    Button { showSettings = true } label: {
+                        Image(systemName: "gearshape")
+                            .font(.app(20))
+                            .foregroundStyle(Color.primary)
+                            .frame(minWidth: 36, minHeight: 36)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("設定")
+                } else {
                 Button { toggleSummary() } label: {
                     Text("週計")
                         .font(.app(12, weight: .medium))
@@ -314,6 +325,7 @@ struct RootView: View {
                         .overlay(Capsule().stroke(summaryOn ? Theme.accent : Color.secondary.opacity(0.4)))
                         .frame(minHeight: 36)
                         .contentShape(Rectangle())
+                }
                 }
                 if !sharedView.isOpen {
                 Button { showFilter = true } label: {
@@ -395,7 +407,7 @@ struct RootView: View {
     private func page(offset k: Int) -> some View {
         switch mode {
         case .month:
-            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onTapEvent: tapEvent, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
+            MonthView(anchor: Rules.addMonths(anchor, k), startMonday: startMonday, summaryOn: summaryOn && !sharedView.isOpen, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onTapEvent: tapEvent, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
         case .week:
             WeekView(anchor: Rules.addDays(anchor, 7 * k), startMonday: startMonday, summaryOn: summaryOn, selectedDate: selectedDate, onSelectDay: tapDay, onSelectEvent: edit, onTapEvent: tapEvent, onDropEvent: drop, onSelectPayday: { paydayTarget = PaydayTarget(date: $0) }, onLongPressDay: longPressDay)
         }
