@@ -2,3 +2,4 @@ ios/ShiftInfo.plist
 ios/ShiftApp.entitlements
 ios/ShiftWidgetInfo.plist
 ios/ShiftWidget.entitlements
+.firebase/
