@@ -40,6 +40,8 @@ struct EventEditor: View {
     @State private var ownColor: Bool
     @State private var picking = false
     @FocusState private var focusedField: Field?
+    /// キーボードが出たあとに見せたい行。出るのが遅れても、出た時点でもう一度スクロールする
+    @State private var scrollTarget: String?
 
     /// 職場を選んだ予定が勤務予定。職場の指定なしは通常予定
     private var isWork: Bool { workplaceId != nil }
@@ -194,7 +196,12 @@ struct EventEditor: View {
                 guard let new else { return }
                 scrollToBottom(panelBottomId(new), proxy: proxy)
             }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                guard let id = scrollTarget else { return }
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+            }
             .onChange(of: focusedField) { _, new in
+                if new == nil { scrollTarget = nil }
                 if new == .breakMinutes { scrollToBottom(Self.breakRowId, proxy: proxy) }
                 if new == .adjustment { scrollToBottom(Self.adjustmentRowId, proxy: proxy) }
                 if new == .dailyWage { scrollToBottom(Self.dailyWageRowId, proxy: proxy) }
@@ -321,6 +328,7 @@ struct EventEditor: View {
     }
 
     private func closeTimePanel() {
+        scrollTarget = nil
         typed = ""
         focusedField = nil
         noAnimation { openPanel = nil }
@@ -354,8 +362,13 @@ struct EventEditor: View {
     /// 行の展開とキーボードの表示が落ち着いてから、1回だけスクロールして下端を見せる
     /// (展開・キーボード・スクロールのアニメーションが重なるとカクつく)
     private func scrollToBottom(_ id: String, proxy: ScrollViewProxy) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
-            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+        scrollTarget = id
+        // キーボードの出る早さは一定でないので、少し間をおいて数回合わせる(すでに見えていれば動かない)
+        for delay in [0.2, 0.5, 0.9] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard scrollTarget == id else { return }
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+            }
         }
     }
 
