@@ -19,13 +19,13 @@ final class FirestoreCalendarBacking: CalendarBacking {
         return e.domain == FirestoreErrorDomain && e.code == FirestoreErrorCode.permissionDenied.rawValue
     }
 
-    private static func calendar(id: String, data: [String: Any], status: MemberStatus) -> SharedCalendar {
+    private static func calendar(id: String, data: [String: Any], status: MemberStatus, sharedKeys: [String] = []) -> SharedCalendar {
         SharedCalendar(id: id,
                        name: data["name"] as? String ?? "",
                        ownerUid: data["ownerUid"] as? String ?? "",
                        kind: CalendarKind(rawValue: data["kind"] as? String ?? "") ?? .mutual,
                        requireApproval: data["requireApproval"] as? Bool ?? false,
-                       status: status)
+                       status: status, mySharedKeys: sharedKeys)
     }
 
     func create(uid: String, spec: NewCalendar) async throws -> (calendar: SharedCalendar, invite: InviteCode) {
@@ -61,7 +61,8 @@ final class FirestoreCalendarBacking: CalendarBacking {
             let m = try? await member(d.documentID, uid).getDocument()
             guard let data = m?.data() else { continue }
             let status = MemberStatus(rawValue: data["status"] as? String ?? "") ?? .active
-            out.append(Self.calendar(id: d.documentID, data: d.data(), status: status))
+            out.append(Self.calendar(id: d.documentID, data: d.data(), status: status,
+                                     sharedKeys: data["sharedKeys"] as? [String] ?? []))
         }
         return out
     }

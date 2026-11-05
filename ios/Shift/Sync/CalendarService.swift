@@ -27,6 +27,11 @@ struct SharedCalendar: Equatable, Identifiable {
     var requireApproval = false
     /// 自分の参加の状態。許可制で持ち主が承認するまでは pending
     var status: MemberStatus = .active
+    /// 自分が共有に出している職場・ラベル(ShareKey の文字列)
+    var mySharedKeys: [String] = []
+
+    /// 自分の予定を共有に出せるか。見せるだけのカレンダーでは、持ち主だけ
+    func canPublish(uid: String) -> Bool { status == .active && (kind == .mutual || ownerUid == uid) }
 }
 
 /// 共有カレンダーの参加者
@@ -124,6 +129,10 @@ enum CalendarError: Error, Equatable {
 final class CalendarService {
     private(set) var calendars: [SharedCalendar] = []
     private(set) var busy = false
+    /// 参加の一覧や、自分の共有する項目が変わったとき(予定を共有に載せ直す合図)
+    @ObservationIgnored var onChange: (() -> Void)?
+    /// ログイン中の自分
+    var myUid: String? { uid }
     var errorMessage: String?
 
     private let backing: CalendarBacking
@@ -140,6 +149,7 @@ final class CalendarService {
             let list = try await backing.joined(uid: uid)
             guard self.uid == uid else { return }
             calendars = list
+            onChange?()
         } catch {
             // 取れなかったときは一覧が空のまま。ドロワーを開き直したときに取り直す
         }
@@ -148,6 +158,7 @@ final class CalendarService {
     func stop() {
         uid = nil
         calendars = []
+        onChange?()
     }
 
     @discardableResult
@@ -157,8 +168,10 @@ final class CalendarService {
         spec.displayName = spec.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let uid, !spec.name.isEmpty, !spec.displayName.isEmpty else { return nil }
         return await run("共有カレンダーを作れませんでした") {
-            let made = try await self.backing.create(uid: uid, spec: spec)
+            var made = try await self.backing.create(uid: uid, spec: spec)
+            made.calendar.mySharedKeys = spec.sharedKeys
             self.calendars.append(made.calendar)
+            self.onChange?()
             return made
         }
     }
@@ -181,8 +194,10 @@ final class CalendarService {
         guard let uid, !name.isEmpty else { return nil }
         if let existing = calendars.first(where: { $0.id == code.calendarId }) { return existing }
         return await run("参加できませんでした", invalid: "招待コードが無効か、期限が切れています") {
-            let joined = try await self.backing.join(uid: uid, code: code, displayName: name, sharedKeys: sharedKeys)
+            var joined = try await self.backing.join(uid: uid, code: code, displayName: name, sharedKeys: sharedKeys)
+            joined.mySharedKeys = joined.kind == .oneway ? [] : sharedKeys
             self.calendars.append(joined)
+            self.onChange?()
             return joined
         }
     }
@@ -199,6 +214,7 @@ final class CalendarService {
         _ = await run("退出できませんでした") {
             try await self.backing.leave(uid: uid, calendarId: calendar.id)
             self.calendars.removeAll { $0.id == calendar.id }
+            self.onChange?()
         }
     }
 
@@ -230,6 +246,8 @@ final class CalendarService {
         guard let uid, !name.isEmpty else { return false }
         return await run("保存できませんでした") {
             try await self.backing.updateMine(calendarId: calendar.id, uid: uid, displayName: name, sharedKeys: sharedKeys)
+            if let i = self.calendars.firstIndex(where: { $0.id == calendar.id }) { self.calendars[i].mySharedKeys = sharedKeys }
+            self.onChange?()
             return true
         } ?? false
     }

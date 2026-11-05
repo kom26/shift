@@ -62,9 +62,14 @@ service cloud.firestore {
       // 共有する予定のコピー(公開できる項目だけ)と、共有カレンダーの中で作った予定
       match /events/{eid} {
         allow read: if isActive();
-        allow create, update: if isActive() && canShare() && (
+        allow create: if isActive() && canShare() && (
           request.resource.data.ownerUid == request.auth.uid
           || request.resource.data.sourceKey == 'calendar'
+        );
+        // 他の人の予定は上書きできない。共有カレンダーの中で作った予定は、参加している全員が直せる
+        allow update: if isActive() && canShare() && (
+          (resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid)
+          || (resource.data.sourceKey == 'calendar' && request.resource.data.sourceKey == 'calendar')
         );
         allow delete: if isActive() && canShare() && (
           resource.data.ownerUid == request.auth.uid || resource.data.sourceKey == 'calendar'

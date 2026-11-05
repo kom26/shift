@@ -9,13 +9,16 @@ struct DaySheet: View {
     @State private var date: String
     /// スワイプで、新しい日が右から(翌日)・左から(前日)入ってくる向き
     @State private var forward = true
+    /// 共有カレンダーなど、見るだけのときは false(予定追加のボタンを出さない)
+    let canAdd: Bool
     let onSelectEvent: (ShiftEvent) -> Void
     let onSelectPayday: (String) -> Void
     let onAddEvent: (String) -> Void
 
-    init(date: String, onSelectEvent: @escaping (ShiftEvent) -> Void,
+    init(date: String, canAdd: Bool = true, onSelectEvent: @escaping (ShiftEvent) -> Void,
          onSelectPayday: @escaping (String) -> Void = { _ in }, onAddEvent: @escaping (String) -> Void = { _ in }) {
         _date = State(initialValue: date)
+        self.canAdd = canAdd
         self.onSelectEvent = onSelectEvent
         self.onSelectPayday = onSelectPayday
         self.onAddEvent = onAddEvent
@@ -37,7 +40,7 @@ struct DaySheet: View {
                     .transition(.asymmetric(
                         insertion: .move(edge: forward ? .trailing : .leading),
                         removal: .move(edge: forward ? .leading : .trailing)))
-                addButton
+                if canAdd { addButton }
             }
             .clipped()
             .simultaneousGesture(daySwipe)

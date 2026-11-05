@@ -25,6 +25,7 @@ struct RootView: View {
     @Environment(Holidays.self) private var holidays
     @Environment(AuthService.self) private var auth
     @Environment(CalendarService.self) private var calendarService
+    @Environment(SharedViewState.self) private var sharedView
     @AppStorage("mode") private var mode: CalendarMode = .month
     @AppStorage("startMonday") private var startMonday = false
     @AppStorage("summaryOn") private var summaryOn = false
@@ -60,18 +61,23 @@ struct RootView: View {
         VStack(spacing: 0) {
             header
             Divider()
+            if sharedView.isOpen { sharedBanner }
             GeometryReader { geo in
                 VStack(spacing: 0) {
-                    if !unplacedCollapsed {
+                    if sharedView.isOpen {
+                        pager
+                    } else if !unplacedCollapsed {
                         // 未配置エリアの高さは月(5週)基準で固定。6週の月でも週表示でも変えない
                         pager.frame(height: LayoutMath.monthCalendarHeight(available: geo.size.height, weeks: 5))
                     } else {
                         pager
                     }
+                    if !sharedView.isOpen {
                     UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday,
                                  fillHeight: true, revealUnplaced: revealToken, stampId: $stampId, alarmStamp: $alarmStamp, onSelectEvent: edit,
                                  onEditFavorite: { editing = EditorTarget(event: $0, isNew: false, favorite: true) },
                                  onNewFavorite: { editing = EditorTarget(event: .newUnplaced(), isNew: true, favorite: true) })
+                    }
                 }
             }
         }
@@ -129,13 +135,14 @@ struct RootView: View {
         }) { EventEditor(original: $0.event, isNew: $0.isNew, favoriteMode: $0.favorite) }
         .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
         .sheet(item: $dayTarget) { t in
-            DaySheet(date: t.date, onSelectEvent: { ev in
+            DaySheet(date: t.date, canAdd: !sharedView.isOpen, onSelectEvent: { ev in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { edit(ev) }
             }, onSelectPayday: { date in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: date) }
             }, onAddEvent: { date in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { createEvent(on: date) }
             })
+            .environment(displayStore)
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showFilter) { FilterSheet() }
@@ -161,10 +168,13 @@ struct RootView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
                     .padding(.top, 12)
-                drawerRow(title: "自分のカレンダー", icon: "calendar", selected: true) { closeDrawer() }
+                drawerRow(title: "自分のカレンダー", icon: "calendar", selected: !sharedView.isOpen) {
+                    sharedView.close()
+                    closeDrawer()
+                }
                 if auth.account != nil {
                     ForEach(calendarService.calendars) { cal in
-                        drawerRow(title: cal.name, icon: "person.2") { closeDrawer { calendarDetail = cal } }
+                        calendarRow(cal)
                     }
                     drawerRow(title: "共有カレンダーを作る", icon: "plus.circle") { closeDrawer { showCreateCalendar = true } }
                     drawerRow(title: "招待で参加", icon: "link") { closeDrawer { joinCode = ""; showJoinCalendar = true } }
@@ -186,6 +196,51 @@ struct RootView: View {
             .gesture(DragGesture().onEnded { if $0.translation.width < -40 { closeDrawer() } })
             .transition(.move(edge: .leading))
         }
+    }
+
+    /// 共有カレンダーの行。タップで開く(承認待ちなら案内)。右の ⓘ で、招待・参加者・自分の設定
+    private func calendarRow(_ cal: SharedCalendar) -> some View {
+        HStack(spacing: 0) {
+            drawerRow(title: cal.status == .pending ? "\(cal.name)(承認待ち)" : cal.name, icon: "person.2",
+                      selected: sharedView.calendar?.id == cal.id) {
+                if cal.status == .active {
+                    closeDrawer { Task { await sharedView.open(cal) } }
+                } else {
+                    closeDrawer { calendarDetail = cal }
+                }
+            }
+            Button { closeDrawer { calendarDetail = cal } } label: {
+                Image(systemName: "info.circle").foregroundStyle(.secondary).frame(width: 40, height: 44)
+            }
+            .accessibilityLabel("\(cal.name)の情報")
+        }
+    }
+
+    /// 共有カレンダーを開いている間の帯。見るだけで、自分の予定には触れないことを示す
+    private var sharedBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.2.fill")
+            Text("\(sharedView.calendar?.name ?? "") (見るだけ)")
+                .font(.app(13, weight: .semibold))
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            if sharedView.loading { ProgressView().controlSize(.small) }
+            if sharedView.failed { Text("読み込めませんでした").font(.app(11)) }
+            Button { Task { await sharedView.refresh() } } label: { Image(systemName: "arrow.clockwise") }
+                .accessibilityLabel("更新")
+            Button { sharedView.close() } label: {
+                Text("自分のカレンダーへ")
+                    .font(.app(12, weight: .bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.25), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(Theme.onAccent)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 34)
+        .background(Theme.accent)
     }
 
     private func drawerRow(title: String, icon: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
@@ -224,13 +279,15 @@ struct RootView: View {
                     Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
                     Spacer(minLength: 0)
                     Button { addFromHeader() } label: {
-                        Text(addButtonTitle)
+                        Text(sharedView.isOpen ? "見るだけ" : addButtonTitle)
                             .font(.app(15, weight: .semibold))
                             .foregroundStyle(Theme.onAccent)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(Theme.accent, in: Capsule())
                     }
+                    .disabled(sharedView.isOpen)
+                    .opacity(sharedView.isOpen ? 0.5 : 1)
                 }
             }
             HStack(spacing: 10) {
@@ -254,6 +311,7 @@ struct RootView: View {
                         .frame(minHeight: 36)
                         .contentShape(Rectangle())
                 }
+                if !sharedView.isOpen {
                 Button { showFilter = true } label: {
                     Image(systemName: store.isFiltering
                           ? "line.3.horizontal.decrease.circle.fill"
@@ -264,6 +322,7 @@ struct RootView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("職場フィルタ")
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -321,7 +380,11 @@ struct RootView: View {
             .id(mode)
             .transition(.opacity)
             .environment(\.isStamping, stampId != nil || alarmStamp != nil)
+            .environment(displayStore)
     }
+
+    /// カレンダー部品が読む予定の入れ物。共有カレンダーを開いている間は、参加者の予定を入れた表示用のもの(自分のデータには触れない)
+    private var displayStore: Store { sharedView.store ?? store }
 
     @ViewBuilder
     private func page(offset k: Int) -> some View {
@@ -426,6 +489,7 @@ struct RootView: View {
     }
 
     private func createEvent(on date: String) {
+        guard !sharedView.isOpen else { return }
         selectedDate = date
         editing = EditorTarget(event: .new(on: date), isNew: true)
     }
@@ -453,15 +517,18 @@ struct RootView: View {
     }
 
     private func addUnplaced() {
+        guard !sharedView.isOpen else { return }
         unplacedCountOnCreate = store.unplacedEvents.count
         editing = EditorTarget(event: .newUnplaced(), isNew: true)
     }
 
     private func edit(_ event: ShiftEvent) {
+        guard !sharedView.isOpen else { return }
         editing = EditorTarget(event: event, isNew: false)
     }
 
     private func drop(id: String, on date: String) {
+        guard !sharedView.isOpen else { return }
         if id.hasPrefix(Store.favoritePrefix) {
             withAnimation(.snappy) { store.stampCopy(favoriteId: String(id.dropFirst(Store.favoritePrefix.count)), on: date) }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()

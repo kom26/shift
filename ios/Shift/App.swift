@@ -8,7 +8,9 @@ struct ShiftApp: App {
     @State private var holidays = Holidays()
     @State private var sync: AccountSync
     @State private var auth: AuthService
-    @State private var calendars = CalendarService(backing: FirestoreCalendarBacking())
+    @State private var calendars: CalendarService
+    @State private var sharedView: SharedViewState
+    @State private var publisher: SharedPublisher
     @AppStorage("startMonday") private var startMonday = false
     @Environment(\.scenePhase) private var scenePhase
 
@@ -17,8 +19,14 @@ struct ShiftApp: App {
         FirebaseApp.configure()
         let s = Store()
         let a = AccountSync(store: s, backing: FirestoreBacking())
-        s.onLocalChange = { [weak a, weak s] in
+        let cal = CalendarService(backing: FirestoreCalendarBacking())
+        let eventsBacking = FirestoreSharedEvents()
+        let pub = SharedPublisher(backing: eventsBacking, store: s,
+                                  calendars: { [weak cal] in cal?.calendars ?? [] }, uid: { [weak cal] in cal?.myUid })
+        cal.onChange = { [weak pub] in pub?.schedule() }
+        s.onLocalChange = { [weak a, weak s, weak pub] in
             a?.localChanged()
+            pub?.schedule()
             if let s { WidgetSync.publish(store: s) }
         }
         a.onApplied = { [weak s] in
@@ -29,6 +37,9 @@ struct ShiftApp: App {
         _store = State(initialValue: s)
         _sync = State(initialValue: a)
         _auth = State(initialValue: AuthService())
+        _calendars = State(initialValue: cal)
+        _publisher = State(initialValue: pub)
+        _sharedView = State(initialValue: SharedViewState(events: eventsBacking, calendars: cal))
     }
 
     var body: some Scene {
@@ -41,6 +52,7 @@ struct ShiftApp: App {
                 .environment(auth)
                 .environment(sync)
                 .environment(calendars)
+                .environment(sharedView)
                 .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
                 .tint(Theme.accent)
                 .overlay {
@@ -54,12 +66,17 @@ struct ShiftApp: App {
                         await shared
                     } else {
                         sync.stop()
+                        sharedView.close()
                         calendars.stop()
                     }
                     WidgetSync.publish(store: store)
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { sync.retryIfNeeded() }
+                    if phase == .active {
+                        sync.retryIfNeeded()
+                        publisher.schedule()
+                        if sharedView.isOpen { Task { await sharedView.refresh() } }
+                    }
                 }
                 .onChange(of: startMonday) { WidgetSync.publish(store: store) }
         }
