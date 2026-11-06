@@ -35,11 +35,16 @@ enum EventColor {
         })
     }
 
-    /// カスタム色ピッカー用。画面に見える色(白地に薄塗りした色)で選ばせ、保存は元の色に戻す
+    /// カスタム色ピッカー用。選んだ色をそのまま「元の色」にする(どのグリッドの色も、押した色が入る)。
+    /// バーでの見え方は、ピッカーの隣のプレビューで、今の外観(ライト・ダーク)のまま確かめる。
+    /// 同じ色の書き戻し(色空間の変換でわずかにずれる)は無視して、押していない色に変わらないようにする
     static func pickerBinding(_ hex: Binding<String>) -> Binding<Color> {
         Binding(
-            get: { Color(hex: ColorMath.visible(hex.wrappedValue)) },
-            set: { hex.wrappedValue = ColorMath.base(fromVisible: $0.toHex()) })
+            get: { Color(hex: hex.wrappedValue) },
+            set: { picked in
+                let new = picked.toHex()
+                if !ColorMath.isClose(new, hex.wrappedValue) { hex.wrappedValue = new }
+            })
     }
 
     static func fill(_ hex: String) -> Color {

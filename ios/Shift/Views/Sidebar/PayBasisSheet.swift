@@ -26,5 +26,6 @@ struct PayBasisSheet: View {
             }
         }
         .presentationDetents([.medium])
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }

@@ -120,6 +120,7 @@ struct AnniversaryDetailSheet: View {
                 }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }
 

@@ -53,6 +53,7 @@ struct PaydaySheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }
 

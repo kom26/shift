@@ -246,5 +246,6 @@ struct SharedColorSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 }

@@ -89,6 +89,7 @@ struct FilterSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 
     private func box(_ mark: Mark) -> some View {

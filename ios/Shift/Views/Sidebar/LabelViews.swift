@@ -93,6 +93,7 @@ struct WorkLabelSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemGroupedBackground))
         .sheet(item: $adding, onDismiss: selectAdded) { kind in
             switch kind {
             case .workplace: WorkplaceEditor(workplace: nil)
@@ -245,6 +246,7 @@ struct LabelEditor: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 
     private func save() {

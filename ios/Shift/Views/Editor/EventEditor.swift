@@ -848,6 +848,17 @@ struct ColorRow: View {
             ColorPicker("カスタム色",
                         selection: EventColor.pickerBinding($color),
                         supportsOpacity: false)
+            // 実際のバーの見え方(今の外観のまま)
+            HStack(spacing: 8) {
+                Text("見え方").font(.app(11)).foregroundStyle(.secondary)
+                Text("予定")
+                    .font(.bar(11, weight: .bold))
+                    .foregroundStyle(EventColor.text(color))
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
+                    .background(EventColor.fill(color), in: RoundedRectangle(cornerRadius: 4))
+                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 4))
+            }
         }
     }
 

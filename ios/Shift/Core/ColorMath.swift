@@ -15,6 +15,12 @@ enum ColorMath {
         return String(format: "#%02x%02x%02x", v[0], v[1], v[2])
     }
 
+    /// 2 つの色が、各成分で tolerance 以内(色空間の変換のずれ)か
+    static func isClose(_ a: String, _ b: String, tolerance: Double = 2) -> Bool {
+        guard let x = channels(a), let y = channels(b) else { return a == b }
+        return zip(x, y).allSatisfy { abs($0 - $1) <= tolerance }
+    }
+
     /// 元の色を白地に薄塗りした見た目の色
     static func visible(_ base: String) -> String {
         guard let c = channels(base) else { return base }
