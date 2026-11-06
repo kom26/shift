@@ -140,6 +140,8 @@ protocol CalendarBacking: AnyObject {
     /// 有効な招待コード。無ければ作る
     func currentInvite(uid: String, calendar: SharedCalendar) async throws -> InviteCode
     func leave(uid: String, calendarId: String) async throws
+    /// いまの招待を無効にして、新しい招待を作る(持ち主)
+    func reissueInvite(uid: String, calendar: SharedCalendar) async throws -> InviteCode
     /// 持ち主が、カレンダーを予定・招待・参加者ごと消す
     func deleteCalendar(calendarId: String, uid: String) async throws
     func members(calendarId: String) async throws -> [CalendarMember]
@@ -292,6 +294,14 @@ final class CalendarService {
         guard let uid else { return nil }
         return await run("招待コードを取得できませんでした") {
             try await self.backing.currentInvite(uid: uid, calendar: calendar)
+        }
+    }
+
+    /// 招待を作り直す。いまの QR コード・リンクは使えなくなる(持ち主だけ)
+    func reissueInvite(for calendar: SharedCalendar) async -> InviteCode? {
+        guard let uid, calendar.ownerUid == uid else { return nil }
+        return await run("招待を作り直せませんでした") {
+            try await self.backing.reissueInvite(uid: uid, calendar: calendar)
         }
     }
 

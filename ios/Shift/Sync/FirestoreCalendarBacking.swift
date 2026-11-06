@@ -135,6 +135,23 @@ final class FirestoreCalendarBacking: CalendarBacking {
         return InviteCode(calendarId: cal.id, token: token)
     }
 
+    func reissueInvite(uid: String, calendar cal: SharedCalendar) async throws -> InviteCode {
+        let invites = calendar(cal.id).collection("invites")
+        let now = Self.nowMillis()
+        let token = InviteCode.random(length: 16)
+        let batch = db.batch()
+        // いまの招待をすべて無効にして、新しい招待を 1 つ作る
+        let active = try await invites.whereField("revoked", isEqualTo: false).getDocuments().documents
+        for d in active { batch.updateData(["revoked": true], forDocument: d.reference) }
+        batch.setData([
+            "createdBy": uid, "revoked": false, "expiresAt": now + Self.inviteDays * 86_400_000,
+            "calendarName": cal.name, "ownerName": "", "kind": cal.kind.rawValue,
+            "requireApproval": cal.requireApproval, "icon": cal.icon,
+        ], forDocument: invites.document(token))
+        try await batch.commit()
+        return InviteCode(calendarId: cal.id, token: token)
+    }
+
     func leave(uid: String, calendarId: String) async throws {
         try await member(calendarId, uid).delete()
         try await index(uid).document(calendarId).delete()

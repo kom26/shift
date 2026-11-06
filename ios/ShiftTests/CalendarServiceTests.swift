@@ -46,6 +46,11 @@ private final class FakeCalendars: CalendarBacking {
         InviteCode(calendarId: calendar.id, token: validTokens[calendar.id] ?? "new")
     }
 
+    func reissueInvite(uid: String, calendar: SharedCalendar) async throws -> InviteCode {
+        validTokens[calendar.id] = "renewed\(validTokens.count)"
+        return InviteCode(calendarId: calendar.id, token: validTokens[calendar.id]!)
+    }
+
     func leave(uid: String, calendarId: String) async throws {
         membersByCalendar[calendarId]?.removeAll { $0.id == uid }
     }
@@ -219,6 +224,22 @@ struct CalendarServiceTests {
         #expect(guest.calendars.first?.status == .pending)
         await guest.refresh()
         #expect(guest.calendars.first?.status == .active)
+    }
+
+    @Test func reissuingTheInviteMakesTheOldCodeUselessAndOnlyTheOwnerCanDoIt() async {
+        let backing = FakeCalendars()
+        let owner = CalendarService(backing: backing)
+        await owner.start(uid: "me")
+        let made = await owner.create(spec())
+        let old = made!.invite
+        let renewed = await owner.reissueInvite(for: made!.calendar)
+        #expect(renewed != nil)
+        #expect(renewed != old)
+        let guest = CalendarService(backing: backing)
+        await guest.start(uid: "you")
+        #expect(await guest.preview(code: old.text) == nil)
+        #expect(await guest.preview(code: renewed!.text) != nil)
+        #expect(await guest.reissueInvite(for: made!.calendar) == nil)
     }
 
     @Test func onlyTheOwnerCanChangeTheCalendar() async {

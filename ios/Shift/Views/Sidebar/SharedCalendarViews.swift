@@ -338,7 +338,9 @@ struct CalendarDetailSheet: View {
                 } else {
                     if isOwner {
                         if let invite {
-                            InviteSection(code: invite, calendarName: calendar.name)
+                            InviteSection(code: invite, calendarName: calendar.name) {
+                                if let renewed = await service.reissueInvite(for: calendar) { self.invite = renewed }
+                            }
                         } else if let message = service.errorMessage {
                             Section("招待") { Text(message).foregroundStyle(.red) }
                         } else {
@@ -683,45 +685,63 @@ struct CalendarDetailSheet: View {
 private struct InviteSection: View {
     let code: InviteCode
     let calendarName: String
-    @State private var saved = false
+    /// 招待を作り直す(いまのリンク・QR は使えなくなる)。nil なら、メニューに出さない
+    var onReissue: (() async -> Void)?
+    @State private var notice: String?
+    @State private var confirmReissue = false
 
     var body: some View {
         Section("招待") {
             if let image = QRCode.image(for: code.link?.absoluteString ?? code.text) {
-                HStack(alignment: .bottom, spacing: 16) {
-                    Spacer(minLength: 0)
+                VStack(spacing: 6) {
+                    // QR コードを長押しすると、画像の保存と、招待の作り直しのメニューが出る(普段は使わない機能)
                     Image(uiImage: image)
                         .interpolation(.none)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 180, height: 180)
+                        .frame(width: 200, height: 200)
+                        .frame(maxWidth: .infinity)
                         .accessibilityLabel("招待の QR コード")
-                    // QR コードの横のボタンで、画像として写真に保存する
-                    Button {
-                        UIImageWriteToSavedPhotosAlbum(QRCode.padded(image), nil, nil, nil)
-                        saved = true
-                    } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: saved ? "checkmark.circle.fill" : "arrow.down.circle")
-                                .font(.system(size: 32))
-                            Text(saved ? "保存しました" : "画像を保存")
-                                .font(.app(11))
+                        .contextMenu {
+                            Button {
+                                UIImageWriteToSavedPhotosAlbum(QRCode.padded(image), nil, nil, nil)
+                                show("QR コードを写真に保存しました")
+                            } label: { Label("画像を保存", systemImage: "arrow.down.circle") }
+                            if onReissue != nil {
+                                Button(role: .destructive) { confirmReissue = true } label: {
+                                    Label("招待を作り直す", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                            }
                         }
-                        .frame(minWidth: 64, minHeight: 56)
-                        .contentShape(Rectangle())
+                    if let notice {
+                        Text(notice).font(.app(12)).foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.borderless)
-                    .disabled(saved)
-                    .accessibilityLabel(saved ? "QR コードを写真に保存しました" : "QR コードを画像として写真に保存")
-                    Spacer(minLength: 0)
                 }
                 .padding(.vertical, 6)
+                .confirmationDialog("招待を作り直しますか?", isPresented: $confirmReissue, titleVisibility: .visible) {
+                    Button("作り直す", role: .destructive) {
+                        Task {
+                            await onReissue?()
+                            show("新しい招待に変わりました")
+                        }
+                    }
+                } message: {
+                    Text("いまの QR コードと招待リンクは使えなくなります。すでに参加している人は、そのままです。")
+                }
             }
             if let link = code.link {
                 ShareLink(item: link, message: Text("シフトパレットの共有カレンダー「\(calendarName)」に招待されました。")) {
                     Label("招待リンクを送る", systemImage: "square.and.arrow.up")
                 }
             }
+        }
+    }
+
+    private func show(_ text: String) {
+        notice = text
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if notice == text { notice = nil }
         }
     }
 }
