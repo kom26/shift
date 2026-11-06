@@ -44,6 +44,8 @@ struct RootView: View {
     @State private var sharedDetail: SharedDetailTarget?
     /// 招待リンクから開いたときの招待コード
     @State private var joinCode = ""
+    /// リンクから開いたが、ログインの確認が済むまで待っている招待コード
+    @State private var pendingJoinCode: String?
     @State private var calendarDetail: SharedCalendar?
     @State private var paydayTarget: PaydayTarget?
     @State private var dayTarget: DayTarget?
@@ -122,17 +124,21 @@ struct RootView: View {
             if new == .week, let d = selectedDate { anchor = d }
             selectedDate = nil
         }
+        .onChange(of: auth.account?.uid) { _, _ in presentPendingJoin() }
         .onOpenURL { url in
             // 招待リンクから: shiftpalette://join/<招待コード> で、参加の確認を開く(ログイン前なら設定へ)
             // https://shift-palette.web.app/join/<招待コード> (QR やリンク。Universal Links)でも同じ
             let isJoin = (url.scheme == "shiftpalette" && url.host == "join")
                 || (url.scheme == "https" && url.host == "shift-palette.web.app" && url.pathComponents.dropFirst().first == "join")
             if isJoin, let code = url.pathComponents.last, code != "/", code != "join" {
+                // 起動直後はログインの復元が終わっていないので、コードを覚えておき、確認できたら参加画面を開く
+                pendingJoinCode = code
+                presentPendingJoin()
                 if auth.account == nil {
-                    showSettings = true
-                } else {
-                    joinCode = code
-                    showJoinCalendar = true
+                    // しばらく待ってもログインしていなければ、設定を開いてログインしてもらう
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        if pendingJoinCode != nil, auth.account == nil { showSettings = true }
+                    }
                 }
                 return
             }
@@ -168,6 +174,23 @@ struct RootView: View {
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
         .sheet(isPresented: $showJoinCalendar, onDismiss: { joinCode = "" }) { CalendarJoinSheet(code: joinCode) }
         .sheet(item: $calendarDetail) { CalendarDetailSheet(calendar: $0) }
+    }
+
+    /// 待っている招待コードがあり、ログインしていれば、参加画面を開く(ほかのシートが開いていれば閉じてから)
+    private func presentPendingJoin() {
+        guard let code = pendingJoinCode, auth.account != nil else { return }
+        pendingJoinCode = nil
+        let open = {
+            joinCode = code
+            showJoinCalendar = true
+        }
+        if showSettings || showDrawer {
+            showSettings = false
+            withAnimation(.snappy) { showDrawer = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: open)
+        } else {
+            open()
+        }
     }
 
     private func closeDrawer(then action: (() -> Void)? = nil) {
