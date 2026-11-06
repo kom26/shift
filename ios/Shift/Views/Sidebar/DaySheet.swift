@@ -51,6 +51,7 @@ struct DaySheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemBackground))
         .presentationDragIndicator(.visible)
     }
 

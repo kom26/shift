@@ -117,6 +117,7 @@ struct SharedEventDetail: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemBackground))
     }
 
     private func content(_ e: SharedEvent) -> some View {
