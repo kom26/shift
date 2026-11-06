@@ -373,8 +373,9 @@ struct CalendarDetailSheet: View {
                         Text("この共有カレンダーの中で、あなたの予定のそばに表示されます。写真は正方形に切り取って丸く表示します。")
                     }
                     SharedAnniversarySection(
-                        calendar: calendar, canWrite: canShareMine, myUid: uid,
-                        names: Dictionary(members.map { ($0.id, $0.displayName) }, uniquingKeysWith: { a, _ in a }))
+                        calendar: calendar, canWrite: canShareMine,
+                        names: Dictionary(members.map { ($0.id, $0.displayName) }, uniquingKeysWith: { a, _ in a }),
+                        myUid: uid)
                     if canShareMine {
                         shareModeSection
                         ShareItemsSection(selection: $shared)
