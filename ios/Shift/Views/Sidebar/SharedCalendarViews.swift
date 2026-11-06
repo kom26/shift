@@ -345,9 +345,8 @@ struct CalendarDetailSheet: View {
     private var avatarPicker: some View {
         let columns = [GridItem(.adaptive(minimum: 48), spacing: 10)]
         return LazyVGrid(columns: columns, spacing: 10) {
-            photoCell
             avatarCell("", label: "文字")
-            ForEach(UserAvatar.choices, id: \.self) { avatarCell($0, label: $0) }
+            photoCell
         }
         .padding(.vertical, 4)
         .onChange(of: photoItem) { _, item in

@@ -9,14 +9,9 @@ struct SharedDetailTarget: Identifiable {
 struct UserAvatar: View {
     let uid: String
     let name: String
-    /// 選んだ絵文字。空なら名前の頭文字
+    /// 空なら名前の頭文字。`img:` で始まれば写真(AvatarPhoto)。以前に選んだ絵文字も、そのまま表示する
     var avatar: String = ""
     var size: CGFloat = 28
-
-    /// 選べるアバター
-    static let choices = ["🐶", "🐱", "🐰", "🐻", "🐼", "🦊", "🐯", "🐸", "🐵", "🐧", "🐥", "🦄",
-                          "🐢", "🐳", "🦋", "🌸", "🌻", "🍀", "🍎", "🍓", "🍙", "🍣", "☕️", "🍺",
-                          "⚽️", "🎮", "🎧", "🎨", "📚", "✈️", "🚗", "🌙", "⭐️", "🔥", "💎", "👑"]
 
     private static let palette = ["#6a8cf0", "#e0707a", "#4fae8a", "#d9993d", "#a36ad9", "#4aa3c7", "#c9688f", "#7d8a3a"]
 
