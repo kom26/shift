@@ -249,6 +249,8 @@ struct CalendarDetailSheet: View {
     @State private var avatar = ""
     @State private var photoItem: PhotosPickerItem?
     @State private var cropTarget: AvatarCropTarget?
+    /// 頭文字の背景色の選択を開いているか(選択中の頭文字をもう一度タップで開く)
+    @State private var showBackgroundColors = false
     /// 持ち主が変えられる、カレンダーの名前・アイコン・許可制
     @State private var calName = ""
     @State private var calIcon = CalendarIcon.defaultName
@@ -448,12 +450,15 @@ struct CalendarDetailSheet: View {
                 photoCell
                 Spacer(minLength: 0)
             }
-            if isInitialMode {
-                // 頭文字の丸をタップすると、背景の色を選べる
+            if isInitialMode && showBackgroundColors {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("頭文字の背景の色").font(.app(12)).foregroundStyle(.secondary)
                     backgroundRow
                 }
+            } else if isInitialMode {
+                Text("選択中の頭文字をもう一度タップすると、背景の色を変えられます")
+                    .font(.app(11))
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
@@ -479,7 +484,13 @@ struct CalendarDetailSheet: View {
     /// 名前の頭文字。タップすると頭文字に切り替わり、背景の色を選べる
     private var initialCell: some View {
         Button {
-            if !isInitialMode { avatar = "" }
+            if isInitialMode {
+                // 頭文字を選んでいる状態でもう一度タップすると、背景の色を選べる(もう一度で閉じる)
+                withAnimation(.snappy) { showBackgroundColors.toggle() }
+            } else {
+                avatar = ""
+                showBackgroundColors = false
+            }
         } label: {
             UserAvatar(uid: uid ?? "", name: displayName, avatar: isInitialMode ? avatar : "", size: 48)
                 .overlay(Circle().stroke(Theme.accent, lineWidth: isInitialMode ? 3 : 0).padding(-3))
