@@ -166,7 +166,7 @@ final class FirestoreCalendarBacking: CalendarBacking {
             return
         }
         // 予定 → 招待 → 参加者 → カレンダー本体の順。持ち主の参加者情報は、予定を消し終えるまで残す必要がある
-        for (sub, label) in [("events", "予定"), ("invites", "招待"), ("members", "参加者")] {
+        for (sub, label) in [("events", "予定"), ("anniversaries", "誕生日・記念日"), ("invites", "招待"), ("members", "参加者")] {
             try await step(label) {
                 let docs = try await cal.collection(sub).getDocuments().documents
                 for chunk in stride(from: 0, to: docs.count, by: 400).map({ Array(docs[$0..<min($0 + 400, docs.count)]) }) {

@@ -303,6 +303,12 @@ final class SharedViewState {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var unlisten: (() -> Void)?
     @ObservationIgnored private var latest: [SharedEvent] = []
+    /// 共有カレンダーの誕生日・記念日の保存先(なければ、誕生日・記念日は共有されない)
+    @ObservationIgnored var anniversaryBacking: SharedAnniversariesBacking?
+    @ObservationIgnored private var unlistenAnniversaries: (() -> Void)?
+    @ObservationIgnored private var latestAnniversaries: [SharedAnniversary] = []
+    /// 開いている共有カレンダーの誕生日・記念日を入れた人(ID から引ける)
+    private(set) var anniversaryOwners: [String: String] = [:]
 
     /// 参加者のアバター(uid から引ける。空は頭文字)
     private(set) var avatars: [String: String] = [:]
@@ -417,12 +423,19 @@ final class SharedViewState {
         unlisten = events.listen(calendarId: cal.id) { [weak self] list in
             Task { @MainActor in self?.apply(list, for: cal.id) }
         }
+        unlistenAnniversaries = anniversaryBacking?.listenAnniversaries(calendarId: cal.id) { [weak self] list in
+            Task { @MainActor in self?.applyAnniversaries(list, for: cal.id) }
+        }
         await refresh()
     }
 
     func close() {
         unlisten?()
         unlisten = nil
+        unlistenAnniversaries?()
+        unlistenAnniversaries = nil
+        latestAnniversaries = []
+        anniversaryOwners = [:]
         calendar = nil
         store = nil
         items = [:]
@@ -643,12 +656,94 @@ final class SharedViewState {
     }
 
     private func rebuild() {
-        store = Self.makeStore(events: latest, overrides: overrides, timeModes: timeModes)
+        store = Self.makeStore(events: latest, overrides: overrides, timeModes: timeModes,
+                               anniversaries: latestAnniversaries.map(\.anniversary))
+    }
+
+    private func applyAnniversaries(_ list: [SharedAnniversary], for id: String) {
+        guard calendar?.id == id else { return }
+        latestAnniversaries = list
+        anniversaryOwners = Dictionary(list.map { ($0.id, $0.ownerUid) }, uniquingKeysWith: { a, _ in a })
+        rebuild()
+    }
+
+    // MARK: 誕生日・記念日
+
+    /// 自分が入れた誕生日・記念日か(直せるのは、入れた人だけ)
+    func canEditAnniversary(_ id: String) -> Bool {
+        guard let owner = anniversaryOwners[id] else { return false }
+        return owner == calendars.myUid
+    }
+
+    func anniversaries(in cid: String) async -> [SharedAnniversary]? {
+        guard let b = anniversaryBacking else { return [] }
+        return try? await b.fetchAnniversaries(calendarId: cid)
+    }
+
+    /// 誕生日・記念日を共有カレンダーに保存する(自分のアカウントの誕生日と連動しているものは、連動したまま)
+    @discardableResult
+    func saveAnniversary(_ a: Anniversary, in cid: String) async -> Bool {
+        guard let uid = calendars.myUid, let b = anniversaryBacking else { return false }
+        do {
+            try await b.setAnniversary(calendarId: cid, SharedAnniversary(from: a, ownerUid: uid, linked: a.isAccountBirthday))
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func removeAnniversary(id: String, in cid: String) async -> Bool {
+        guard let b = anniversaryBacking else { return false }
+        do {
+            try await b.deleteAnniversary(calendarId: cid, id: id)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// アカウントの誕生日を、共有カレンダーに追加する(1 人 1 件。アイコンと色は、アカウントのものから始める)
+    @discardableResult
+    func addMyBirthday(_ mine: Anniversary, in cid: String) async -> Bool {
+        guard let uid = calendars.myUid else { return false }
+        var a = mine
+        a.id = SharedAnniversary.linkedId(uid: uid)
+        a.isMine = true
+        return await saveAnniversary(a, in: cid)
+    }
+
+    /// アカウント設定の誕生日が変わったとき、連動して入れてある共有カレンダーの分も合わせる(登録をやめたら、消す)
+    func syncMyBirthday(_ mine: Anniversary?) async {
+        guard let uid = calendars.myUid, anniversaryBacking != nil else { return }
+        let id = SharedAnniversary.linkedId(uid: uid)
+        for cal in calendars.calendars where cal.status == .active {
+            guard let list = await anniversaries(in: cal.id), let old = list.first(where: { $0.id == id }) else { continue }
+            if var a = mine {
+                // 日付と名前だけ合わせる。共有カレンダーで選んだアイコンと色は、そのまま
+                a.id = id
+                a.isMine = true
+                var next = SharedAnniversary(from: a, ownerUid: uid, linked: true)
+                next.icon = old.icon
+                next.color = old.color
+                next.memo = old.memo
+                if next != old, let b = anniversaryBacking { try? await b.setAnniversary(calendarId: cal.id, next) }
+            } else {
+                await removeAnniversary(id: id, in: cal.id)
+            }
+        }
+    }
+
+    /// 退出するとき、自分が入れた誕生日・記念日を消す
+    func removeMyAnniversaries(in cid: String) async {
+        guard let uid = calendars.myUid, let list = await anniversaries(in: cid) else { return }
+        for a in list where a.ownerUid == uid { await removeAnniversary(id: a.id, in: cid) }
     }
 
     /// 参加者の予定から、表示用の入れ物を組み立てる。バーはタイトルだけ(誰の予定かは日の一覧のアバターで見せる)。
     /// 色は、この端末で変えていればそれを使う
-    static func makeStore(events: [SharedEvent], overrides: [String: String], timeModes: [String: Bool] = [:]) -> Store {
+    static func makeStore(events: [SharedEvent], overrides: [String: String], timeModes: [String: Bool] = [:],
+                          anniversaries: [Anniversary] = []) -> Store {
         let name = "shared-" + UUID().uuidString
         let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: name + ".json"),
                           defaults: UserDefaults(suiteName: name) ?? .standard)
@@ -656,6 +751,7 @@ final class SharedViewState {
             $0.shiftEvent(color: overrides[colorKey(for: $0)] ?? $0.color, showsTime: timeModes[colorKey(for: $0)])
         }
         store.applySnapshot(SyncSnapshot(events: list, workplaces: [], favorites: [], customColors: [], hiddenSuggestions: []))
+        anniversaries.forEach { store.saveAnniversary($0) }
         return store
     }
 }

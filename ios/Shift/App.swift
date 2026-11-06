@@ -27,6 +27,7 @@ struct ShiftApp: App {
         let pub = SharedPublisher(backing: eventsBacking, store: s,
                                   calendars: { [weak cal] in cal?.calendars ?? [] }, uid: { [weak cal] in cal?.myUid })
         let shared = SharedViewState(events: eventsBacking, calendars: cal)
+        shared.anniversaryBacking = FirestoreSharedAnniversaries()
         shared.attach(store: s)
         cal.onChange = { [weak pub, weak shared] in
             pub?.schedule()

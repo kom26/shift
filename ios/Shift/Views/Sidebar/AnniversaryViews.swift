@@ -66,6 +66,7 @@ struct AnniversaryListView: View {
 /// カレンダーのアイコンからも開く(asOf はタップした日。年齢などをその日時点で出す)
 struct AnniversaryDetail: View {
     @Environment(Store.self) private var store
+    @Environment(SharedViewState.self) private var shared
     let id: String
     var asOf: String? = nil
     @State private var editing = false
@@ -96,9 +97,12 @@ struct AnniversaryDetail: View {
                     }
                 }
                 .toolbar {
-                    ToolbarItem(placement: .primaryAction) { Button("編集") { editing = true } }
+                    // 共有カレンダーの誕生日・記念日は、入れた人だけが直せる
+                    if !shared.isOpen || shared.canEditAnniversary(id) {
+                        ToolbarItem(placement: .primaryAction) { Button("編集") { editing = true } }
+                    }
                 }
-                .sheet(isPresented: $editing) { AnniversaryEditor(item: a) }
+                .sheet(isPresented: $editing) { editor(for: a) }
             } else {
                 Text("削除されました").foregroundStyle(.secondary)
             }
@@ -109,6 +113,20 @@ struct AnniversaryDetail: View {
 }
 
 /// カレンダーのアイコンから開く詳細(閉じるボタンつき)
+extension AnniversaryDetail {
+    @ViewBuilder
+    fileprivate func editor(for a: Anniversary) -> some View {
+        if shared.isOpen, let cid = shared.calendar?.id {
+            AnniversaryEditor(
+                item: a,
+                onCommit: { x in Task { await shared.saveAnniversary(x, in: cid) } },
+                onRemove: { Task { await shared.removeAnniversary(id: a.id, in: cid) } })
+        } else {
+            AnniversaryEditor(item: a)
+        }
+    }
+}
+
 struct AnniversaryDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     let id: String
@@ -130,14 +148,19 @@ struct AnniversaryEditor: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
     let item: Anniversary?
+    /// 共有カレンダーの中では、自分の端末に保存せず、これで渡す
+    var onCommit: ((Anniversary) -> Void)? = nil
+    var onRemove: (() -> Void)? = nil
 
     @State private var a: Anniversary
     @State private var knowsYear: Bool
     @State private var yearValue: Int
     @State private var confirmDelete = false
 
-    init(item: Anniversary?) {
+    init(item: Anniversary?, onCommit: ((Anniversary) -> Void)? = nil, onRemove: (() -> Void)? = nil) {
         self.item = item
+        self.onCommit = onCommit
+        self.onRemove = onRemove
         let v = item ?? Anniversary()
         _a = State(initialValue: v)
         _knowsYear = State(initialValue: v.year != nil)
@@ -237,7 +260,7 @@ struct AnniversaryEditor: View {
                         a.name = a.name.trimmingCharacters(in: .whitespaces)
                         a.year = knowsYear ? yearValue : nil
                         if a.kind == .birthday { a.monthly = false }
-                        store.saveAnniversary(a)
+                        if let onCommit { onCommit(a) } else { store.saveAnniversary(a) }
                         dismiss()
                     }
                     .disabled(a.name.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -245,7 +268,7 @@ struct AnniversaryEditor: View {
             }
             .confirmationDialog("削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("削除", role: .destructive) {
-                    store.deleteAnniversary(id: a.id)
+                    if let onRemove { onRemove() } else { store.deleteAnniversary(id: a.id) }
                     dismiss()
                 }
             }

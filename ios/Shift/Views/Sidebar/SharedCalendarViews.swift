@@ -372,6 +372,9 @@ struct CalendarDetailSheet: View {
                     } footer: {
                         Text("この共有カレンダーの中で、あなたの予定のそばに表示されます。写真は正方形に切り取って丸く表示します。")
                     }
+                    SharedAnniversarySection(
+                        calendar: calendar, canWrite: canShareMine, myUid: uid,
+                        names: Dictionary(members.map { ($0.id, $0.displayName) }, uniquingKeysWith: { a, _ in a }))
                     if canShareMine {
                         shareModeSection
                         ShareItemsSection(selection: $shared)
@@ -432,6 +435,7 @@ struct CalendarDetailSheet: View {
                 Button("退出", role: .destructive) {
                     Task {
                         if sharedView.calendar?.id == calendar.id { sharedView.close() }
+                        await sharedView.removeMyAnniversaries(in: calendar.id)
                         await service.leave(calendar)
                         dismiss()
                     }

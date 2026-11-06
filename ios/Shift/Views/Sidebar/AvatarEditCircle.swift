@@ -68,6 +68,7 @@ struct ProfileEditSheet: View {
     @Environment(ProfileSettings.self) private var profile
     @Environment(AuthService.self) private var auth
     @Environment(Store.self) private var store
+    @Environment(SharedViewState.self) private var sharedView
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var avatar = ""
@@ -141,6 +142,10 @@ struct ProfileEditSheet: View {
                         } else {
                             store.clearMyBirthday()
                         }
+                        // 共有カレンダーに入れてある自分の誕生日も、合わせる
+                        let mine = store.myBirthday
+                        let shared = sharedView
+                        Task { await shared.syncMyBirthday(mine) }
                         dismiss()
                     }
                 }
