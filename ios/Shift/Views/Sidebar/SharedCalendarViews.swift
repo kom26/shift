@@ -19,14 +19,16 @@ struct ShareItemsSection: View {
                 row(name: l.name, color: l.color, key: ShareKey.label(l.id))
             }
         } header: {
-            Text("共有する勤務予定・ラベル")
-        } footer: {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("選んだ勤務予定・ラベルの予定だけが、タイトルと日時・職場名とラベル名・色だけの形で相手に見えます。給料やメモは見えません。")
+            HStack {
+                Text("共有する勤務予定・ラベル")
+                Spacer()
+                // 作るときは、1 つも選んでいない間だけ、右に必須を出す
                 if required && selection.isEmpty {
-                    Text("1 つ以上選んでください。").foregroundStyle(.red)
+                    Text("1つ以上選択必須").foregroundStyle(.red)
                 }
             }
+        } footer: {
+            Text("選んだ勤務予定・ラベルの予定だけが、タイトルと日時・職場名とラベル名・色だけの形で相手に見えます。給料やメモは見えません。")
         }
     }
 
@@ -38,6 +40,8 @@ struct ShareItemsSection: View {
                 ColorDot(hex: color, size: 14)
                 Text(name)
                 Spacer()
+                // 共有に出せる予定の数(日付のある予定)
+                Text("\(store.shareEventCount(key))件").font(.app(13)).foregroundStyle(.secondary)
                 if selection.contains(key) { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
             }
             .contentShape(Rectangle())
@@ -47,6 +51,11 @@ struct ShareItemsSection: View {
 }
 
 extension Store {
+    /// その項目(職場・ラベル)に入っている、共有に出せる予定の数(日付のある予定)
+    func shareEventCount(_ key: String) -> Int {
+        events.filter { $0.placed && $0.startDate != nil && ShareKey.of($0, store: self) == key }.count
+    }
+
     /// いま共有に出せる項目すべて(職場・ラベル・指定なし)
     var allShareKeys: Set<String> {
         Set(workplaces.map { ShareKey.workplace($0.id) } + labels.map { ShareKey.label($0.id) } + [ShareKey.label(nil)])

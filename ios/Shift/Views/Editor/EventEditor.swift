@@ -134,7 +134,7 @@ struct EventEditor: View {
                         // 職場もラベルも指定しないときは、色をそのまま選べる
                         ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
                     } else {
-                        Toggle("個別カラー", isOn: ownColorBinding)
+                        Toggle("個別カラー指定", isOn: ownColorBinding)
                         if ownColor {
                             ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
                         }

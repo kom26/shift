@@ -292,10 +292,6 @@ struct RootView: View {
                     .frame(minWidth: 20, minHeight: 20)
                     .background(Color.red, in: Capsule())
             }
-            Button { closeDrawer { calendarDetail = cal } } label: {
-                Image(systemName: "info.circle").foregroundStyle(.secondary).frame(width: 40, height: 44)
-            }
-            .accessibilityLabel("\(cal.name)の情報")
         }
     }
 
