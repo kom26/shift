@@ -219,16 +219,30 @@ struct RootView: View {
                         Image(systemName: "person.2.fill").frame(width: 24)
                         Text("共有カレンダー").font(.app(16, weight: .semibold))
                         Spacer()
+                        // 作る・招待で参加は、右の ⊕ からまとめて選ぶ
+                        Menu {
+                            Button { closeDrawer { showCreateCalendar = true } } label: {
+                                Label("共有カレンダーを作る", systemImage: "plus")
+                            }
+                            Button { closeDrawer { joinCode = ""; showJoinCalendar = true } } label: {
+                                Label("招待で参加", systemImage: "link")
+                            }
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .font(.app(20))
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 40, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("共有カレンダーを作る・招待で参加")
                     }
                     .foregroundStyle(Color.secondary)
-                    .padding(.horizontal, 12)
+                    .padding(.leading, 12)
                     .frame(minHeight: 44)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(calendarService.calendars) { cal in
                             calendarRow(cal)
                         }
-                        drawerRow(title: "共有カレンダーを作る", icon: "plus.circle") { closeDrawer { showCreateCalendar = true } }
-                        drawerRow(title: "招待で参加", icon: "link") { closeDrawer { joinCode = ""; showJoinCalendar = true } }
                     }
                     .padding(.leading, 16)
                 } else {
