@@ -279,23 +279,23 @@ struct UnplacedArea: View {
         .overlay { if selected { shape.stroke(Theme.accent, lineWidth: 2).padding(-1) } }
         .overlay(alignment: .topTrailing) {
             if selected {
-                Text("選択中")
-                    .font(.app(8, weight: .bold))
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 5)
-                    .background(Theme.accent, in: Capsule())
-                    .offset(x: 2, y: -8)
+                // 選択中のときだけ、編集(削除もここから)への入口を出す(長押しメニューの代わり)
+                HStack(spacing: 3) {
+                    Text("選択中")
+                    Text("編集")
+                        .padding(.horizontal, 3)
+                        .background(Theme.onAccent.opacity(0.25), in: Capsule())
+                        .onTapGesture { onEditFavorite(f) }
+                }
+                .font(.app(8, weight: .bold))
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 5)
+                .background(Theme.accent, in: Capsule())
+                .offset(x: 2, y: -8)
             }
         }
         .opacity(stampId != nil && !selected ? 0.45 : 1)
         .onTapGesture { withAnimation(.snappy) { stampId = selected ? nil : f.id } }
-        .contextMenu {
-            Button { onEditFavorite(f) } label: { Label("編集", systemImage: "pencil") }
-            Button(role: .destructive) {
-                if stampId == f.id { stampId = nil }
-                store.removeFavorite(id: f.id)
-            } label: { Label("削除", systemImage: "trash") }
-        }
         .draggable(DragState.shared.begin(Store.favoritePrefix + f.id))
     }
 
@@ -493,9 +493,6 @@ struct UnplacedArea: View {
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .onTapGesture { onSelectEvent(ev) }
-        .eventMenu(for: ev, store: store, onEdit: onSelectEvent) {
-            chipPreview(ev)
-        }
         .draggable(DragState.shared.begin(ev.id))
         .opacity(DragState.shared.isDragging && DragState.shared.draggingId == ev.id ? 0.35 : 1)
     }

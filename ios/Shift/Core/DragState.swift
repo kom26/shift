@@ -73,13 +73,3 @@ final class DragState {
         grabOffsetDays = 0
     }
 }
-
-extension View {
-    /// 長押しがこの時間続いたとき「コツ」と触感を返す。システムが予定バーを持ち上げるのとほぼ同じ瞬間になる。
-    /// 長押しメニューの無いバー用(未配置のカードは、メニューが触感を返す)。ドラッグの邪魔をしないよう、同時に動かす
-    func liftHaptic(after seconds: Double = 0.35) -> some View {
-        simultaneousGesture(LongPressGesture(minimumDuration: seconds).onEnded { _ in
-            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-        })
-    }
-}
