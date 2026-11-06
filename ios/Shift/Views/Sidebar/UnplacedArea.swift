@@ -184,7 +184,7 @@ struct UnplacedArea: View {
         let suggestions = favFilter == nil ? store.favoriteSuggestions() : []
         return VStack(alignment: .leading, spacing: 4) {
             if !store.workplaces.isEmpty { favoriteFilterRow }
-            if stampId != nil { favoriteGuide }
+            favoriteGuide
             ScrollView {
                 FlowLayout(spacing: 8) {
                     Button(action: onNewFavorite) {
@@ -249,8 +249,8 @@ struct UnplacedArea: View {
     private var favoriteGuide: some View {
         HStack(spacing: 12) {
             if stampId == nil {
-                HStack(spacing: 4) { guideTag("ドラッグ"); Text("コピーして配置") }
-                HStack(spacing: 4) { guideTag("選択"); Text("スタンプモード") }
+                // 選ぶ前の案内。予定を選ぶと、下のタップの案内に入れ替わる
+                Text("作成した予定を選択して日付タップで配置")
             } else {
                 HStack(spacing: 4) { guideTag("タップ"); Text("配置") }
                 HStack(spacing: 4) { guideTag("もう一度タップ"); Text("削除") }
