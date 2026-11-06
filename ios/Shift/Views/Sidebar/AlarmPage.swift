@@ -9,6 +9,10 @@ struct AlarmPage: View {
     @State private var minute = 30
     @State private var typed = ""
     @FocusState private var typing: Bool
+    /// スヌーズの分数(0 はスヌーズなし)。これからセットするアラームに使う
+    @AppStorage(AlarmService.snoozeKey) private var snoozeMinutes = 9
+    /// スヌーズをオフにする前の分数(またオンにしたとき、この分数に戻す)
+    @AppStorage("alarmSnoozeLast") private var snoozeLast = 9
 
     private var active: Bool { stamp != nil }
     private var maxHour: Int { kind == .clock ? 23 : 12 }
@@ -28,51 +32,107 @@ struct AlarmPage: View {
     }
 
     private var content: some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 10) {
-                wheel
-                    .opacity(active ? 0.45 : 1)
-                    .allowsHitTesting(!active)
-                VStack(spacing: 8) {
-                    Picker("種類", selection: $kind) {
-                        Text("時刻").tag(AlarmPreset.Kind.clock)
-                        Text("シフト前").tag(AlarmPreset.Kind.beforeShift)
-                    }
-                    .pickerStyle(.segmented)
-                    .disabled(active)
-                    .onChange(of: kind) { _, new in
-                        hour = min(hour, new == .clock ? 23 : 12)
-                        if new == .beforeShift { minute = (minute / 5) * 5; if hour == 0 && minute == 0 { hour = 3 } }
-                        typed = ""
-                    }
-                    Button { start() } label: {
-                        Text(active ? "セット中…" : "セット")
-                            .font(.app(15, weight: .bold))
-                            .foregroundStyle(active ? Color.secondary : Theme.onAccent)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 7)
-                            .background(active ? Color(.secondarySystemFill) : Theme.accent, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(active || (kind == .beforeShift && totalMinutes == 0))
+        // 下の余白が余らないよう、使える高さいっぱいに、ドラムロールと右の操作を広げる
+        GeometryReader { geo in
+            let guideH: CGFloat = active ? 18 : 0
+            let h = max(Self.minBodyHeight, geo.size.height - 10 - guideH)
+            VStack(spacing: 4) {
+                HStack(spacing: 10) {
+                    wheel(height: h)
+                        .opacity(active ? 0.45 : 1)
+                        .allowsHitTesting(!active)
+                    controls(height: h)
+                        .frame(width: 156)
                 }
-                .frame(width: 124)
+                .frame(height: h)
+                if active {
+                    HStack(spacing: 12) {
+                        HStack(spacing: 4) { guideTag("タップ"); Text("セットする") }
+                        HStack(spacing: 4) { guideTag("もう一度タップ"); Text("解除する") }
+                        Spacer(minLength: 0)
+                    }
+                    .font(.app(10))
+                    .foregroundStyle(.secondary)
+                    .frame(height: 14)
+                }
             }
-            .frame(height: 100)
-            if active {
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) { guideTag("タップ"); Text("セットする") }
-                    HStack(spacing: 4) { guideTag("もう一度タップ"); Text("解除する") }
-                    Spacer(minLength: 0)
-                }
-                .font(.app(10))
-                .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+        }
+        .keyboardDismissBar { typing = false; typed = "" }
+    }
+
+    private static let minBodyHeight: CGFloat = 112
+
+    /// 右の操作。上から、時刻・シフト前の切り替え、スヌーズ、セットのボタン(高さに合わせて間を広げる)
+    private func controls(height: CGFloat) -> some View {
+        VStack(spacing: 8) {
+            Picker("種類", selection: $kind) {
+                Text("時刻").tag(AlarmPreset.Kind.clock)
+                Text("シフト前").tag(AlarmPreset.Kind.beforeShift)
+            }
+            .pickerStyle(.segmented)
+            .disabled(active)
+            .onChange(of: kind) { _, new in
+                hour = min(hour, new == .clock ? 23 : 12)
+                if new == .beforeShift { minute = (minute / 5) * 5; if hour == 0 && minute == 0 { hour = 3 } }
+                typed = ""
             }
             Spacer(minLength: 0)
+            snoozeRow
+            Spacer(minLength: 0)
+            Button { start() } label: {
+                Text(active ? "セット中…" : "セット")
+                    .font(.app(16, weight: .bold))
+                    .foregroundStyle(active ? Color.secondary : Theme.onAccent)
+                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .background(active ? Color(.secondarySystemFill) : Theme.accent, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(active || (kind == .beforeShift && totalMinutes == 0))
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
-        .keyboardDismissBar { typing = false; typed = "" }
+        .frame(height: height)
+    }
+
+    /// スヌーズ。トグルでオン・オフし、オンのときだけ、分数を選べる
+    private var snoozeRow: some View {
+        let isOn = Binding<Bool>(
+            get: { snoozeMinutes > 0 },
+            set: { on in
+                if on { snoozeMinutes = AlarmService.snoozeOptions.contains(snoozeLast) ? snoozeLast : 9 } else { snoozeMinutes = 0 }
+            })
+        return HStack(spacing: 6) {
+            Text("スヌーズ").font(.app(13, weight: .semibold))
+            Spacer(minLength: 0)
+            if snoozeMinutes > 0 {
+                Menu {
+                    ForEach(AlarmService.snoozeOptions, id: \.self) { m in
+                        Button {
+                            snoozeMinutes = m
+                            snoozeLast = m
+                        } label: {
+                            if m == snoozeMinutes { Label("\(m)分", systemImage: "checkmark") } else { Text("\(m)分") }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 2) {
+                        Text("\(snoozeMinutes)分").font(.app(13, weight: .semibold))
+                        Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .bold))
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Theme.accentSoft, in: Capsule())
+                }
+                .accessibilityLabel("スヌーズの長さ \(snoozeMinutes)分")
+            }
+            Toggle("スヌーズ", isOn: isOn)
+                .labelsHidden()
+                .scaleEffect(0.85, anchor: .trailing)
+                .frame(width: 44)
+        }
+        .frame(minHeight: 30)
+        .animation(.snappy, value: snoozeMinutes > 0)
     }
 
     private func start() {
@@ -91,7 +151,7 @@ struct AlarmPage: View {
 
     // MARK: ドラムロール + 手入力
 
-    private var wheel: some View {
+    private func wheel(height: CGFloat) -> some View {
         let hourBinding = Binding<Int>(get: { hour }, set: { setTime(h: $0, m: minute) })
         let minuteBinding = Binding<Int>(get: { minute }, set: { setTime(h: hour, m: $0) })
         return ZStack {
@@ -118,12 +178,12 @@ struct AlarmPage: View {
                 .opacity(0.02)
                 .accessibilityHidden(true)
         }
-        .frame(height: 100)
+        .frame(height: height)
         .compositingGroup()
         .clipped()
         // 中央の行をタップすると数字で手入力できる(ロールの操作はそのまま通す)
         .simultaneousGesture(SpatialTapGesture().onEnded { v in
-            if abs(v.location.y - 50) < 17 {
+            if abs(v.location.y - height / 2) < 17 {
                 typed = String(format: "%02d%02d", hour, minute)
                 typing = true
             }

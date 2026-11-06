@@ -20,7 +20,8 @@ final class AlarmService {
 
     /// 設定のスヌーズの分数(0 はスヌーズなし)。これからセットするアラームに使う
     static let snoozeKey = "alarmSnoozeMinutes"
-    static let snoozeChoices = [0, 5, 9, 10, 15, 20]
+    /// 選べるスヌーズの分数(オフは、アラームのページのトグルで)
+    static let snoozeOptions = [5, 9, 10, 15, 20]
 
     static var snoozeMinutes: Int {
         UserDefaults.standard.object(forKey: snoozeKey) as? Int ?? 9

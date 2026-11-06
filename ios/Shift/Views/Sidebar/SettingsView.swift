@@ -10,7 +10,6 @@ struct SettingsView: View {
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @AppStorage(Appearance.key) private var appearance = Appearance.system
-    @AppStorage(AlarmService.snoozeKey) private var snoozeMinutes = 9
     @FocusState private var gapFocused: Bool
     @State private var showBarFont = false
 
@@ -35,18 +34,6 @@ struct SettingsView: View {
                 }
                 Section {
                     NavigationLink("記念日・誕生日") { AnniversaryListView() }
-                }
-                Section {
-                    Picker("スヌーズ", selection: $snoozeMinutes) {
-                        ForEach(AlarmService.snoozeChoices, id: \.self) { m in
-                            Text(m == 0 ? "なし" : "\(m)分").tag(m)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                } header: {
-                    Text("アラーム")
-                } footer: {
-                    Text("アラームが鳴ったときに「スヌーズ」ボタンが出て、押すとこの分数あとにもう一度鳴ります。これからセットするアラームに使います(セット済みのアラームは、そのままです)。")
                 }
                 Section {
                     Picker("月の見込み給料", selection: $payBasis) {
