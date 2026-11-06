@@ -5,19 +5,28 @@ import SwiftUI
 struct AccountSection: View {
     @Environment(AuthService.self) private var auth
     @Environment(AccountSync.self) private var sync
+    @Environment(ProfileSettings.self) private var profile
     @Environment(\.colorScheme) private var scheme
     @State private var confirmDelete = false
+    @State private var editingProfile = false
 
     var body: some View {
         Section {
             if let account = auth.account {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(account.name ?? account.email ?? "ログイン中")
-                        Text("\(account.provider) でログイン中").font(.app(12)).foregroundStyle(.secondary)
+                // 名前(とアバター)をタップすると、アプリの中での表示を直せる
+                Button { editingProfile = true } label: {
+                    let shown = profile.displayName(for: account)
+                    HStack(spacing: 12) {
+                        UserAvatar(uid: account.uid, name: shown, avatar: profile.avatar, size: 40)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(shown.isEmpty ? "ログイン中" : shown).foregroundStyle(Color.primary)
+                            Text("\(account.provider) でログイン中").font(.app(12)).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if auth.busy { ProgressView() }
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                     }
-                    Spacer()
-                    if auth.busy { ProgressView() }
+                    .contentShape(Rectangle())
                 }
                 if let t = sync.status.lastSync {
                     HStack {
@@ -58,6 +67,7 @@ struct AccountSection: View {
                  ? "アカウント登録かログインをすると、予定・職場・よく使う予定・記念日がアカウントに保存され、機種変更でも引き継げます。登録しなくても今までどおり使えます(共有カレンダーと画像から追加は、アカウントが必要です)。"
                  : "予定などは自動でアカウントに保存されます。アカウントを削除すると、アカウントのデータとログイン情報が消えます。端末の中の予定は残ります。")
         }
+        .sheet(isPresented: $editingProfile) { ProfileEditSheet() }
         .alert("アカウントを削除しますか?", isPresented: $confirmDelete) {
             Button("削除", role: .destructive) {
                 Task {

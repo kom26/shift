@@ -12,7 +12,9 @@ struct ShiftApp: App {
     @State private var sharedView: SharedViewState
     @State private var publisher: SharedPublisher
     @AppStorage("startMonday") private var startMonday = false
-    @AppStorage(Appearance.key) private var appearance = Appearance.system
+    /// アプリを入れた直後は、ライトモード(設定で、自動・ダークに変えられる)
+    @AppStorage(Appearance.key) private var appearance = Appearance.light
+    @State private var profile = ProfileSettings()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -64,6 +66,7 @@ struct ShiftApp: App {
                 .environment(calendars)
                 .environment(sharedView)
                 .environment(publisher)
+                .environment(profile)
                 .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
                 .tint(Theme.accent)
                 .preferredColorScheme(appearance.colorScheme)
@@ -72,7 +75,7 @@ struct ShiftApp: App {
                 }
                 // ログインしている間だけ同期する。ログアウトや別のアカウントへの切り替えでやり直す
                 .task(id: auth.account?.uid) {
-                    store.editorName = auth.account?.name ?? ""
+                    store.editorName = profile.displayName(for: auth.account)
                     if let uid = auth.account?.uid {
                         async let shared: Void = calendars.start(uid: uid)
                         await sync.start(uid: uid)
@@ -94,6 +97,7 @@ struct ShiftApp: App {
                     }
                 }
                 .onChange(of: startMonday) { WidgetSync.publish(store: store) }
+                .onChange(of: profile.customName) { store.editorName = profile.displayName(for: auth.account) }
         }
     }
 }

@@ -68,10 +68,13 @@ struct CalendarCreateSheet: View {
     @Environment(AuthService.self) private var auth
     @Environment(Store.self) private var store
     @Environment(SharedViewState.self) private var sharedView
+    @Environment(ProfileSettings.self) private var profile
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var icon = CalendarIcon.defaultName
     @State private var displayName = ""
+    /// この共有カレンダーでの自分のアバター。最初は、アカウントで決めたもの(写真があれば写真、なければ名前の頭文字)
+    @State private var avatar = ""
     @State private var kind = CalendarKind.mutual
     @State private var requireApproval = false
     @State private var shared: Set<String> = []
@@ -95,7 +98,10 @@ struct CalendarCreateSheet: View {
                         CalendarNameField(name: $name, icon: $icon)
                     }
                     Section("相手に見える自分の名前") {
-                        TextField("名前", text: $displayName)
+                        HStack(spacing: 12) {
+                            AvatarEditCircle(avatar: $avatar, uid: auth.account?.uid ?? "", name: displayName)
+                            TextField("名前", text: $displayName)
+                        }
                     }
                     Section {
                         Picker("種類", selection: $kind) {
@@ -124,7 +130,7 @@ struct CalendarCreateSheet: View {
                             Task {
                                 made = await service.create(NewCalendar(name: name, displayName: displayName, kind: kind,
                                                                         requireApproval: requireApproval,
-                                                                        sharedKeys: shared.sorted(), icon: icon))
+                                                                        sharedKeys: shared.sorted(), icon: icon, avatar: avatar))
                                 // 作ったカレンダーを開いておく(シートを閉じると、そのカレンダーが見える)
                                 if let made { await sharedView.open(made.calendar) }
                             }
@@ -136,7 +142,8 @@ struct CalendarCreateSheet: View {
             .onAppear {
                 guard !didSetup else { return }
                 didSetup = true
-                displayName = auth.account?.name ?? ""
+                displayName = profile.displayName(for: auth.account)
+                avatar = profile.avatar
                 // 共有する勤務予定・ラベルは、最初はどれも選ばない(間違って見せないよう、1 つ以上を自分で選ぶ)
                 service.errorMessage = nil
             }
@@ -150,10 +157,13 @@ struct CalendarJoinSheet: View {
     @Environment(CalendarService.self) private var service
     @Environment(AuthService.self) private var auth
     @Environment(Store.self) private var store
+    @Environment(ProfileSettings.self) private var profile
     @Environment(\.dismiss) private var dismiss
     @State var code: String
     @State private var found: (code: InviteCode, preview: InvitePreview)?
     @State private var displayName = ""
+    /// この共有カレンダーでの自分のアバター。最初は、アカウントで決めたもの
+    @State private var avatar = ""
     @State private var shared: Set<String> = []
     @State private var joined: SharedCalendar?
 
@@ -179,7 +189,10 @@ struct CalendarJoinSheet: View {
                         Text(found.preview.requireApproval ? "許可制です。持ち主が承認するまで予定は見られません。" : "")
                     }
                     Section("相手に見える自分の名前") {
-                        TextField("名前", text: $displayName)
+                        HStack(spacing: 12) {
+                            AvatarEditCircle(avatar: $avatar, uid: auth.account?.uid ?? "", name: displayName)
+                            TextField("名前", text: $displayName)
+                        }
                     }
                     if found.preview.kind == .mutual {
                         ShareItemsSection(selection: $shared)
@@ -207,7 +220,8 @@ struct CalendarJoinSheet: View {
                             Button("参加") {
                                 Task {
                                     joined = await service.join(code: found.code, displayName: displayName,
-                                                                sharedKeys: found.preview.kind == .mutual ? shared.sorted() : [])
+                                                                sharedKeys: found.preview.kind == .mutual ? shared.sorted() : [],
+                                                                avatar: avatar)
                                 }
                             }
                             .disabled(service.busy || displayName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -220,7 +234,8 @@ struct CalendarJoinSheet: View {
             }
             .onAppear {
                 service.errorMessage = nil
-                displayName = auth.account?.name ?? ""
+                displayName = profile.displayName(for: auth.account)
+                avatar = profile.avatar
                 shared = store.allShareKeys
                 // リンクから開いたときは、コードが入った状態で始まるので、そのまま内容を確認する
                 if !code.isEmpty, found == nil { Task { await check() } }

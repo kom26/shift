@@ -14,7 +14,7 @@ private final class FakeCalendars: CalendarBacking {
                                  kind: spec.kind, requireApproval: spec.requireApproval, status: .active, icon: spec.icon)
         calendars[cal.id] = cal
         membersByCalendar[cal.id] = [CalendarMember(id: uid, displayName: spec.displayName, isOwner: true,
-                                                    status: .active, sharedKeys: spec.sharedKeys)]
+                                                    status: .active, sharedKeys: spec.sharedKeys, avatar: spec.avatar)]
         validTokens[cal.id] = "tok\(calendars.count)"
         return (cal, InviteCode(calendarId: cal.id, token: validTokens[cal.id]!))
     }
@@ -30,14 +30,14 @@ private final class FakeCalendars: CalendarBacking {
         return InvitePreview(calendarName: c.name, ownerName: "持ち主", kind: c.kind, requireApproval: c.requireApproval)
     }
 
-    func join(uid: String, code: InviteCode, displayName: String, sharedKeys: [String]) async throws -> SharedCalendar {
+    func join(uid: String, code: InviteCode, displayName: String, sharedKeys: [String], avatar: String) async throws -> SharedCalendar {
         guard validTokens[code.calendarId] == code.token, var c = calendars[code.calendarId] else {
             throw CalendarError.invalidInvite
         }
         let status: MemberStatus = c.requireApproval ? .pending : .active
         membersByCalendar[c.id, default: []].append(
             CalendarMember(id: uid, displayName: displayName, isOwner: false, status: status,
-                           sharedKeys: c.kind == .oneway ? [] : sharedKeys))
+                           sharedKeys: c.kind == .oneway ? [] : sharedKeys, avatar: avatar))
         c.status = status
         return c
     }
@@ -528,5 +528,44 @@ struct OverlayTests {
         // 外すと消える
         view.setOverlay([made.calendar.id], on: false)
         #expect(store.overlayEvents.isEmpty)
+    }
+}
+
+@MainActor
+struct ProfileAndAvatarTests {
+    @Test func profileNameFallsBackToTheLinkedNameAndCanBeOverridden() {
+        let profile = ProfileSettings(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let linked = AuthService.Account(uid: "u", name: "田中 花子", email: "hana@example.com", provider: "Apple")
+        #expect(profile.displayName(for: linked) == "田中 花子")
+        profile.customName = "  はな  "
+        #expect(profile.displayName(for: linked) == "はな")
+        profile.customName = ""
+        let noName = AuthService.Account(uid: "u", name: nil, email: "hana@example.com", provider: "Google")
+        #expect(profile.displayName(for: noName) == "hana")
+        #expect(profile.displayName(for: nil) == "")
+    }
+
+    @Test func profileIsKeptAcrossInstances() {
+        let suite = UUID().uuidString
+        let a = ProfileSettings(defaults: UserDefaults(suiteName: suite)!)
+        a.customName = "はな"
+        a.avatar = "img:AAAA"
+        let b = ProfileSettings(defaults: UserDefaults(suiteName: suite)!)
+        #expect(b.customName == "はな" && b.avatar == "img:AAAA")
+    }
+
+    @Test func avatarIsSavedWhenCreatingAndJoiningACalendar() async throws {
+        let backing = FakeCalendars()
+        let owner = CalendarService(backing: backing)
+        await owner.start(uid: "me")
+        var spec = NewCalendar(name: "家族", displayName: "わたし", kind: .mutual, requireApproval: false, sharedKeys: [])
+        spec.avatar = "img:OWNER"
+        let made = try #require(await owner.create(spec))
+        #expect(backing.membersByCalendar[made.calendar.id]?.first?.avatar == "img:OWNER")
+
+        let guest = CalendarService(backing: backing)
+        await guest.start(uid: "you")
+        _ = await guest.join(code: made.invite, displayName: "あなた", sharedKeys: [], avatar: "img:GUEST")
+        #expect(backing.membersByCalendar[made.calendar.id]?.first { $0.id == "you" }?.avatar == "img:GUEST")
     }
 }

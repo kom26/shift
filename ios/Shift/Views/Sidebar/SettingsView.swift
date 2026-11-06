@@ -9,7 +9,7 @@ struct SettingsView: View {
     @AppStorage("payBasis") private var payBasis = PayBasis.work.rawValue
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
-    @AppStorage(Appearance.key) private var appearance = Appearance.system
+    @AppStorage(Appearance.key) private var appearance = Appearance.light
     @FocusState private var gapFocused: Bool
     @State private var showBarFont = false
 

@@ -41,7 +41,7 @@ final class FirestoreCalendarBacking: CalendarBacking {
                        "requireApproval": spec.requireApproval, "icon": cal.icon, "createdAt": now],
                       forDocument: calendar(cal.id))
         batch.setData(["role": "owner", "status": "active", "displayName": spec.displayName,
-                       "sharedKeys": spec.sharedKeys, "joinedAt": now],
+                       "sharedKeys": spec.sharedKeys, "avatar": spec.avatar, "joinedAt": now],
                       forDocument: member(cal.id, uid))
         batch.setData(["createdBy": uid, "revoked": false, "expiresAt": now + Self.inviteDays * 86_400_000,
                        "calendarName": spec.name, "ownerName": spec.displayName,
@@ -95,7 +95,7 @@ final class FirestoreCalendarBacking: CalendarBacking {
                              requireApproval: data["requireApproval"] as? Bool ?? false)
     }
 
-    func join(uid: String, code: InviteCode, displayName: String, sharedKeys: [String]) async throws -> SharedCalendar {
+    func join(uid: String, code: InviteCode, displayName: String, sharedKeys: [String], avatar: String) async throws -> SharedCalendar {
         let data = try await invite(code)
         let requireApproval = data["requireApproval"] as? Bool ?? false
         let kind = CalendarKind(rawValue: data["kind"] as? String ?? "") ?? .mutual
@@ -105,6 +105,7 @@ final class FirestoreCalendarBacking: CalendarBacking {
                 "role": "member", "status": status.rawValue, "displayName": displayName,
                 // 見せるだけのカレンダーでは、参加者は何も共有しない
                 "sharedKeys": kind == .oneway ? [] : sharedKeys,
+                "avatar": avatar,
                 "joinedAt": Self.nowMillis(), "token": code.token,
             ])
         } catch {

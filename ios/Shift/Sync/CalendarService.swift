@@ -109,6 +109,8 @@ struct NewCalendar: Equatable {
     var requireApproval: Bool
     var sharedKeys: [String]
     var icon: String = CalendarIcon.defaultName
+    /// この共有カレンダーでの自分のアバター(空は、名前の頭文字)
+    var avatar: String = ""
 }
 
 /// 共有カレンダーのアイコン。仕事・暮らし・カップルなど、使い方に合わせて選ぶ
@@ -136,7 +138,7 @@ protocol CalendarBacking: AnyObject {
     /// 招待の内容を見る。無効なら CalendarError.invalidInvite
     func preview(code: InviteCode) async throws -> InvitePreview
     /// 招待コードで参加する。許可制なら pending で入る。コードが無効なら CalendarError.invalidInvite
-    func join(uid: String, code: InviteCode, displayName: String, sharedKeys: [String]) async throws -> SharedCalendar
+    func join(uid: String, code: InviteCode, displayName: String, sharedKeys: [String], avatar: String) async throws -> SharedCalendar
     /// 有効な招待コード。無ければ作る
     func currentInvite(uid: String, calendar: SharedCalendar) async throws -> InviteCode
     func leave(uid: String, calendarId: String) async throws
@@ -276,12 +278,12 @@ final class CalendarService {
     }
 
     @discardableResult
-    func join(code: InviteCode, displayName: String, sharedKeys: [String]) async -> SharedCalendar? {
+    func join(code: InviteCode, displayName: String, sharedKeys: [String], avatar: String = "") async -> SharedCalendar? {
         let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let uid, !name.isEmpty else { return nil }
         if let existing = calendars.first(where: { $0.id == code.calendarId }) { return existing }
         return await run("参加できませんでした", invalid: "招待コードが無効か、期限が切れています") {
-            var joined = try await self.backing.join(uid: uid, code: code, displayName: name, sharedKeys: sharedKeys)
+            var joined = try await self.backing.join(uid: uid, code: code, displayName: name, sharedKeys: sharedKeys, avatar: avatar)
             joined.mySharedKeys = joined.kind == .oneway ? [] : sharedKeys
             self.calendars.append(joined)
             self.syncStatusListeners()
