@@ -24,8 +24,7 @@
   <p id="msg">「開く」を選ぶと、アプリで参加の確認が出ます。開かないときは、下のボタンを押してください。</p>
   <a class="btn" id="open" href="#">アプリで開く</a>
   <a class="btn sub" id="install" href="https://testflight.apple.com/join/wwsStTJA">アプリを入れる(TestFlight)</a>
-  <p>アプリを入れたあと、このリンクをもう一度開くか、アプリのメニューの「招待で参加」に、次のコードを貼り付けてください。</p>
-  <code id="code"></code>
+  <p>アプリが入っていないときは、先に上のボタンからアプリを入れてください。入れたあとに、このリンクをもう一度開くと、参加の確認が出ます。</p>
 </main>
 <script>
 (function () {
@@ -33,8 +32,6 @@
   var parts = location.pathname.split("/").filter(Boolean);
   var code = parts[parts.length - 1] === "join" ? "" : decodeURIComponent(parts[parts.length - 1] || "");
   var valid = /^[a-z0-9]+-[a-z0-9]+$/i.test(code);
-  document.getElementById("code").textContent = valid ? code : "";
-  document.getElementById("code").hidden = !valid;
   var appUrl = valid ? "shiftpalette://join/" + code : "shiftpalette://";
   document.getElementById("open").href = appUrl;
   if (!valid) {

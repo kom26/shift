@@ -111,9 +111,7 @@ struct WorkplaceEditor: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 5)
                     }
-                    ColorPicker("カスタム色",
-                                selection: EventColor.pickerBinding($color),
-                                supportsOpacity: false)
+                    CustomColorButton(color: $color)
                 }
                 Section {
                     Picker("給与の形態", selection: $isDaily) {

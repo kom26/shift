@@ -139,6 +139,8 @@ struct EventEditor: View {
                             ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
                         }
                     }
+                    // 予定バーの見た目。個別カラー指定のオン・オフに関係なく、色の下に出す
+                    barLookRow
                 }
                 Section {
                     Toggle("終日", isOn: $allDay)
@@ -153,7 +155,6 @@ struct EventEditor: View {
                             Spacer()
                             endDateControl
                         }
-                        barLookRow
                     } else {
                         timeRows
                         HStack {
@@ -166,7 +167,6 @@ struct EventEditor: View {
                             .pickerStyle(.segmented)
                             .fixedSize()
                         }
-                        barLookRow
                     }
                 }
                 // 時間を入力している間は計算が重く、キーボードの下で見えないので出さない
@@ -845,20 +845,7 @@ struct ColorRow: View {
                     }
                 }
             }
-            ColorPicker("カスタム色",
-                        selection: EventColor.pickerBinding($color),
-                        supportsOpacity: false)
-            // 実際のバーの見え方(今の外観のまま)
-            HStack(spacing: 8) {
-                Text("見え方").font(.app(11)).foregroundStyle(.secondary)
-                Text("予定")
-                    .font(.bar(11, weight: .bold))
-                    .foregroundStyle(EventColor.text(color))
-                    .padding(.horizontal, 8)
-                    .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
-                    .background(EventColor.fill(color), in: RoundedRectangle(cornerRadius: 4))
-                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 4))
-            }
+            CustomColorButton(color: $color)
         }
     }
 

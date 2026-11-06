@@ -1,0 +1,128 @@
+import SwiftUI
+
+/// 「カスタム色」の行。タップすると、色のグリッドの画面が開く
+struct CustomColorButton: View {
+    @Binding var color: String
+    @State private var open = false
+
+    var body: some View {
+        Button { open = true } label: {
+            HStack(spacing: 8) {
+                Text("カスタム色").foregroundStyle(Color.primary)
+                Spacer()
+                ColorDot(hex: color, size: 22)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .sheet(isPresented: $open) { ColorGridSheet(color: $color) }
+    }
+}
+
+/// カスタム色を選ぶ。グリッドの 1 色を押して選び、下の「確定」で決める。
+/// 左上のキャンセルや、画面を下げて閉じたときは、色は変わらない。
+/// 選んだ色は、そのまま「元の色」になり、実際のバーでの見え方は、下のプレビューで確かめられる
+struct ColorGridSheet: View {
+    @Binding var color: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var picked: String
+
+    init(color: Binding<String>) {
+        _color = color
+        _picked = State(initialValue: color.wrappedValue)
+    }
+
+    private static let columns = 12
+
+    /// 1 行目は白から黒まで、残りの 9 行は 12 色の色相を、濃い色から薄い色へ
+    static let cells: [String] = {
+        var list: [String] = []
+        for i in 0..<columns {
+            let v = 1 - Double(i) / Double(columns - 1)
+            list.append(Color(hue: 0, saturation: 0, brightness: v).toHex())
+        }
+        let hues: [Double] = [200, 218, 252, 282, 328, 4, 22, 38, 48, 60, 72, 110]
+        for row in 0..<9 {
+            let saturation = 0.9 - 0.08 * Double(row)
+            let brightness = 0.35 + 0.075 * Double(row)
+            for h in hues {
+                list.append(Color(hue: h / 360, saturation: saturation, brightness: brightness).toHex())
+            }
+        }
+        return list
+    }()
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                grid
+                Spacer(minLength: 0)
+                bottomBar
+            }
+            .padding(16)
+            .navigationTitle("カスタム色")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+            }
+        }
+        .presentationDetents([.height(640), .large])
+        .presentationBackground(Color(.systemBackground))
+    }
+
+    private var grid: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: Self.columns), spacing: 0) {
+            ForEach(Self.cells, id: \.self) { hex in
+                Button { picked = hex } label: {
+                    Color(hex: hex)
+                        .aspectRatio(1, contentMode: .fit)
+                        .overlay {
+                            if hex == picked {
+                                Rectangle().strokeBorder(Color.white, lineWidth: 3)
+                                    .overlay(Rectangle().strokeBorder(Color.black.opacity(0.5), lineWidth: 1).padding(3))
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(hex)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// 左: 選んだ色 / 真ん中: バーの見え方 / 右: 確定
+    private var bottomBar: some View {
+        HStack(spacing: 12) {
+            VStack(spacing: 4) {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(hex: picked))
+                    .frame(width: 52, height: 52)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(.separator), lineWidth: 1))
+                Text("選択中").font(.app(10)).foregroundStyle(.secondary)
+            }
+            VStack(spacing: 4) {
+                Text("22:00-06:30")
+                    .font(.bar(13, weight: .bold))
+                    .foregroundStyle(EventColor.text(picked))
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+                    .background(EventColor.fill(picked), in: RoundedRectangle(cornerRadius: 6))
+                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(.separator), lineWidth: 1))
+                Text("バーの見え方").font(.app(10)).foregroundStyle(.secondary)
+            }
+            Button {
+                color = picked
+                dismiss()
+            } label: {
+                Text("確定")
+                    .font(.app(16, weight: .bold))
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, 22)
+                    .frame(minHeight: 52)
+                    .background(Theme.accent, in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
