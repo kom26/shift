@@ -210,12 +210,26 @@ struct SharedColorSheet: View {
     @Environment(\.dismiss) private var dismiss
     let event: SharedEvent
     @State private var color: String
-    /// nil は、共有した人の表示に合わせる
-    @State private var showsTime: Bool?
+    /// カレンダー上の表記(true: 時間 / false: 予定名)。初期は共有した人の見た目で、そこからは自分で切り替える
+    @State private var showsTime: Bool
+    /// 開いたときの表記(触っていなければ、保存しても共有した人の見た目のままにする)
+    @State private var initialShowsTime: Bool
 
     init(event: SharedEvent) {
         self.event = event
         _color = State(initialValue: event.color)
+        _showsTime = State(initialValue: event.barTime)
+        _initialShowsTime = State(initialValue: event.barTime)
+    }
+
+    /// 時間のない予定(終日など)は、どちらを選んでも予定名のまま
+    private var hasTime: Bool { !event.allDay && event.startTime != nil }
+
+    /// 選んだ色と表記での、予定バーの見た目
+    private var previewEvent: ShiftEvent {
+        var e = event.shiftEvent(color: color, showsTime: showsTime)
+        if e.title.isEmpty { e.title = "タイトル" }
+        return e
     }
 
     var body: some View {
@@ -223,27 +237,33 @@ struct SharedColorSheet: View {
             Form {
                 Section {
                     ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
-                } footer: {
-                    Text("同じ職場・ラベルの予定は、すべて同じ色に変わります。変わるのは、この共有カレンダーのあなたの画面上だけです。ほかの人の画面や、元の予定の色は変わりません。")
-                }
-                Section {
-                    Picker("カレンダー上の表記", selection: $showsTime) {
-                        Text("共有者に合わせる").tag(Bool?.none)
-                        Text("予定名").tag(Bool?.some(false))
-                        Text("時間").tag(Bool?.some(true))
+                    // カスタム色の下に、カレンダー上の表記と、予定バーの見た目を並べる
+                    HStack {
+                        Text("カレンダー上の表記")
+                        Spacer()
+                        Picker("カレンダー上の表記", selection: $showsTime) {
+                            Text("予定名").tag(false)
+                            Text("時間").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                        .disabled(!hasTime)
                     }
-                    .pickerStyle(.segmented)
-                } header: {
-                    Text("バーの表示")
+                    HStack(alignment: .center, spacing: 8) {
+                        Text("予定バーの見た目").lineLimit(1).fixedSize()
+                        Spacer(minLength: 0)
+                        BarLookPreview(event: previewEvent)
+                    }
                 } footer: {
-                    Text("初期は、共有した人のカレンダーでの表示に合わせます(その人が時間を出していれば時間)。同じ職場・ラベルの予定は、すべて同じ表示に変わります。時間のない予定(終日など)は、予定名のままです。")
+                    Text("同じ職場・ラベルの予定は、すべて同じ色・表記に変わります。変わるのは、この共有カレンダーのあなたの画面上だけです。表記は、最初は共有した人の見た目と同じで、そこからはあなたが切り替えた通りになります。時間のない予定(終日など)は、予定名のままです。")
                 }
                 Section {
-                    Button("元の色に戻す") {
+                    Button("共有された時の色・表記に戻す") {
                         shared.setColor(nil, for: event)
+                        shared.setShowsTime(nil, for: event)
                         dismiss()
                     }
-                    .disabled(shared.color(for: event) == event.color)
+                    .disabled(shared.color(for: event) == event.color && shared.showsTime(for: event) == nil)
                 }
             }
             .navigationTitle("予定の色・表示")
@@ -254,14 +274,18 @@ struct SharedColorSheet: View {
                     Button("保存") {
                         store.rememberColor(color)
                         shared.setColor(color == event.color ? nil : color, for: event)
-                        shared.setShowsTime(showsTime, for: event)
+                        // 切り替えたときと、すでに自分で決めているときだけ、表記を保存する(それまでは共有した人に合わせる)
+                        if showsTime != initialShowsTime || shared.showsTime(for: event) != nil {
+                            shared.setShowsTime(showsTime, for: event)
+                        }
                         dismiss()
                     }
                 }
             }
             .onAppear {
                 color = shared.color(for: event)
-                showsTime = shared.showsTime(for: event)
+                showsTime = shared.showsTime(for: event) ?? event.barTime
+                initialShowsTime = showsTime
             }
         }
         .presentationDetents([.medium, .large])
