@@ -594,7 +594,8 @@ struct RootView: View {
 
     private var addButtonTitle: String {
         guard let d = selectedDate else { return "予定追加" }
-        return "\(Rules.ymd(d).day)日に予定追加"
+        let p = Rules.ymd(d)
+        return "\(p.month)月\(p.day)日に予定追加"
     }
 
     /// 右上の ⊕ を押したとき。共有カレンダーを開いているときは、そのまま追加。そうでなければ 2 択を開閉する
