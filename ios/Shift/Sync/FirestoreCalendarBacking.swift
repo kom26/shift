@@ -25,24 +25,26 @@ final class FirestoreCalendarBacking: CalendarBacking {
                        ownerUid: data["ownerUid"] as? String ?? "",
                        kind: CalendarKind(rawValue: data["kind"] as? String ?? "") ?? .mutual,
                        requireApproval: data["requireApproval"] as? Bool ?? false,
-                       status: status, mySharedKeys: sharedKeys)
+                       status: status, mySharedKeys: sharedKeys,
+                       icon: CalendarIcon.resolved(data["icon"] as? String ?? ""))
     }
 
     func create(uid: String, spec: NewCalendar) async throws -> (calendar: SharedCalendar, invite: InviteCode) {
         let cal = SharedCalendar(id: InviteCode.random(length: 12), name: spec.name, ownerUid: uid,
-                                 kind: spec.kind, requireApproval: spec.requireApproval, status: .active)
+                                 kind: spec.kind, requireApproval: spec.requireApproval, status: .active,
+                                 icon: CalendarIcon.resolved(spec.icon))
         let token = InviteCode.random(length: 16)
         let now = Self.nowMillis()
         let batch = db.batch()
         batch.setData(["name": spec.name, "ownerUid": uid, "kind": spec.kind.rawValue,
-                       "requireApproval": spec.requireApproval, "createdAt": now],
+                       "requireApproval": spec.requireApproval, "icon": cal.icon, "createdAt": now],
                       forDocument: calendar(cal.id))
         batch.setData(["role": "owner", "status": "active", "displayName": spec.displayName,
                        "sharedKeys": spec.sharedKeys, "joinedAt": now],
                       forDocument: member(cal.id, uid))
         batch.setData(["createdBy": uid, "revoked": false, "expiresAt": now + Self.inviteDays * 86_400_000,
                        "calendarName": spec.name, "ownerName": spec.displayName,
-                       "kind": spec.kind.rawValue, "requireApproval": spec.requireApproval],
+                       "kind": spec.kind.rawValue, "requireApproval": spec.requireApproval, "icon": cal.icon],
                       forDocument: calendar(cal.id).collection("invites").document(token))
         batch.setData(Self.indexData(cal), forDocument: index(uid).document(cal.id))
         try await batch.commit()
@@ -50,7 +52,8 @@ final class FirestoreCalendarBacking: CalendarBacking {
     }
 
     private static func indexData(_ cal: SharedCalendar) -> [String: Any] {
-        ["name": cal.name, "ownerUid": cal.ownerUid, "kind": cal.kind.rawValue, "requireApproval": cal.requireApproval]
+        ["name": cal.name, "ownerUid": cal.ownerUid, "kind": cal.kind.rawValue,
+         "requireApproval": cal.requireApproval, "icon": cal.icon]
     }
 
     func joined(uid: String) async throws -> [SharedCalendar] {
@@ -61,7 +64,9 @@ final class FirestoreCalendarBacking: CalendarBacking {
             let m = try? await member(d.documentID, uid).getDocument()
             guard let data = m?.data() else { continue }
             let status = MemberStatus(rawValue: data["status"] as? String ?? "") ?? .active
-            out.append(Self.calendar(id: d.documentID, data: d.data(), status: status,
+            // 名前・アイコン・許可制は、持ち主が変えるので、本体の最新を読む(読めなければ自分の記録のまま)
+            let latest = (try? await calendar(d.documentID).getDocument())?.data() ?? d.data()
+            out.append(Self.calendar(id: d.documentID, data: latest, status: status,
                                      sharedKeys: data["sharedKeys"] as? [String] ?? []))
         }
         return out
@@ -106,7 +111,8 @@ final class FirestoreCalendarBacking: CalendarBacking {
         }
         let cal = SharedCalendar(id: code.calendarId, name: data["calendarName"] as? String ?? "",
                                  ownerUid: data["createdBy"] as? String ?? "", kind: kind,
-                                 requireApproval: requireApproval, status: status)
+                                 requireApproval: requireApproval, status: status,
+                                 icon: CalendarIcon.resolved(data["icon"] as? String ?? ""))
         try await index(uid).document(cal.id).setData(Self.indexData(cal))
         return cal
     }
@@ -121,7 +127,8 @@ final class FirestoreCalendarBacking: CalendarBacking {
         let token = InviteCode.random(length: 16)
         try await invites.document(token).setData([
             "createdBy": uid, "revoked": false, "expiresAt": now + Self.inviteDays * 86_400_000,
-            "calendarName": cal.name, "ownerName": "", "kind": cal.kind.rawValue, "requireApproval": cal.requireApproval,
+            "calendarName": cal.name, "ownerName": "", "kind": cal.kind.rawValue,
+            "requireApproval": cal.requireApproval, "icon": cal.icon,
         ])
         return InviteCode(calendarId: cal.id, token: token)
     }
@@ -182,6 +189,18 @@ final class FirestoreCalendarBacking: CalendarBacking {
 
     func removeMember(calendarId: String, uid: String) async throws {
         try await member(calendarId, uid).delete()
+    }
+
+    func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws {
+        // 招待には、名前と許可制を写してある(参加の前に見せる・参加の状態を決めるのに使う)ので、同じ内容にそろえる
+        let invites = try await calendar(calendarId).collection("invites").getDocuments().documents
+        let batch = db.batch()
+        batch.updateData(["name": name, "icon": icon, "requireApproval": requireApproval], forDocument: calendar(calendarId))
+        for inv in invites {
+            batch.updateData(["calendarName": name, "icon": icon, "requireApproval": requireApproval], forDocument: inv.reference)
+        }
+        batch.setData(["name": name, "icon": icon, "requireApproval": requireApproval], forDocument: index(uid).document(calendarId), merge: true)
+        try await batch.commit()
     }
 
     func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws {

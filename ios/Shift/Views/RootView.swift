@@ -269,7 +269,7 @@ struct RootView: View {
     /// 共有カレンダーの行。タップで開く(承認待ちなら案内)。右の ⓘ で、招待・参加者・自分の設定
     private func calendarRow(_ cal: SharedCalendar) -> some View {
         HStack(spacing: 0) {
-            drawerRow(title: cal.status == .pending ? "\(cal.name)(承認待ち)" : cal.name, icon: "person.2",
+            drawerRow(title: cal.status == .pending ? "\(cal.name)(承認待ち)" : cal.name, icon: cal.icon,
                       selected: sharedView.calendar?.id == cal.id) {
                 if cal.status == .active {
                     closeDrawer { Task { await sharedView.open(cal) } }
@@ -287,7 +287,7 @@ struct RootView: View {
     /// 共有カレンダーを開いている間の帯。ほかの人の予定は見るだけで、自分の予定には触れないことを示す
     private var sharedBanner: some View {
         HStack(spacing: 8) {
-            Image(systemName: "person.2.fill")
+            Image(systemName: sharedView.calendar?.icon ?? CalendarIcon.defaultName)
             Text("\(sharedView.calendar?.name ?? "")" + (sharedView.canCreate ? "" : " (見るだけ)"))
                 .font(.app(13, weight: .semibold))
                 .lineLimit(1)

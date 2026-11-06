@@ -205,6 +205,13 @@ struct SharedEventsTests {
         #expect(shows("me_b") == false)
     }
 
+    @Test func avatarBackgroundCanBeChosenForTheInitial() {
+        #expect(UserAvatar.customBackground("") == nil)
+        #expect(UserAvatar.customBackground("img:AAAA") == nil)
+        #expect(UserAvatar.customBackground("bg:#e0707a") == "#e0707a")
+        #expect(UserAvatar.backgroundChoices.contains("#6a8cf0"))
+    }
+
     @Test func avatarColorIsStableAndInitialIsTheFirstCharacter() {
         #expect(UserAvatar.color(for: "abc123") == UserAvatar.color(for: "abc123"))
         #expect(UserAvatar.initial(of: " ゆう ") == "ゆ")

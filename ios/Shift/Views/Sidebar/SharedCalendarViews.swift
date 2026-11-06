@@ -2,28 +2,31 @@ import CoreImage.CIFilterBuiltins
 import PhotosUI
 import SwiftUI
 
-/// 共有に出す職場・ラベルを選ぶ(複数)
+/// 共有に出す勤務予定・ラベルを選ぶ(複数)。1 つの見出しにまとめる
 struct ShareItemsSection: View {
     @Environment(Store.self) private var store
     @Binding var selection: Set<String>
+    /// true のとき、1 つも選ばないと先へ進めないことを、下の説明で伝える
+    var required = false
 
     var body: some View {
-        if !store.workplaces.isEmpty {
-            Section("共有する勤務予定") {
-                ForEach(store.workplaces) { w in
-                    row(name: w.name, color: w.color, key: ShareKey.workplace(w.id))
-                }
-            }
-        }
         Section {
+            ForEach(store.workplaces) { w in
+                row(name: w.name, color: w.color, key: ShareKey.workplace(w.id))
+            }
             row(name: "指定なし", color: EventLabel.noneColor, key: ShareKey.label(nil))
             ForEach(store.labels) { l in
                 row(name: l.name, color: l.color, key: ShareKey.label(l.id))
             }
         } header: {
-            Text("共有するラベル")
+            Text("共有する勤務予定・ラベル")
         } footer: {
-            Text("選んだ勤務予定・ラベルの予定だけが、タイトルと日時・職場名とラベル名・色だけの形で相手に見えます。給料やメモは見えません。")
+            VStack(alignment: .leading, spacing: 6) {
+                Text("選んだ勤務予定・ラベルの予定だけが、タイトルと日時・職場名とラベル名・色だけの形で相手に見えます。給料やメモは見えません。")
+                if required && selection.isEmpty {
+                    Text("1 つ以上選んでください。").foregroundStyle(.red)
+                }
+            }
         }
     }
 
@@ -58,6 +61,7 @@ struct CalendarCreateSheet: View {
     @Environment(SharedViewState.self) private var sharedView
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    @State private var icon = CalendarIcon.defaultName
     @State private var displayName = ""
     @State private var kind = CalendarKind.mutual
     @State private var requireApproval = false
@@ -65,8 +69,11 @@ struct CalendarCreateSheet: View {
     @State private var made: (calendar: SharedCalendar, invite: InviteCode)?
     @State private var didSetup = false
 
+    /// 名前が 2 つとも入っていて、共有する勤務予定・ラベルが 1 つ以上選ばれている
     private var canCreate: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty && !displayName.trimmingCharacters(in: .whitespaces).isEmpty
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
+            && !displayName.trimmingCharacters(in: .whitespaces).isEmpty
+            && !shared.isEmpty
     }
 
     var body: some View {
@@ -77,6 +84,9 @@ struct CalendarCreateSheet: View {
                 } else {
                     Section("カレンダー名") {
                         TextField("カレンダー名", text: $name)
+                    }
+                    Section("アイコン") {
+                        CalendarIconPicker(selection: $icon)
                     }
                     Section("相手に見える自分の名前") {
                         TextField("名前", text: $displayName)
@@ -90,7 +100,7 @@ struct CalendarCreateSheet: View {
                     } footer: {
                         Text(kind.detail + (requireApproval ? "\n参加を申し込んだ人は、あなたが承認するまで予定を見られません。" : ""))
                     }
-                    ShareItemsSection(selection: $shared)
+                    ShareItemsSection(selection: $shared, required: true)
                     if let message = service.errorMessage {
                         Section { Text(message).foregroundStyle(.red) }
                     }
@@ -108,7 +118,7 @@ struct CalendarCreateSheet: View {
                             Task {
                                 made = await service.create(NewCalendar(name: name, displayName: displayName, kind: kind,
                                                                         requireApproval: requireApproval,
-                                                                        sharedKeys: shared.sorted()))
+                                                                        sharedKeys: shared.sorted(), icon: icon))
                                 // 作ったカレンダーを開いておく(シートを閉じると、そのカレンダーが見える)
                                 if let made { await sharedView.open(made.calendar) }
                             }
@@ -121,7 +131,7 @@ struct CalendarCreateSheet: View {
                 guard !didSetup else { return }
                 didSetup = true
                 displayName = auth.account?.name ?? ""
-                shared = store.allShareKeys
+                // 共有する勤務予定・ラベルは、最初はどれも選ばない(間違って見せないよう、1 つ以上を自分で選ぶ)
                 service.errorMessage = nil
             }
         }
@@ -237,6 +247,12 @@ struct CalendarDetailSheet: View {
     @State private var actionError: String?
     @State private var avatar = ""
     @State private var photoItem: PhotosPickerItem?
+    @State private var cropTarget: AvatarCropTarget?
+    /// 持ち主が変えられる、カレンダーの名前・アイコン・許可制
+    @State private var calName = ""
+    @State private var calIcon = CalendarIcon.defaultName
+    @State private var calApproval = false
+    @State private var confirmOpenApproval = false
 
     private var uid: String? { auth.account?.uid }
     private var isOwner: Bool { calendar.ownerUid == uid }
@@ -245,9 +261,27 @@ struct CalendarDetailSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    LabeledContent("種類", value: calendar.kind.title)
-                    if calendar.requireApproval { LabeledContent("参加", value: "許可制") }
+                if isOwner && calendar.status == .active {
+                    // 作るときと同じ項目を、持ち主はここから変えられる
+                    Section("カレンダー名") {
+                        TextField("カレンダー名", text: $calName)
+                    }
+                    Section("アイコン") {
+                        CalendarIconPicker(selection: $calIcon)
+                    }
+                    Section {
+                        LabeledContent("種類", value: calendar.kind.title)
+                        Toggle("参加を許可制にする", isOn: $calApproval)
+                    } footer: {
+                        Text(calApproval
+                             ? "参加を申し込んだ人は、あなたが承認するまで予定を見られません。"
+                             : "招待を受け取った人は、すぐに参加できます。")
+                    }
+                } else {
+                    Section {
+                        LabeledContent("種類", value: calendar.kind.title)
+                        if calendar.requireApproval { LabeledContent("参加", value: "許可制") }
+                    }
                 }
                 if calendar.status == .pending {
                     Section { Text("承認待ちです。持ち主が承認すると、予定が見られるようになります。") }
@@ -297,7 +331,8 @@ struct CalendarDetailSheet: View {
                 if calendar.status == .active {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("保存") { Task { await save() } }
-                            .disabled(service.busy || displayName.trimmingCharacters(in: .whitespaces).isEmpty)
+                            .disabled(service.busy || displayName.trimmingCharacters(in: .whitespaces).isEmpty
+                                      || (isOwner && calName.trimmingCharacters(in: .whitespaces).isEmpty))
                     }
                 }
             }
@@ -307,6 +342,12 @@ struct CalendarDetailSheet: View {
                 Button("キャンセル", role: .cancel) {}
             } message: {
                 Text("「\(calendar.name)」を削除します。この操作は取り消せません。")
+            }
+            .alert("許可制をやめますか?", isPresented: $confirmOpenApproval) {
+                Button("許可して保存") { Task { await performSave() } }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("申請中の\(pendingCount)人は、全員参加が許可されます。")
             }
             .alert("できませんでした", isPresented: Binding(
                 get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
@@ -342,26 +383,58 @@ struct CalendarDetailSheet: View {
         .presentationDetents([.large])
     }
 
+    /// 頭文字の状態か(絵文字や写真でなければ)。このとき、背景の色を選べる
+    private var isInitialMode: Bool { avatar.isEmpty || UserAvatar.customBackground(avatar) != nil }
+
+    /// 頭文字の丸の背景(自分で選んでいなければ、自動の色)
+    private var initialBackground: String { UserAvatar.customBackground(avatar) ?? UserAvatar.color(for: uid ?? "") }
+
     private var avatarPicker: some View {
-        let columns = [GridItem(.adaptive(minimum: 48), spacing: 10)]
-        return LazyVGrid(columns: columns, spacing: 10) {
-            avatarCell("", label: "文字")
-            photoCell
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+                initialCell
+                photoCell
+                Spacer(minLength: 0)
+            }
+            if isInitialMode {
+                // 頭文字の丸をタップすると、背景の色を選べる
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("頭文字の背景の色").font(.app(12)).foregroundStyle(.secondary)
+                    backgroundRow
+                }
+            }
         }
         .padding(.vertical, 4)
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task {
-                // 正方形でない写真は、中央を正方形に切り取って取り込む
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let encoded = AvatarPhoto.encode(data) {
-                    avatar = encoded
+                // 写真を選んだら、アイコンにする範囲を合わせる画面を開く
+                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                    cropTarget = AvatarCropTarget(image: image)
                 } else {
                     actionError = "写真を読み込めませんでした"
                 }
                 photoItem = nil
             }
         }
+        .sheet(item: $cropTarget) { target in
+            AvatarCropSheet(image: target.image) { square in
+                if let encoded = AvatarPhoto.encode(square: square) { avatar = encoded }
+            }
+        }
+    }
+
+    /// 名前の頭文字。タップすると頭文字に切り替わり、背景の色を選べる
+    private var initialCell: some View {
+        Button {
+            if !isInitialMode { avatar = "" }
+        } label: {
+            UserAvatar(uid: uid ?? "", name: displayName, avatar: isInitialMode ? avatar : "", size: 48)
+                .overlay(Circle().stroke(Theme.accent, lineWidth: isInitialMode ? 3 : 0).padding(-3))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("名前の頭文字")
+        .accessibilityAddTraits(isInitialMode ? .isSelected : [])
     }
 
     /// 写真から選ぶ。選んだ写真があれば、それを丸く見せる
@@ -369,29 +442,47 @@ struct CalendarDetailSheet: View {
         PhotosPicker(selection: $photoItem, matching: .images) {
             Group {
                 if AvatarPhoto.isPhoto(avatar) {
-                    UserAvatar(uid: uid ?? "", name: displayName, avatar: avatar, size: 44)
+                    UserAvatar(uid: uid ?? "", name: displayName, avatar: avatar, size: 48)
                 } else {
                     Image(systemName: "photo")
-                        .font(.system(size: 18))
+                        .font(.system(size: 20))
                         .foregroundStyle(Theme.accent)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
                         .background(Circle().fill(Color(.tertiarySystemFill)))
                 }
             }
             .overlay(Circle().stroke(Theme.accent, lineWidth: AvatarPhoto.isPhoto(avatar) ? 3 : 0).padding(-3))
-            .frame(maxWidth: .infinity)
         }
         .accessibilityLabel("写真から選ぶ")
     }
 
-    private func avatarCell(_ value: String, label: String) -> some View {
-        Button { avatar = value } label: {
-            UserAvatar(uid: uid ?? "", name: displayName, avatar: value, size: 44)
-                .overlay(Circle().stroke(Theme.accent, lineWidth: avatar == value ? 3 : 0).padding(-3))
-                .frame(maxWidth: .infinity)
+    /// 背景の色。最初の丸は自動(持ち主ごとに決まる色)、最後は好きな色
+    private var backgroundRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                swatch(hex: UserAvatar.color(for: uid ?? ""), selected: avatar.isEmpty, label: "自動") { avatar = "" }
+                ForEach(UserAvatar.backgroundChoices, id: \.self) { hex in
+                    swatch(hex: hex, selected: UserAvatar.customBackground(avatar) == hex, label: hex) {
+                        avatar = UserAvatar.backgroundPrefix + hex
+                    }
+                }
+                ColorPicker("好きな色", selection: Binding(
+                    get: { Color(hex: initialBackground) },
+                    set: { avatar = UserAvatar.backgroundPrefix + $0.toHex() }), supportsOpacity: false)
+                    .labelsHidden()
+            }
+            .padding(5)
+        }
+    }
+
+    private func swatch(hex: String, selected: Bool, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Circle().fill(Color(hex: hex))
+                .frame(width: 30, height: 30)
+                .overlay(Circle().stroke(Color.primary, lineWidth: selected ? 2 : 0).padding(-3))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(value.isEmpty ? "名前の頭文字" : label)
+        .accessibilityLabel(label)
     }
 
     @ViewBuilder
@@ -424,8 +515,26 @@ struct CalendarDetailSheet: View {
         }
     }
 
-    /// 自分の設定を保存して、そのカレンダーを開く
+    private var pendingCount: Int { members.filter { $0.status == .pending }.count }
+
+    /// 保存する。許可制をやめるとき、申請中の人がいれば、全員許可されることを先に確かめる
     private func save() async {
+        if isOwner, calendar.requireApproval, !calApproval, pendingCount > 0 {
+            confirmOpenApproval = true
+            return
+        }
+        await performSave()
+    }
+
+    /// カレンダーの設定(持ち主だけ)と自分の設定を保存して、そのカレンダーを開く
+    private func performSave() async {
+        if isOwner,
+           calName != calendar.name || calIcon != calendar.icon || calApproval != calendar.requireApproval {
+            guard await service.updateCalendar(calendar, name: calName, icon: calIcon, requireApproval: calApproval) else {
+                actionError = service.errorMessage ?? "保存できませんでした"
+                return
+            }
+        }
         let ok = await service.updateMine(in: calendar, displayName: displayName,
                                           sharedKeys: canShareMine ? shared.sorted() : [], avatar: avatar)
         guard ok else {
@@ -449,6 +558,9 @@ struct CalendarDetailSheet: View {
     private func load() async {
         guard !loaded else { return }
         loaded = true
+        calName = calendar.name
+        calIcon = calendar.icon
+        calApproval = calendar.requireApproval
         guard calendar.status == .active else { return }
         if isOwner { invite = await service.invite(for: calendar) }
         members = await service.members(of: calendar) ?? []
@@ -469,22 +581,34 @@ private struct InviteSection: View {
     var body: some View {
         Section("招待") {
             if let image = QRCode.image(for: code.link?.absoluteString ?? code.text) {
-                HStack {
-                    Spacer()
+                HStack(alignment: .bottom, spacing: 16) {
+                    Spacer(minLength: 0)
                     Image(uiImage: image)
                         .interpolation(.none)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 200, height: 200)
+                        .frame(width: 180, height: 180)
                         .accessibilityLabel("招待の QR コード")
-                    Spacer()
+                    // QR コードの横のボタンで、画像として写真に保存する
+                    Button {
+                        UIImageWriteToSavedPhotosAlbum(QRCode.padded(image), nil, nil, nil)
+                        saved = true
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: saved ? "checkmark.circle.fill" : "arrow.down.circle")
+                                .font(.system(size: 32))
+                            Text(saved ? "保存しました" : "画像を保存")
+                                .font(.app(11))
+                        }
+                        .frame(minWidth: 64, minHeight: 56)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(saved)
+                    .accessibilityLabel(saved ? "QR コードを写真に保存しました" : "QR コードを画像として写真に保存")
+                    Spacer(minLength: 0)
                 }
                 .padding(.vertical, 6)
-                Button(saved ? "写真に保存しました" : "QR コードを画像として保存") {
-                    UIImageWriteToSavedPhotosAlbum(QRCode.padded(image), nil, nil, nil)
-                    saved = true
-                }
-                .disabled(saved)
             }
             if let link = code.link {
                 ShareLink(item: link, message: Text("シフトパレットの共有カレンダー「\(calendarName)」に招待されました。")) {

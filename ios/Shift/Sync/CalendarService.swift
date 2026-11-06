@@ -29,6 +29,8 @@ struct SharedCalendar: Equatable, Identifiable {
     var status: MemberStatus = .active
     /// 自分が共有に出している職場・ラベル(ShareKey の文字列)
     var mySharedKeys: [String] = []
+    /// ドロワーなどに出すアイコン(SF Symbols の名前。CalendarIcon.choices から選ぶ)
+    var icon: String = CalendarIcon.defaultName
 
     /// 自分の予定を共有に出せるか。見せるだけのカレンダーでは、持ち主だけ
     func canPublish(uid: String) -> Bool { status == .active && (kind == .mutual || ownerUid == uid) }
@@ -102,6 +104,25 @@ struct NewCalendar: Equatable {
     var kind: CalendarKind
     var requireApproval: Bool
     var sharedKeys: [String]
+    var icon: String = CalendarIcon.defaultName
+}
+
+/// 共有カレンダーのアイコン。仕事・暮らし・カップルなど、使い方に合わせて選ぶ
+enum CalendarIcon {
+    static let defaultName = "person.2.fill"
+
+    /// 選べるアイコン(6 つずつ 2 段)
+    static let choices: [(name: String, label: String)] = [
+        ("person.2.fill", "みんな"), ("briefcase.fill", "仕事"), ("building.2.fill", "職場"),
+        ("cart.fill", "お店"), ("fork.knife", "食事"), ("cup.and.saucer.fill", "カフェ"),
+        ("heart.fill", "カップル"), ("house.fill", "家族"), ("star.fill", "お気に入り"),
+        ("graduationcap.fill", "学校"), ("music.note", "趣味"), ("gamecontroller.fill", "ゲーム"),
+    ]
+
+    /// 保存してある名前が選択肢にないとき(古い版や別の版で作ったもの)は、標準のアイコンにする
+    static func resolved(_ name: String) -> String {
+        choices.contains { $0.name == name } ? name : defaultName
+    }
 }
 
 /// 共有カレンダーのクラウド側(テストでは差し替える)
@@ -121,6 +142,8 @@ protocol CalendarBacking: AnyObject {
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws
     func removeMember(calendarId: String, uid: String) async throws
     func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws
+    /// 持ち主が、カレンダーの名前・アイコン・許可制を変える(招待に写してある分も合わせる)
+    func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws
 }
 
 enum CalendarError: Error, Equatable {
@@ -258,6 +281,30 @@ final class CalendarService {
         guard uid == calendar.ownerUid, member.id != uid else { return false }
         return await run("削除できませんでした") {
             try await self.backing.removeMember(calendarId: calendar.id, uid: member.id)
+            return true
+        } ?? false
+    }
+
+    /// 持ち主が、カレンダーの名前・アイコン・許可制を変える。
+    /// 許可制をやめるときは、申請中の人を全員承認してから切り替える(承認されないまま取り残されないように)
+    func updateCalendar(_ calendar: SharedCalendar, name: String, icon: String, requireApproval: Bool) async -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let uid, uid == calendar.ownerUid, !trimmed.isEmpty else { return false }
+        return await run("保存できませんでした") {
+            if calendar.requireApproval && !requireApproval {
+                let pending = try await self.backing.members(calendarId: calendar.id).filter { $0.status == .pending }
+                for m in pending {
+                    try await self.backing.setStatus(calendarId: calendar.id, uid: m.id, status: .active)
+                }
+            }
+            try await self.backing.updateCalendar(calendarId: calendar.id, uid: uid, name: trimmed,
+                                                  icon: CalendarIcon.resolved(icon), requireApproval: requireApproval)
+            if let i = self.calendars.firstIndex(where: { $0.id == calendar.id }) {
+                self.calendars[i].name = trimmed
+                self.calendars[i].icon = CalendarIcon.resolved(icon)
+                self.calendars[i].requireApproval = requireApproval
+            }
+            self.onChange?()
             return true
         } ?? false
     }

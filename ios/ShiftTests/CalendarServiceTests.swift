@@ -11,7 +11,7 @@ private final class FakeCalendars: CalendarBacking {
     func create(uid: String, spec: NewCalendar) async throws -> (calendar: SharedCalendar, invite: InviteCode) {
         if fail { throw URLError(.notConnectedToInternet) }
         let cal = SharedCalendar(id: "c\(calendars.count)", name: spec.name, ownerUid: uid,
-                                 kind: spec.kind, requireApproval: spec.requireApproval, status: .active)
+                                 kind: spec.kind, requireApproval: spec.requireApproval, status: .active, icon: spec.icon)
         calendars[cal.id] = cal
         membersByCalendar[cal.id] = [CalendarMember(id: uid, displayName: spec.displayName, isOwner: true,
                                                     status: .active, sharedKeys: spec.sharedKeys)]
@@ -66,6 +66,12 @@ private final class FakeCalendars: CalendarBacking {
 
     func removeMember(calendarId: String, uid: String) async throws {
         membersByCalendar[calendarId]?.removeAll { $0.id == uid }
+    }
+
+    func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws {
+        calendars[calendarId]?.name = name
+        calendars[calendarId]?.icon = icon
+        calendars[calendarId]?.requireApproval = requireApproval
     }
 
     func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws {
@@ -131,6 +137,55 @@ struct CalendarServiceTests {
         #expect(made?.calendar.kind == .oneway)
         #expect(made?.calendar.requireApproval == true)
         #expect(service.calendars.map(\.name) == ["家族"])
+    }
+
+    @Test func iconsFallBackToTheDefaultWhenUnknown() {
+        #expect(CalendarIcon.choices.count == 12)
+        #expect(CalendarIcon.resolved("heart.fill") == "heart.fill")
+        #expect(CalendarIcon.resolved("") == CalendarIcon.defaultName)
+        #expect(CalendarIcon.resolved("no.such.symbol") == CalendarIcon.defaultName)
+    }
+
+    @Test func ownerCanChangeNameIconAndApprovalAndOpeningApprovalAdmitsEveryoneWaiting() async {
+        let backing = FakeCalendars()
+        let owner = CalendarService(backing: backing)
+        await owner.start(uid: "me")
+        var request = spec("家族", approval: true)
+        request.icon = "heart.fill"
+        let made = await owner.create(request)
+        let calendar = made!.calendar
+        #expect(calendar.icon == "heart.fill")
+
+        // 許可制のまま、申請者が 2 人入った
+        let a = CalendarService(backing: backing)
+        await a.start(uid: "a")
+        let b = CalendarService(backing: backing)
+        await b.start(uid: "b")
+        _ = await a.join(code: made!.invite, displayName: "A", sharedKeys: [])
+        _ = await b.join(code: made!.invite, displayName: "B", sharedKeys: [])
+        #expect(backing.membersByCalendar[calendar.id]?.filter { $0.status == .pending }.count == 2)
+
+        // 許可制をやめると、申請中の人は全員承認される
+        let ok = await owner.updateCalendar(calendar, name: "  カップル  ", icon: "house.fill", requireApproval: false)
+        #expect(ok)
+        #expect(backing.membersByCalendar[calendar.id]?.allSatisfy { $0.status == .active } == true)
+        #expect(owner.calendars.first?.name == "カップル")
+        #expect(owner.calendars.first?.icon == "house.fill")
+        #expect(owner.calendars.first?.requireApproval == false)
+        #expect(backing.calendars[calendar.id]?.name == "カップル")
+    }
+
+    @Test func onlyTheOwnerCanChangeTheCalendar() async {
+        let backing = FakeCalendars()
+        let owner = CalendarService(backing: backing)
+        await owner.start(uid: "me")
+        let made = await owner.create(spec())
+        let member = CalendarService(backing: backing)
+        await member.start(uid: "you")
+        let joined = await member.join(code: made!.invite, displayName: "あなた", sharedKeys: [])
+        #expect(await member.updateCalendar(joined!, name: "のっとり", icon: "star.fill", requireApproval: true) == false)
+        #expect(backing.calendars[made!.calendar.id]?.name == "家族")
+        #expect(await owner.updateCalendar(made!.calendar, name: "   ", icon: "star.fill", requireApproval: false) == false)
     }
 
     @Test func blankNamesOrSignedOutCreateNothing() async {

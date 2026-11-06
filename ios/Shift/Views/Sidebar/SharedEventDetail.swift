@@ -15,6 +15,16 @@ struct UserAvatar: View {
 
     private static let palette = ["#6a8cf0", "#e0707a", "#4fae8a", "#d9993d", "#a36ad9", "#4aa3c7", "#c9688f", "#7d8a3a"]
 
+    /// 頭文字の背景を自分で選んだとき、avatar は「bg:#rrggbb」になる
+    static let backgroundPrefix = "bg:"
+
+    /// 頭文字の背景に選べる色(最初の自動は、持ち主ごとに決まる色)
+    static let backgroundChoices = palette + ["#8e8e93", "#3a3a3c"]
+
+    static func customBackground(_ avatar: String) -> String? {
+        avatar.hasPrefix(backgroundPrefix) ? String(avatar.dropFirst(backgroundPrefix.count)) : nil
+    }
+
     /// uid から色を決める(同じ人はいつも同じ色)。端末や起動ごとに変わらない計算にする
     static func color(for uid: String) -> String {
         let sum = uid.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFF }
@@ -34,11 +44,13 @@ struct UserAvatar: View {
                     .frame(width: size, height: size)
                     .clipShape(Circle())
             } else {
-                Text(avatar.isEmpty ? Self.initial(of: name) : avatar)
-                    .font(.system(size: size * (avatar.isEmpty ? 0.46 : 0.58), weight: .bold))
+                let custom = Self.customBackground(avatar)
+                let showsInitial = avatar.isEmpty || custom != nil
+                Text(showsInitial ? Self.initial(of: name) : avatar)
+                    .font(.system(size: size * (showsInitial ? 0.46 : 0.58), weight: .bold))
                     .foregroundStyle(Color.white)
                     .frame(width: size, height: size)
-                    .background(Circle().fill(Color(hex: Self.color(for: uid))))
+                    .background(Circle().fill(Color(hex: custom ?? Self.color(for: uid))))
             }
         }
         .accessibilityLabel(name.isEmpty ? "参加者" : name)
@@ -64,6 +76,12 @@ enum AvatarPhoto {
               let img = UIImage(data: data) else { return nil }
         cache.setObject(img, forKey: key)
         return img
+    }
+
+    /// 範囲を合わせて切り取った正方形の画像から、avatar 文字列を作る
+    static func encode(square: UIImage) -> String? {
+        guard let jpeg = square.jpegData(compressionQuality: 0.75) else { return nil }
+        return prefix + jpeg.base64EncodedString()
     }
 
     /// 写真のデータから avatar 文字列を作る。正方形でなければ、中央を正方形に切り取る
