@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// ドラッグ中かどうかの推定状態。SwiftUI にはドラッグ開始/終了のコールバックが無いため、
 /// ドロップ先の delegate (enter/update/exit/perform) から間接的に推定する。
@@ -20,7 +21,9 @@ final class DragState {
     @ObservationIgnored private var beginItem: DispatchWorkItem?
 
     /// ドラッグ開始時(draggable のペイロード評価時)に呼ぶ。id をそのまま返す
-    func begin(_ id: String, grabOffsetDays: Int = 0) -> String {
+    /// haptic: 持ち上がった瞬間に「コツ」と返す(長押しメニューが無いバー用。メニューのある未配置のカードは、メニューが返す)
+    func begin(_ id: String, grabOffsetDays: Int = 0, haptic: Bool = false) -> String {
+        if haptic { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() }
         draggingId = id
         self.grabOffsetDays = grabOffsetDays
         // ドロップ先に入らずに終わったドラッグでも、元の予定が半透明のまま残らないようにする

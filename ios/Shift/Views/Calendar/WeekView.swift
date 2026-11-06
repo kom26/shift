@@ -219,7 +219,7 @@ struct WeekView: View {
                     block(ev, h: h)
                         .frame(width: max(0, colW - 2), height: h)
                         .onTapGesture { onTapEvent(ev, ds) }
-                        .draggable(DragState.shared.begin(ev.id, grabOffsetDays: Rules.daysBetween(ev.startDate ?? ds, ds)))
+                        .draggable(DragState.shared.begin(ev.id, grabOffsetDays: Rules.daysBetween(ev.startDate ?? ds, ds), haptic: true))
                         .opacity(DragState.shared.isDragging && DragState.shared.draggingId == ev.id ? 0.35 : 1)
                         .allowsHitTesting(!isStamping)
                         .offset(x: 1, y: H * CGFloat(seg.top))
