@@ -91,6 +91,8 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
             }
+            // 開いている設定画面は、後ろの画面とは別に描かれるので、ここでも外観を指定して、切り替えた瞬間に変える
+            .preferredColorScheme(appearance.colorScheme)
             .keyboardDismissBar { gapFocused = false }
             .sheet(isPresented: $showBarFont) { BarFontSheet() }
         }
