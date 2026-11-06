@@ -455,10 +455,6 @@ struct CalendarDetailSheet: View {
                     Text("頭文字の背景の色").font(.app(12)).foregroundStyle(.secondary)
                     backgroundRow
                 }
-            } else if isInitialMode {
-                Text("選択中の頭文字をもう一度タップすると、背景の色を変えられます")
-                    .font(.app(11))
-                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
