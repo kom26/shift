@@ -59,7 +59,7 @@ struct SharedEventEditor: View {
                            title: title.trimmingCharacters(in: .whitespaces),
                            startDate: Rules.format(start), endDate: Rules.format(end),
                            startTime: allDay ? nil : Self.timeText(start), endTime: allDay ? nil : Self.timeText(end),
-                           allDay: allDay, name: e.name, color: color)
+                           allDay: allDay, name: e.name, color: color, barTime: e.barTime)
     }
 
     var body: some View {

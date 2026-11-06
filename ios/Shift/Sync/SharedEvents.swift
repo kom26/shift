@@ -17,6 +17,8 @@ struct SharedEvent: Equatable, Identifiable {
     /// 職場名またはラベル名
     let name: String
     let color: String
+    /// 共有した人のカレンダーで、この予定のバーに時間を出しているか(受け取る側の初期の表示になる)
+    var barTime: Bool = false
 
     /// 共有カレンダーの中で作った予定のキー(参加者全員が直せる)
     static let calendarKey = "calendar"
@@ -38,15 +40,16 @@ struct SharedEvent: Equatable, Identifiable {
                            startTime: e.allDay ? nil : e.startTime, endTime: e.allDay ? nil : e.endTime,
                            allDay: e.allDay,
                            name: workplace?.name ?? store.label(for: e.labelId)?.name ?? "",
-                           color: e.color)
+                           color: e.color, barTime: e.barShowsTime)
     }
 
     /// 共有カレンダーの画面で、同じカレンダー部品に表示するための予定(見るだけ)。バーはタイトルだけ
-    /// showsTime: バーに時間を出す(時間のない予定は、予定名のまま)
-    func shiftEvent(color shownColor: String? = nil, showsTime: Bool = false) -> ShiftEvent {
+    /// showsTime: この端末で選んだ表示(true: 時間 / false: 予定名)。nil なら共有した人の表示に合わせる。
+    /// 時間のない予定は、どちらでも予定名のまま
+    func shiftEvent(color shownColor: String? = nil, showsTime: Bool? = nil) -> ShiftEvent {
         ShiftEvent(id: id, title: title, memo: "", color: shownColor ?? color, startDate: startDate, endDate: endDate,
                    placed: true, allDay: allDay, startTime: startTime, endTime: endTime, workHours: nil,
-                   barShowsTitle: showsTime ? nil : true)
+                   barShowsTitle: (showsTime ?? barTime) ? nil : true)
     }
 }
 
@@ -154,8 +157,8 @@ final class SharedViewState {
     private(set) var names: [String: String] = [:]
     /// この端末だけで効く、共有カレンダー上の職場・ラベルの色(キーは colorKey)
     private(set) var overrides: [String: String] = [:]
-    /// この端末だけで効く、バーに時間を出す職場・ラベル(キーは colorKey)。ないものは予定名
-    private(set) var timeKeys: Set<String> = []
+    /// この端末だけで効く、バーの表示の選び方(キーは colorKey。true: 時間 / false: 予定名)。ないものは共有した人の表示に合わせる
+    private(set) var timeModes: [String: Bool] = [:]
 
     @ObservationIgnored private let events: SharedEventsBacking
     @ObservationIgnored private let calendars: CalendarService
@@ -180,7 +183,7 @@ final class SharedViewState {
 
     private static let overridesKey = "shared-color-overrides"
     private static let overlayKey = "shared-overlay-ids"
-    private static let timeKeysKey = "shared-bar-time"
+    private static let timeModesKey = "shared-bar-time-modes"
 
     init(events: SharedEventsBacking, calendars: CalendarService, defaults: UserDefaults = .standard) {
         self.events = events
@@ -234,7 +237,7 @@ final class SharedViewState {
         close()
         calendar = cal
         overrides = Self.loadOverrides(defaults: defaults)[cal.id] ?? [:]
-        timeKeys = Self.loadTimeKeys(defaults: defaults)[cal.id] ?? []
+        timeModes = Self.loadTimeModes(defaults: defaults)[cal.id] ?? [:]
         store = Self.makeStore(events: [], overrides: [:])
         loading = true
         await loadNames()
@@ -326,34 +329,34 @@ final class SharedViewState {
 
     // MARK: バーの表示(予定名 / 時間。この端末の、共有カレンダー上だけ)
 
-    /// 共有カレンダー上で、その予定のバーに時間を出すか
-    func showsTime(for e: SharedEvent) -> Bool { timeKeysMap(for: e).contains(Self.colorKey(for: e)) }
+    /// 共有カレンダー上で選んだ表示(true: 時間 / false: 予定名)。nil は、共有した人の表示に合わせる
+    func showsTime(for e: SharedEvent) -> Bool? { timeModesMap(for: e)[Self.colorKey(for: e)] }
 
-    private func timeKeysMap(for e: SharedEvent) -> Set<String> {
-        if calendar != nil, items[e.id] != nil { return timeKeys }
-        if let cid = overlayCalendarOf[e.id] { return Self.loadTimeKeys(defaults: defaults)[cid] ?? [] }
-        return timeKeys
+    private func timeModesMap(for e: SharedEvent) -> [String: Bool] {
+        if calendar != nil, items[e.id] != nil { return timeModes }
+        if let cid = overlayCalendarOf[e.id] { return Self.loadTimeModes(defaults: defaults)[cid] ?? [:] }
+        return timeModes
     }
 
-    /// バーに出すものを変える(true: 時間 / false: 予定名)。色と同じ単位(持ち主ごとの職場・ラベル)で変わる
-    func setShowsTime(_ on: Bool, for e: SharedEvent) {
+    /// バーに出すものを変える(nil で共有した人の表示に戻す)。色と同じ単位(持ち主ごとの職場・ラベル)で変わる
+    func setShowsTime(_ on: Bool?, for e: SharedEvent) {
         let key = Self.colorKey(for: e)
         let inOpen = calendar != nil && items[e.id] != nil
         guard let cid = inOpen ? calendar?.id : overlayCalendarOf[e.id] else { return }
-        var all = Self.loadTimeKeys(defaults: defaults)
-        var keys = all[cid] ?? []
-        if on { keys.insert(key) } else { keys.remove(key) }
-        all[cid] = keys
-        if let data = try? JSONEncoder().encode(all) { defaults.set(data, forKey: Self.timeKeysKey) }
+        var all = Self.loadTimeModes(defaults: defaults)
+        var modes = all[cid] ?? [:]
+        modes[key] = on
+        all[cid] = modes
+        if let data = try? JSONEncoder().encode(all) { defaults.set(data, forKey: Self.timeModesKey) }
         if inOpen {
-            timeKeys = keys
+            timeModes = modes
             rebuild()
         }
         rebuildOverlay()
     }
 
-    private static func loadTimeKeys(defaults: UserDefaults) -> [String: Set<String>] {
-        defaults.data(forKey: timeKeysKey).flatMap { try? JSONDecoder().decode([String: Set<String>].self, from: $0) } ?? [:]
+    private static func loadTimeModes(defaults: UserDefaults) -> [String: [String: Bool]] {
+        defaults.data(forKey: timeModesKey).flatMap { try? JSONDecoder().decode([String: [String: Bool]].self, from: $0) } ?? [:]
     }
 
     // MARK: 自分のカレンダーに重ねる
@@ -417,17 +420,17 @@ final class SharedViewState {
         var owners: [String: String] = [:]
         var shown: [ShiftEvent] = []
         let saved = Self.loadOverrides(defaults: defaults)
-        let savedTime = Self.loadTimeKeys(defaults: defaults)
+        let savedTime = Self.loadTimeModes(defaults: defaults)
         for cid in overlayListeners.keys.sorted() {
             let map = saved[cid] ?? [:]
-            let timed = savedTime[cid] ?? []
+            let modes = savedTime[cid] ?? [:]
             for e in overlayLatest[cid] ?? [] {
                 if !e.isCalendarOwned, let me, e.ownerUid == me { continue }
                 guard seen.insert(e.id).inserted else { continue }
                 items[e.id] = e
                 owners[e.id] = cid
                 shown.append(e.shiftEvent(color: map[Self.colorKey(for: e)] ?? e.color,
-                                          showsTime: timed.contains(Self.colorKey(for: e))))
+                                          showsTime: modes[Self.colorKey(for: e)]))
             }
         }
         overlayItems = items
@@ -462,17 +465,17 @@ final class SharedViewState {
     }
 
     private func rebuild() {
-        store = Self.makeStore(events: latest, overrides: overrides, timeKeys: timeKeys)
+        store = Self.makeStore(events: latest, overrides: overrides, timeModes: timeModes)
     }
 
     /// 参加者の予定から、表示用の入れ物を組み立てる。バーはタイトルだけ(誰の予定かは日の一覧のアバターで見せる)。
     /// 色は、この端末で変えていればそれを使う
-    static func makeStore(events: [SharedEvent], overrides: [String: String], timeKeys: Set<String> = []) -> Store {
+    static func makeStore(events: [SharedEvent], overrides: [String: String], timeModes: [String: Bool] = [:]) -> Store {
         let name = "shared-" + UUID().uuidString
         let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: name + ".json"),
                           defaults: UserDefaults(suiteName: name) ?? .standard)
         let list = events.map {
-            $0.shiftEvent(color: overrides[colorKey(for: $0)] ?? $0.color, showsTime: timeKeys.contains(colorKey(for: $0)))
+            $0.shiftEvent(color: overrides[colorKey(for: $0)] ?? $0.color, showsTime: timeModes[colorKey(for: $0)])
         }
         store.applySnapshot(SyncSnapshot(events: list, workplaces: [], favorites: [], customColors: [], hiddenSuggestions: []))
         return store

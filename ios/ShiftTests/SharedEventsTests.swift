@@ -182,20 +182,26 @@ struct SharedEventsTests {
         #expect(color(calendarOwned.id) == "#222222")
     }
 
-    @Test func barShowsTimeOnlyForPickedSourcesAndTimedEvents() {
+    @Test func barFollowsTheSharersDisplayUnlessPickedHere() {
         func timed(_ id: String, owner: String, key: String) -> SharedEvent {
             SharedEvent(id: id, ownerUid: owner, sourceKey: key, title: "早番", startDate: "2026-11-10", endDate: "2026-11-10",
                         startTime: "09:00", endTime: "17:00", allDay: false, name: "", color: "#ef4444")
         }
-        let mine = timed("me_a", owner: "me", key: "w:w1")
-        let yours = timed("you_a", owner: "you", key: "w:w1")
+        var mine = timed("me_a", owner: "me", key: "w:w1")
+        var yours = timed("you_a", owner: "you", key: "w:w1")
+        var other = timed("you_c", owner: "you", key: "w:w2")
+        mine.barTime = false      // 共有した人が予定名を出している
+        yours.barTime = true      // 共有した人が時間を出している
+        other.barTime = true
         let allDay = shared("me_b", owner: "me", key: "w:w1", title: "休み")
-        let timeKeys: Set<String> = [SharedViewState.colorKey(for: mine)]
-        let store = SharedViewState.makeStore(events: [mine, yours, allDay], overrides: [:], timeKeys: timeKeys)
+        // この端末で、自分の w:w1 だけ「時間」、相手の w:w2 だけ「予定名」を選ぶ
+        let modes = [SharedViewState.colorKey(for: mine): true, SharedViewState.colorKey(for: other): false]
+        let store = SharedViewState.makeStore(events: [mine, yours, other, allDay], overrides: [:], timeModes: modes)
         func shows(_ id: String) -> Bool? { store.events.first { $0.id == id }?.barShowsTime }
-        #expect(shows("me_a") == true)
-        #expect(shows("you_a") == false)
-        // 時間のない予定は、選んでいても予定名のまま
+        #expect(shows("me_a") == true)      // 選んだ表示が優先
+        #expect(shows("you_a") == true)     // 選んでいないので、共有した人の表示(時間)
+        #expect(shows("you_c") == false)    // 予定名を選んだ
+        // 時間のない予定は、時間を選んでいても予定名のまま
         #expect(shows("me_b") == false)
     }
 

@@ -191,7 +191,8 @@ struct SharedColorSheet: View {
     @Environment(\.dismiss) private var dismiss
     let event: SharedEvent
     @State private var color: String
-    @State private var showsTime = false
+    /// nil は、共有した人の表示に合わせる
+    @State private var showsTime: Bool?
 
     init(event: SharedEvent) {
         self.event = event
@@ -208,14 +209,15 @@ struct SharedColorSheet: View {
                 }
                 Section {
                     Picker("カレンダー上の表記", selection: $showsTime) {
-                        Text("予定名").tag(false)
-                        Text("時間").tag(true)
+                        Text("共有者に合わせる").tag(Bool?.none)
+                        Text("予定名").tag(Bool?.some(false))
+                        Text("時間").tag(Bool?.some(true))
                     }
                     .pickerStyle(.segmented)
                 } header: {
                     Text("バーの表示")
                 } footer: {
-                    Text("同じ職場・ラベルの予定は、すべて同じ表示に変わります。時間のない予定(終日など)は、予定名のままです。")
+                    Text("初期は、共有した人のカレンダーでの表示に合わせます(その人が時間を出していれば時間)。同じ職場・ラベルの予定は、すべて同じ表示に変わります。時間のない予定(終日など)は、予定名のままです。")
                 }
                 Section {
                     Button("元の色に戻す") {
