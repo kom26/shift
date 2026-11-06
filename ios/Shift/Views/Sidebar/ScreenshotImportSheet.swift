@@ -19,6 +19,9 @@ struct ScreenshotImportSheet: View {
     @State private var lines: [ShiftLine] = []
     /// 追加する日(休みの日は含めない)
     @State private var included: Set<String> = []
+    /// 直した予定(読み取った日の id から引ける)。直した予定には「修正済み」が付き、まとめて設定を変えても、直した内容のまま残る
+    @State private var edited: [String: ShiftEvent] = [:]
+    @State private var lineEdit: LineEdit?
     @State private var title = ""
     @State private var workplaceId: String?
     @State private var labelId: String?
@@ -26,7 +29,20 @@ struct ScreenshotImportSheet: View {
     @State private var errorMessage: String?
     @FocusState private var titleFocused: Bool
 
+    /// 確認画面から、予定追加と同じ編集画面を開くための組
+    private struct LineEdit: Identifiable {
+        let id: String
+        let event: ShiftEvent
+    }
+
     private var workplace: Workplace? { store.workplaces.first { $0.id == workplaceId } }
+
+    /// その日の予定(直していれば、直した内容。そうでなければ、まとめて設定から作る)
+    private func draft(_ line: ShiftLine) -> ShiftEvent? {
+        if let e = edited[line.id] { return e }
+        return ShiftLineImport.events(from: [line], title: title, workplace: workplace,
+                                      label: store.label(for: labelId), store: store).first
+    }
     private var addCount: Int { lines.filter { !$0.off && included.contains($0.id) }.count }
     private var canAdd: Bool { addCount > 0 && !title.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -195,6 +211,7 @@ struct ScreenshotImportSheet: View {
             }
             lines = result
             included = Set(result.filter { !$0.off }.map(\.id))
+            edited = [:]
             step = .review
         } catch {
             errorMessage = error.localizedDescription
@@ -238,7 +255,7 @@ struct ScreenshotImportSheet: View {
             } header: {
                 Text("追加する予定(タップで、追加する・しないを切り替え)")
             } footer: {
-                Text("「休」の日は、追加しません。「24:00」は、翌日の 0 時までの予定として追加します。")
+                Text("予定をタップすると、予定追加と同じ画面で直せます(終了の書き方を、06:00 と 30:00 で切り替えることもできます)。直した予定には「修正済み」が付いて、まとめて設定を変えても、直した内容のまま残ります。「休」の日は、追加しません。")
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -254,6 +271,9 @@ struct ScreenshotImportSheet: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(Color(.systemGroupedBackground))
+        }
+        .sheet(item: $lineEdit) { target in
+            EventEditor(original: target.event, isNew: false, onCommit: { edited[target.id] = $0 })
         }
         .sheet(isPresented: $choosing) {
             WorkLabelSheet(workplaceId: workplaceId, labelId: labelId) { newWorkplace, newLabel in
@@ -290,33 +310,64 @@ struct ScreenshotImportSheet: View {
             .font(.app(15))
             .foregroundStyle(.secondary)
         } else {
-            Button {
-                if on { included.remove(line.id) } else { included.insert(line.id) }
-            } label: {
-                HStack(spacing: 10) {
+            HStack(spacing: 4) {
+                // 左のチェックで、追加する・しないを切り替える
+                Button {
+                    if on { included.remove(line.id) } else { included.insert(line.id) }
+                } label: {
                     Image(systemName: on ? "checkmark.square.fill" : "square")
                         .font(.system(size: 20))
                         .foregroundStyle(on ? Theme.accent : Color.secondary)
-                    Text(dateText(line.date)).fontWeight(.semibold).frame(width: 84, alignment: .leading)
-                    Text(timeText(line)).strikethrough(!on)
-                    Spacer()
+                        .frame(width: 36, height: 40)
+                        .contentShape(Rectangle())
                 }
-                .font(.app(15))
-                .foregroundStyle(on ? Color.primary : Color.secondary)
-                .contentShape(Rectangle())
+                .buttonStyle(.borderless)
+                .accessibilityLabel(on ? "追加しない" : "追加する")
+                // 予定をタップすると、予定追加と同じ画面で直せる
+                Button {
+                    if let e = draft(line) { lineEdit = LineEdit(id: line.id, event: e) }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(dateText(line.date)).fontWeight(.semibold).frame(width: 84, alignment: .leading)
+                        Text(timeText(line)).strikethrough(!on)
+                        Spacer(minLength: 4)
+                        if edited[line.id] != nil {
+                            Text("修正済み")
+                                .font(.app(11, weight: .bold))
+                                .foregroundStyle(Theme.accent)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Theme.accent.opacity(0.14), in: Capsule())
+                        }
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .font(.app(15))
+                    .foregroundStyle(on ? Color.primary : Color.secondary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
             }
         }
     }
 
+    /// 一覧に出す時間(直した予定は、直した時間)
     private func timeText(_ line: ShiftLine) -> String {
+        if let e = edited[line.id] {
+            guard !e.allDay, let s = e.startTime, let t = e.endTime else { return "終日" }
+            return s + "-" + t
+        }
         guard let s = line.start, let e = line.end else { return "終日" }
         return s + "-" + e
     }
 
     private func add() {
         let chosen = lines.filter { included.contains($0.id) }
-        let events = ShiftLineImport.events(from: chosen, title: title, workplace: workplace,
-                                            label: store.label(for: labelId), store: store)
+        // 直した予定は、直した内容のまま。それ以外は、まとめて設定から作る
+        let events = chosen.flatMap { line -> [ShiftEvent] in
+            if let e = edited[line.id] { return [e] }
+            return ShiftLineImport.events(from: [line], title: title, workplace: workplace,
+                                          label: store.label(for: labelId), store: store)
+        }
         events.forEach { store.save($0) }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         onAdded(events.count)

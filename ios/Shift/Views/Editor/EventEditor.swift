@@ -10,6 +10,8 @@ struct EventEditor: View {
     let isNew: Bool
     /// よく使う予定のテンプレートを編集する(日付なし。保存先はよく使う予定)
     var favoriteMode = false
+    /// 指定すると、保存の代わりに、直した予定を返す(画像取り込みの確認画面から開いたとき。削除・複製保存・よく使う予定の登録は出さない)
+    var onCommit: ((ShiftEvent) -> Void)?
 
     @State private var title: String
     @State private var memo: String
@@ -49,10 +51,11 @@ struct EventEditor: View {
     enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime, adjustment, dailyWage }
     enum TimePanel: Hashable { case start, end }
 
-    init(original: ShiftEvent, isNew: Bool, favoriteMode: Bool = false) {
+    init(original: ShiftEvent, isNew: Bool, favoriteMode: Bool = false, onCommit: ((ShiftEvent) -> Void)? = nil) {
         self.original = original
         self.isNew = isNew
         self.favoriteMode = favoriteMode
+        self.onCommit = onCommit
         _title = State(initialValue: original.title)
         _memo = State(initialValue: original.memo)
         _color = State(initialValue: original.color)
@@ -182,7 +185,7 @@ struct EventEditor: View {
                         .focused($focusedField, equals: .memo)
                         .id(Self.memoRowId)
                 }
-                if !favoriteMode {
+                if !favoriteMode && onCommit == nil {
                     Section {
                         Toggle("よく使う予定にも登録", isOn: $registerFavorite)
                     }
@@ -191,12 +194,14 @@ struct EventEditor: View {
                 if !isNew, let line = original.lastModifiedText() {
                     Section { Text(line).font(.app(12)).foregroundStyle(.secondary) }
                 }
-                Section {
-                    if !favoriteMode {
-                        Button("複製保存") { commit(duplicate: true) }.disabled(!canSave)
-                    }
-                    if !isNew {
-                        Button("削除", role: .destructive) { confirmDelete = true }
+                if onCommit == nil {
+                    Section {
+                        if !favoriteMode {
+                            Button("複製保存") { commit(duplicate: true) }.disabled(!canSave)
+                        }
+                        if !isNew {
+                            Button("削除", role: .destructive) { confirmDelete = true }
+                        }
                     }
                 }
             }
@@ -808,7 +813,10 @@ struct EventEditor: View {
     private func commit(duplicate: Bool) {
         let e = build()
         store.rememberColor(e.color)
-        if favoriteMode {
+        if let onCommit {
+            // 画像取り込みの確認画面へ、直した予定を返す(まだ保存しない)
+            onCommit(e)
+        } else if favoriteMode {
             store.saveFavorite(e)
         } else {
             if duplicate { store.saveAndDuplicate(e) } else { store.save(e) }

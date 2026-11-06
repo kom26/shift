@@ -760,6 +760,12 @@ struct RootView: View {
         if sharedView.isOpen {
             // 共有カレンダーでは、共有カレンダーの中で作った予定だけ動かせる
             guard !id.hasPrefix(Store.favoritePrefix), sharedView.canDrag(id) else { return }
+            // 未配置からは、選択を出さず、すぐ置く
+            if sharedView.event(id)?.placed == false {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Task { await sharedView.place(id: id, on: date) }
+                return
+            }
             dropChoice = DropChoice(eventId: id, date: date, title: sharedView.event(id)?.title ?? "")
             return
         }
@@ -770,6 +776,12 @@ struct RootView: View {
             return
         }
         guard let event = store.events.first(where: { $0.id == id }) else { return }
+        // 未配置からは、選択を出さず、すぐ置く
+        if !event.placed {
+            withAnimation(.snappy) { store.place(id: id, on: date) }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            return
+        }
         dropChoice = DropChoice(eventId: id, date: date, title: event.title)
     }
 
