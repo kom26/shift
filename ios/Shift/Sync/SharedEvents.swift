@@ -21,6 +21,9 @@ struct SharedEvent: Equatable, Identifiable {
     var barTime: Bool = false
     /// 日付を決めた予定か。false は「未配置」(共有カレンダーの中で作った予定だけ。startDate・endDate は空)
     var placed: Bool = true
+    /// 最後に変えた時刻(Unix ミリ秒)と、変えた人の名前。共有の予定の編集画面の下に出す(古い予定は nil)
+    var updatedAt: Double? = nil
+    var updatedByName: String? = nil
 
     /// 共有カレンダーの中で作った予定のキー(参加者全員が直せる)
     static let calendarKey = "calendar"
@@ -31,6 +34,15 @@ struct SharedEvent: Equatable, Identifiable {
     static func newInCalendar(uid: String, date: String, color: String = EventLabel.noneColor) -> SharedEvent {
         SharedEvent(id: "cal_" + UUID().uuidString, ownerUid: uid, sourceKey: calendarKey, title: "",
                     startDate: date, endDate: date, startTime: nil, endTime: nil, allDay: true, name: "", color: color)
+    }
+
+    /// 編集画面の下に出す「最終変更」の文(記録がない予定は nil)
+    func lastModifiedText(calendar: Calendar = .current) -> String? {
+        guard let at = updatedAt else { return nil }
+        let c = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: Date(timeIntervalSince1970: at / 1000))
+        let when = String(format: "%d年%d月%d日 %d:%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0, c.hour ?? 0, c.minute ?? 0)
+        let who = (updatedByName?.isEmpty == false) ? updatedByName! : "不明"
+        return "最終変更: \(who) ・ \(when)"
     }
 
     /// 日付を決めない予定(未配置)の下書き。あとで、カレンダーの日にドラッグして置く
@@ -360,6 +372,17 @@ final class SharedViewState {
         return await save(e.unplaced())
     }
 
+    /// その日へコピーする(新しい予定として足す。元の予定は、そのまま)
+    @discardableResult
+    func copy(id: String, on date: String) async -> Bool {
+        guard isEditable(id), let e = event(id), let uid = calendars.myUid else { return false }
+        var made = SharedEvent(id: "cal_" + UUID().uuidString, ownerUid: uid, sourceKey: SharedEvent.calendarKey,
+                               title: e.title, startDate: e.startDate, endDate: e.endDate, startTime: e.startTime,
+                               endTime: e.endTime, allDay: e.allDay, name: e.name, color: e.color, barTime: e.barTime)
+        made.placed = e.placed
+        return await save(made.moved(to: date))
+    }
+
     /// 日付を決めない予定の下書き
     func newUnplacedEvent() -> SharedEvent? {
         guard canCreate, let uid = calendars.myUid else { return nil }
@@ -425,8 +448,12 @@ final class SharedViewState {
     /// 共有カレンダーの中の予定を保存する(表示は自動で更新される)
     func save(_ e: SharedEvent) async -> Bool {
         guard let cal = calendarOf(e.id) ?? calendar, canWrite(in: cal), e.isCalendarOwned else { return false }
+        // 変えた人と時刻を記録する(編集画面の下の「最終変更」)
+        var stamped = e
+        stamped.updatedAt = Date().timeIntervalSince1970 * 1000
+        stamped.updatedByName = calendars.myUid.flatMap { names[$0] }
         do {
-            try await events.set(calendarId: cal.id, event: e)
+            try await events.set(calendarId: cal.id, event: stamped)
             return true
         } catch {
             return false

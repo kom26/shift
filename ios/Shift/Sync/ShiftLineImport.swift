@@ -34,6 +34,7 @@ enum ShiftLineImport {
             e.labelId = workplace == nil ? label?.id : nil
             // バーの表記は、編集画面の初期と同じ(勤務予定は時間、通常予定は予定名)
             e.barShowsTitle = workplace == nil ? true : nil
+            e.source = ShiftEvent.screenshotSource
             return e
         }
     }

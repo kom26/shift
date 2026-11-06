@@ -97,6 +97,10 @@ struct SharedEventEditor: View {
                 if failed {
                     Section { Text("保存できませんでした。通信を確認してください。").foregroundStyle(.red) }
                 }
+                // 最後に変えた人と時刻。削除の上に出す
+                if !target.isNew, let line = target.event.lastModifiedText() {
+                    Section { Text(line).font(.app(12)).foregroundStyle(.secondary) }
+                }
                 if !target.isNew {
                     Section {
                         Button("削除", role: .destructive) { confirmDelete = true }

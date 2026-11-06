@@ -124,7 +124,7 @@ struct WorkplaceEditor: View {
                             .font(.app(12))
                             .foregroundStyle(.secondary)
                     } else {
-                        moneyRow("時給", $wage, key: "wage")
+                        moneyRow("基本時給", $wage, key: "wage")
                         moneyRow("交通費(片道)", $transport, key: "transport")
                         Text("1予定ごとに往復(×2)で計算します")
                             .font(.app(12))

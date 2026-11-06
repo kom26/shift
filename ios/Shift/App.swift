@@ -72,6 +72,7 @@ struct ShiftApp: App {
                 }
                 // ログインしている間だけ同期する。ログアウトや別のアカウントへの切り替えでやり直す
                 .task(id: auth.account?.uid) {
+                    store.editorName = auth.account?.name ?? ""
                     if let uid = auth.account?.uid {
                         async let shared: Void = calendars.start(uid: uid)
                         await sync.start(uid: uid)

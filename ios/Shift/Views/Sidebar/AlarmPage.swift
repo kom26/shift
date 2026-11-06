@@ -35,7 +35,7 @@ struct AlarmPage: View {
     private var content: some View {
         // 下の余白が余らないよう、使える高さいっぱいに、ドラムロールと右の操作を広げる
         GeometryReader { geo in
-            let guideH: CGFloat = active ? 18 : 0
+            let guideH: CGFloat = 18
             let h = max(Self.minBodyHeight, geo.size.height - 10 - guideH)
             VStack(spacing: 4) {
                 HStack(spacing: 10) {
@@ -46,16 +46,19 @@ struct AlarmPage: View {
                         .frame(width: 156)
                 }
                 .frame(height: h)
-                if active {
-                    HStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    if active {
                         HStack(spacing: 4) { guideTag("タップ"); Text("セットする") }
                         HStack(spacing: 4) { guideTag("もう一度タップ"); Text("解除する") }
-                        Spacer(minLength: 0)
+                    } else {
+                        // セットを押すと、どうなるかの案内
+                        Text("セットを押して、日付をタップでアラームをかける")
                     }
-                    .font(.app(10))
-                    .foregroundStyle(.secondary)
-                    .frame(height: 14)
+                    Spacer(minLength: 0)
                 }
+                .font(.app(10))
+                .foregroundStyle(.secondary)
+                .frame(height: 14)
             }
             .padding(.horizontal, 12)
             .padding(.top, 6)
@@ -86,7 +89,8 @@ struct AlarmPage: View {
                 typed = ""
             }
             Spacer(minLength: 0)
-            snoozeRow
+            // セット中は、スヌーズの行の代わりに、下に完了ボタンを出す(高さが足りるように)
+            if !active { snoozeRow }
             Spacer(minLength: 0)
             Button { start() } label: {
                 Text(active ? "セット中…" : "セット")
@@ -97,6 +101,17 @@ struct AlarmPage: View {
             }
             .buttonStyle(.plain)
             .disabled(active || (kind == .beforeShift && totalMinutes == 0))
+            if active {
+                Button { finish() } label: {
+                    Text("完了")
+                        .font(.app(16, weight: .bold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .overlay(Capsule().strokeBorder(Theme.accent, lineWidth: 1.5))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
         }
         .frame(height: height)
     }
@@ -140,6 +155,12 @@ struct AlarmPage: View {
         }
         .frame(minHeight: 30)
         .animation(.snappy, value: snoozeMinutes > 0)
+    }
+
+    /// スタンプモードを終える
+    private func finish() {
+        stamp = nil
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     private func start() {

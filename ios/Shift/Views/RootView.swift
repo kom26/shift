@@ -20,6 +20,14 @@ struct DayTarget: Identifiable {
     var id: String { date }
 }
 
+/// 予定をドラッグして日付で離したときの、移動・コピーの選択
+struct DropChoice: Identifiable {
+    let id = UUID()
+    let eventId: String
+    let date: String
+    let title: String
+}
+
 struct RootView: View {
     @Environment(Store.self) private var store
     @Environment(Holidays.self) private var holidays
@@ -39,6 +47,8 @@ struct RootView: View {
     @State private var showDrawer = false
     @State private var showLabels = false
     @State private var showWorkplaces = false
+    /// 予定をドラッグして日付で離したときの「移動 / コピー」の選択
+    @State private var dropChoice: DropChoice?
     /// 右上の ⊕ を押して開く「予定追加 / 画像から追加」の 2 択(開いている間、ボタンは ⊗)
     @State private var addMenuOpen = false
     @State private var showShotImport = false
@@ -115,6 +125,14 @@ struct RootView: View {
         .overlay {
             if showDrawer { drawer }
             if addMenuOpen { addMenu }
+            // 予定を日付に離したときの「移動 / コピー」(場所を取らない見えない部品に付ける)
+            Color.clear.frame(width: 0, height: 0)
+                .confirmationDialog(dropChoiceTitle, isPresented: Binding(
+                    get: { dropChoice != nil }, set: { if !$0 { dropChoice = nil } }), titleVisibility: .visible) {
+                    Button("移動") { applyDrop(copy: false) }
+                    Button("コピー") { applyDrop(copy: true) }
+                    Button("キャンセル", role: .cancel) { dropChoice = nil }
+                }
         }
         .onChange(of: anchor) { _, _ in
             // 「今日」ボタンで動いたときだけ、今日を選んだ状態にする
@@ -737,12 +755,12 @@ struct RootView: View {
         editing = EditorTarget(event: event, isNew: false)
     }
 
+    /// 予定をドラッグして日付で離した。移動するか、コピーするかを選んでもらう(よく使う予定は、いつもコピーして置く)
     private func drop(id: String, on date: String) {
         if sharedView.isOpen {
-            // 共有カレンダーでは、共有カレンダーの中で作った予定だけ動かせる(日付を移す・未配置から置く)
+            // 共有カレンダーでは、共有カレンダーの中で作った予定だけ動かせる
             guard !id.hasPrefix(Store.favoritePrefix), sharedView.canDrag(id) else { return }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            Task { await sharedView.place(id: id, on: date) }
+            dropChoice = DropChoice(eventId: id, date: date, title: sharedView.event(id)?.title ?? "")
             return
         }
         guard !store.isOverlay(id) else { return }
@@ -751,7 +769,29 @@ struct RootView: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             return
         }
-        withAnimation(.snappy) { store.place(id: id, on: date) }
+        guard let event = store.events.first(where: { $0.id == id }) else { return }
+        dropChoice = DropChoice(eventId: id, date: date, title: event.title)
+    }
+
+    private var dropChoiceTitle: String {
+        guard let c = dropChoice else { return "" }
+        let p = Rules.ymd(c.date)
+        let name = c.title.isEmpty ? "この予定" : "「" + c.title + "」"
+        return "\(name)を\(p.month)月\(p.day)日へ"
+    }
+
+    private func applyDrop(copy: Bool) {
+        guard let c = dropChoice else { return }
+        dropChoice = nil
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        if sharedView.isOpen {
+            Task {
+                if copy { await sharedView.copy(id: c.eventId, on: c.date) } else { await sharedView.place(id: c.eventId, on: c.date) }
+            }
+        } else if copy {
+            withAnimation(.snappy) { store.copy(id: c.eventId, to: [c.date]) }
+        } else {
+            withAnimation(.snappy) { store.place(id: c.eventId, on: c.date) }
+        }
     }
 }

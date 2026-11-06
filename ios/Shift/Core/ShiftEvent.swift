@@ -24,9 +24,16 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     var labelId: String? = nil
     /// 個別カラー。true はこの予定の色、nil・false は職場やラベルの色に付いていく
     var ownColor: Bool? = nil
+    /// 最後に変えた時刻(Unix 秒)と、変えた人の名前。編集画面の下に出す(古い予定は nil)
+    var updatedAt: Double? = nil
+    var updatedBy: String? = nil
+    /// 作り方の印。"screenshot" は、画像取り込みで作った予定
+    var source: String? = nil
+
+    static let screenshotSource = "screenshot"
 
     enum CodingKeys: String, CodingKey {
-        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle, adjustment, dailyWage, labelId, ownColor
+        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle, adjustment, dailyWage, labelId, ownColor, updatedAt, updatedBy, source
     }
 
     /// 以前のレイヤー(複数)。読むだけで、書き出さない
@@ -52,6 +59,16 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
 }
 
 extension ShiftEvent {
+    /// 編集画面の下に出す「最終変更」の文(変更した記録がない予定は nil)。画像取り込みで作った予定には、その印を添える
+    func lastModifiedText(calendar: Calendar = .current) -> String? {
+        guard let at = updatedAt else { return nil }
+        let d = Date(timeIntervalSince1970: at)
+        let c = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: d)
+        let when = String(format: "%d年%d月%d日 %d:%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0, c.hour ?? 0, c.minute ?? 0)
+        let who = (updatedBy?.isEmpty == false) ? updatedBy! : "自分"
+        return "最終変更: \(who) ・ \(when)" + (source == Self.screenshotSource ? "(画像取り込み)" : "")
+    }
+
     /// Web版のJSONは項目が欠けていることがあるため、欠落は既定値で補う
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -72,6 +89,9 @@ extension ShiftEvent {
         adjustment = try c.decodeIfPresent(Int.self, forKey: .adjustment)
         dailyWage = try c.decodeIfPresent(Int.self, forKey: .dailyWage)
         ownColor = try c.decodeIfPresent(Bool.self, forKey: .ownColor)
+        updatedAt = try c.decodeIfPresent(Double.self, forKey: .updatedAt)
+        updatedBy = try c.decodeIfPresent(String.self, forKey: .updatedBy)
+        source = try c.decodeIfPresent(String.self, forKey: .source)
         if let l = try c.decodeIfPresent(String.self, forKey: .labelId) {
             labelId = l
         } else if workplaceId == nil {

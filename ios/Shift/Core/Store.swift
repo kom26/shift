@@ -43,6 +43,8 @@ final class Store {
     @ObservationIgnored let fileURL: URL
     /// 保存するたびに呼ぶ(iCloud 同期用)。iCloud から取り込んだ変更では呼ばない
     @ObservationIgnored var onLocalChange: (() -> Void)?
+    /// 予定を変えた人の名前(ログインしていれば、その名前)。「最終変更」に記録する
+    @ObservationIgnored var editorName = ""
     @ObservationIgnored private var applyingRemote = false
     @ObservationIgnored let defaults: UserDefaults
     private enum Keys {
@@ -236,7 +238,7 @@ final class Store {
         var placed = events.filter { $0.placed }
         let unplaced = events.filter { !$0.placed }
         for d in dates {
-            var c = moved(src, on: d)
+            var c = stamped(moved(src, on: d))
             c.id = UUID().uuidString
             placed.append(c)
         }
@@ -252,7 +254,16 @@ final class Store {
         if !passesFilters(event) { clearFilters() }
     }
 
+    /// 変えた人と時刻を記録した予定(編集画面の下の「最終変更」に出る)
+    func stamped(_ event: ShiftEvent, now: Date = Date()) -> ShiftEvent {
+        var e = event
+        e.updatedAt = now.timeIntervalSince1970
+        e.updatedBy = editorName.isEmpty ? nil : editorName
+        return e
+    }
+
     func save(_ event: ShiftEvent) {
+        let event = stamped(event)
         if let i = events.firstIndex(where: { $0.id == event.id }) {
             events[i] = event
         } else {
@@ -265,7 +276,7 @@ final class Store {
     /// 編集内容を保存したうえで、同じ内容のコピーを別IDで追加する(Web版の「複製保存」)
     func saveAndDuplicate(_ event: ShiftEvent) {
         save(event)
-        var copy = event
+        var copy = stamped(event)
         copy.id = UUID().uuidString
         events.append(copy)
         persist()
@@ -302,7 +313,7 @@ final class Store {
     /// 日付へ配置する
     func place(id: String, on date: String) {
         guard let i = events.firstIndex(where: { $0.id == id }) else { return }
-        events[i] = moved(events[i], on: date)
+        events[i] = stamped(moved(events[i], on: date))
         revealIfFiltered(events[i])
         persist()
     }
@@ -310,7 +321,7 @@ final class Store {
     /// 未配置に戻し、未配置グループの末尾へ移す
     func unplace(id: String) {
         guard let i = events.firstIndex(where: { $0.id == id }) else { return }
-        var e = events.remove(at: i)
+        var e = stamped(events.remove(at: i))
         e.startDate = nil
         e.endDate = nil
         e.placed = false
@@ -539,7 +550,7 @@ final class Store {
 
     /// 末尾に1件足す(スタンプ配置など、他ファイルの拡張から使う)
     func appendEvent(_ event: ShiftEvent) {
-        events.append(event)
+        events.append(stamped(event))
         persist()
     }
 

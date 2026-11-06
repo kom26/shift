@@ -187,6 +187,10 @@ struct EventEditor: View {
                         Toggle("よく使う予定にも登録", isOn: $registerFavorite)
                     }
                 }
+                // 最後に変えた人と時刻(画像取り込みで作った予定には、その印も)。削除・複製保存の上に出す
+                if !isNew, let line = original.lastModifiedText() {
+                    Section { Text(line).font(.app(12)).foregroundStyle(.secondary) }
+                }
                 Section {
                     if !favoriteMode {
                         Button("複製保存") { commit(duplicate: true) }.disabled(!canSave)

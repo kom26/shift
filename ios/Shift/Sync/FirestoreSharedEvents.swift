@@ -17,7 +17,8 @@ final class FirestoreSharedEvents: SharedEventsBacking {
                            startTime: x["startTime"] as? String, endTime: x["endTime"] as? String,
                            allDay: x["allDay"] as? Bool ?? true,
                            name: x["name"] as? String ?? "", color: x["color"] as? String ?? "#bec1cc",
-                           barTime: x["barTime"] as? Bool ?? false, placed: x["placed"] as? Bool ?? true)
+                           barTime: x["barTime"] as? Bool ?? false, placed: x["placed"] as? Bool ?? true,
+                           updatedAt: (x["updatedAt"] as? NSNumber)?.doubleValue, updatedByName: x["updatedByName"] as? String)
     }
 
     func fetch(calendarId: String) async throws -> [SharedEvent] {
@@ -38,6 +39,8 @@ final class FirestoreSharedEvents: SharedEventsBacking {
             "startDate": e.startDate, "endDate": e.endDate, "allDay": e.allDay,
             "name": e.name, "color": e.color, "barTime": e.barTime, "placed": e.placed,
         ]
+        if let t = e.updatedAt { data["updatedAt"] = t }
+        if let n = e.updatedByName { data["updatedByName"] = n }
         if let t = e.startTime { data["startTime"] = t }
         if let t = e.endTime { data["endTime"] = t }
         try await col(calendarId).document(e.id).setData(data)

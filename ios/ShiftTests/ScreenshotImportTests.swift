@@ -105,3 +105,42 @@ struct ScreenshotImportTests {
         #expect(smallImage.size.height == 600)
     }
 }
+
+@MainActor
+struct LastModifiedTests {
+    private func makeStore() -> Store {
+        let name = UUID().uuidString
+        return Store(fileURL: FileManager.default.temporaryDirectory.appending(path: "\(name).json"),
+                     defaults: UserDefaults(suiteName: name)!)
+    }
+
+    @Test func savingRecordsWhoAndWhenAndImportedEventsAreMarked() throws {
+        let store = makeStore()
+        store.editorName = "ゆう"
+        store.save(ev("a", "2026-11-10"))
+        let e = try #require(store.events.first)
+        #expect(e.updatedBy == "ゆう")
+        #expect(e.updatedAt != nil)
+        #expect(e.lastModifiedText()?.hasPrefix("最終変更: ゆう ・ ") == true)
+        #expect(e.lastModifiedText()?.hasSuffix("(画像取り込み)") == false)
+        var imported = e
+        imported.source = ShiftEvent.screenshotSource
+        #expect(imported.lastModifiedText()?.hasSuffix("(画像取り込み)") == true)
+        // 名前がないときは「自分」。動かしたときも、最終変更が更新される
+        store.editorName = ""
+        store.place(id: "a", on: "2026-11-12")
+        #expect(store.events[0].lastModifiedText()?.contains("自分") == true)
+        // 記録のない古い予定は、何も出さない
+        #expect(ev("old", "2026-11-10").lastModifiedText() == nil)
+    }
+
+    @Test func copyAndDropMoveRecordTheChangerToo() throws {
+        let store = makeStore()
+        store.editorName = "ゆう"
+        store.save(ev("a", "2026-11-10"))
+        store.copy(id: "a", to: ["2026-11-15"])
+        #expect(store.events.count == 2)
+        #expect(store.events.allSatisfy { $0.updatedBy == "ゆう" })
+        #expect(Set(store.events.compactMap(\.startDate)) == ["2026-11-10", "2026-11-15"])
+    }
+}

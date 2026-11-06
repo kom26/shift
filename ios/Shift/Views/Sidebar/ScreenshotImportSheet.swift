@@ -24,6 +24,7 @@ struct ScreenshotImportSheet: View {
     @State private var labelId: String?
     @State private var choosing = false
     @State private var errorMessage: String?
+    @FocusState private var titleFocused: Bool
 
     private var workplace: Workplace? { store.workplaces.first { $0.id == workplaceId } }
     private var addCount: Int { lines.filter { !$0.off && included.contains($0.id) }.count }
@@ -51,6 +52,8 @@ struct ScreenshotImportSheet: View {
         .presentationDetents([.large])
         .presentationBackground(Color(.systemGroupedBackground))
         .interactiveDismissDisabled(step == .reading)
+        // 文字を打ったあとに、キーボードを閉じるボタンを出す(ほかの画面と同じ)
+        .keyboardDismissBar { titleFocused = false }
     }
 
     // MARK: 画像を選ぶ
@@ -211,7 +214,9 @@ struct ScreenshotImportSheet: View {
             Section {
                 HStack {
                     Text("タイトル")
-                    TextField("必須", text: $title).multilineTextAlignment(.trailing)
+                    TextField("必須", text: $title)
+                        .multilineTextAlignment(.trailing)
+                        .focused($titleFocused)
                 }
                 Button { choosing = true } label: {
                     HStack(spacing: 8) {
