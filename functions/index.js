@@ -15,7 +15,7 @@ const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 /** 読み取りに使うモデル(試験で 14/14 日が合ったもの) */
 const MODEL = "claude-haiku-5-5";
 /** 1 人が 1 日に使える回数(使いすぎと、料金の暴走を防ぐ) */
-const DAILY_LIMIT = 20;
+const DAILY_LIMIT = 5;
 const MAX_IMAGES = 5;
 /** 画像 1 枚の上限(base64 の文字数。アプリ側で縮小してから送る) */
 const MAX_IMAGE_CHARS = 3_000_000;
