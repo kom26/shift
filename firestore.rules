@@ -26,13 +26,14 @@ service cloud.firestore {
       // 見せるだけのカレンダーでは、書けるのは持ち主だけ
       function canShare() { return cal().kind == 'mutual' || isOwner(); }
 
-      allow read: if isMember();
+      allow read: if isMember() || isOwner();
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
       allow update, delete: if isOwner();
 
       match /members/{mid} {
         // 自分の分は、承認待ちでも読める。ほかの人の分は、承認済みの人だけ
-        allow read: if isActive() || (signedIn() && request.auth.uid == mid);
+        // 持ち主は、自分が参加者から外れていても読める(削除が途中で止まったカレンダーを、あとから消せるように)
+        allow read: if isActive() || isOwner() || (signedIn() && request.auth.uid == mid);
         // 持ち主は作成と同時に自分を入れる。ほかの人は有効な招待があるときだけ入れる(許可制なら承認待ちで)
         allow create: if signedIn() && request.auth.uid == mid && (
           (request.resource.data.role == 'owner' && request.resource.data.status == 'active'
@@ -53,7 +54,7 @@ service cloud.firestore {
       match /invites/{token} {
         // 招待を持っている人は、中身(名前と種類)を見てから参加できる。コードは推測できない長さにしてある
         allow get: if signedIn();
-        allow list: if isActive();
+        allow list: if isActive() || isOwner();
         // 作成と同じ書き込みの中でカレンダーができるので、書き込み後の状態(getAfter)で持ち主を調べる
         allow create, update, delete: if signedIn()
           && getAfter(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == request.auth.uid;
@@ -61,7 +62,7 @@ service cloud.firestore {
 
       // 共有する予定のコピー(公開できる項目だけ)と、共有カレンダーの中で作った予定
       match /events/{eid} {
-        allow read: if isActive();
+        allow read: if isActive() || isOwner();
         allow create: if isActive() && canShare() && (
           request.resource.data.ownerUid == request.auth.uid
           || request.resource.data.sourceKey == 'calendar'
@@ -73,7 +74,7 @@ service cloud.firestore {
         );
         allow delete: if isActive() && canShare() && (
           resource.data.ownerUid == request.auth.uid || resource.data.sourceKey == 'calendar'
-        ) || (isActive() && isOwner());
+        ) || isOwner();
       }
     }
   }

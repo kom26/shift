@@ -214,11 +214,23 @@ struct RootView: View {
                     closeDrawer()
                 }
                 if auth.account != nil {
-                    ForEach(calendarService.calendars) { cal in
-                        calendarRow(cal)
+                    // 「共有カレンダー」の見出しの下に、中身を 1 文字ぶん右へずらして並べる
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.2.fill").frame(width: 24)
+                        Text("共有カレンダー").font(.app(16, weight: .semibold))
+                        Spacer()
                     }
-                    drawerRow(title: "共有カレンダーを作る", icon: "plus.circle") { closeDrawer { showCreateCalendar = true } }
-                    drawerRow(title: "招待で参加", icon: "link") { closeDrawer { joinCode = ""; showJoinCalendar = true } }
+                    .foregroundStyle(Color.secondary)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(calendarService.calendars) { cal in
+                            calendarRow(cal)
+                        }
+                        drawerRow(title: "共有カレンダーを作る", icon: "plus.circle") { closeDrawer { showCreateCalendar = true } }
+                        drawerRow(title: "招待で参加", icon: "link") { closeDrawer { joinCode = ""; showJoinCalendar = true } }
+                    }
+                    .padding(.leading, 16)
                 } else {
                     drawerRow(title: "ログインして共有カレンダーを使う", icon: "person.crop.circle.badge.plus") {
                         closeDrawer { showSettings = true }

@@ -133,17 +133,33 @@ final class FirestoreCalendarBacking: CalendarBacking {
 
     func deleteCalendar(calendarId: String, uid: String) async throws {
         let cal = calendar(calendarId)
+        // 本体がすでに無い(前の削除が途中で終わって、一覧にだけ残っている)ときは、一覧の記録だけ消す
+        if let snap = try? await cal.getDocument(), !snap.exists {
+            try await step("一覧") { try await self.index(uid).document(calendarId).delete() }
+            return
+        }
         // 予定 → 招待 → 参加者 → カレンダー本体の順。持ち主の参加者情報は、予定を消し終えるまで残す必要がある
-        for sub in ["events", "invites", "members"] {
-            let docs = try await cal.collection(sub).getDocuments().documents
-            for chunk in stride(from: 0, to: docs.count, by: 400).map({ Array(docs[$0..<min($0 + 400, docs.count)]) }) {
-                let batch = db.batch()
-                chunk.forEach { batch.deleteDocument($0.reference) }
-                try await batch.commit()
+        for (sub, label) in [("events", "予定"), ("invites", "招待"), ("members", "参加者")] {
+            try await step(label) {
+                let docs = try await cal.collection(sub).getDocuments().documents
+                for chunk in stride(from: 0, to: docs.count, by: 400).map({ Array(docs[$0..<min($0 + 400, docs.count)]) }) {
+                    let batch = self.db.batch()
+                    chunk.forEach { batch.deleteDocument($0.reference) }
+                    try await batch.commit()
+                }
             }
         }
-        try await cal.delete()
-        try await index(uid).document(calendarId).delete()
+        try await step("カレンダー本体") { try await cal.delete() }
+        try await step("一覧") { try await self.index(uid).document(calendarId).delete() }
+    }
+
+    /// 削除のどこで失敗したかが分かるように、段階の名前をつけて投げ直す
+    private func step(_ label: String, _ body: () async throws -> Void) async throws {
+        do {
+            try await body()
+        } catch {
+            throw DeleteStepError(step: label, underlying: error)
+        }
     }
 
     func members(calendarId: String) async throws -> [CalendarMember] {
@@ -171,4 +187,12 @@ final class FirestoreCalendarBacking: CalendarBacking {
     func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws {
         try await member(calendarId, uid).updateData(["displayName": displayName, "sharedKeys": sharedKeys, "avatar": avatar])
     }
+}
+
+/// 共有カレンダーの削除が、どの段階で失敗したか
+private struct DeleteStepError: LocalizedError {
+    let step: String
+    let underlying: Error
+
+    var errorDescription: String? { "(" + step + ") " + underlying.localizedDescription }
 }
