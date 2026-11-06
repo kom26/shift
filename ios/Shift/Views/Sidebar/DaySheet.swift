@@ -43,14 +43,22 @@ struct DaySheet: View {
                     .transition(.asymmetric(
                         insertion: .move(edge: forward ? .trailing : .leading),
                         removal: .move(edge: forward ? .leading : .trailing)))
-                if canAdd { addButton }
             }
             .clipped()
             .simultaneousGesture(daySwipe)
             .navigationDestination(item: $annivId) { AnniversaryDetail(id: $0, asOf: date) }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
+                // 右上の ⊕ で、この日に予定を追加する(閉じるのは、画面を下げる)
+                if canAdd {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            dismiss()
+                            onAddEvent(date)
+                        } label: { Image(systemName: "plus") }
+                            .accessibilityLabel("この日に予定を追加")
+                    }
+                }
             }
         }
         .presentationDetents([.medium, .large])
@@ -161,24 +169,6 @@ struct DaySheet: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
-    }
-
-    private var addButton: some View {
-        Button {
-            dismiss()
-            onAddEvent(date)
-        } label: {
-            Text("＋ 予定追加")
-                .font(.app(15, weight: .semibold))
-                .foregroundStyle(Theme.accent)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .overlay(RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Theme.accent, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
     }
 
     private func paydayRow(_ r: Store.PaymentRow) -> some View {

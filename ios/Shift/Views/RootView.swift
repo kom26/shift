@@ -39,6 +39,9 @@ struct RootView: View {
     @State private var showDrawer = false
     @State private var showLabels = false
     @State private var showWorkplaces = false
+    /// 右上の ⊕ を押して開く「予定追加 / 画像から追加」の 2 択(開いている間、ボタンは ⊗)
+    @State private var addMenuOpen = false
+    @State private var showShotSoon = false
     @State private var showCreateCalendar = false
     @State private var showJoinCalendar = false
     @State private var sharedEditing: SharedEditTarget?
@@ -113,6 +116,7 @@ struct RootView: View {
         }
         .overlay {
             if showDrawer { drawer }
+            if addMenuOpen { addMenu }
         }
         .onChange(of: anchor) { _, _ in
             // 「今日」ボタンで動いたときだけ、今日を選んだ状態にする
@@ -392,16 +396,24 @@ struct RootView: View {
                     Text(title).font(.app(17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
                     Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
                     Spacer(minLength: 0)
-                    Button { addFromHeader() } label: {
-                        Text(sharedView.isOpen ? (sharedView.canCreate ? "＋ 共有に追加" : "見るだけ") : addButtonTitle)
-                            .font(.app(15, weight: .semibold))
+                    // 丸い ⊕。押すと「予定追加 / 画像から追加」が開き、ボタンは ⊗ に変わる(もう一度押すと閉じて、⊕ に戻る)。
+                    // 共有カレンダーを開いているときは、2 択を出さず、共有カレンダーに予定を追加する
+                    Button { tapAdd() } label: {
+                        Image(systemName: addMenuOpen ? "xmark" : "plus")
+                            .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(Theme.onAccent)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Theme.accent, in: Capsule())
+                            .frame(width: 36, height: 36)
+                            .background(Theme.accent, in: Circle())
+                            .contentTransition(.symbolEffect(.replace))
                     }
+                    .accessibilityLabel(addMenuOpen ? "閉じる" : (sharedView.isOpen ? "共有カレンダーに予定を追加" : addButtonTitle))
                     .disabled(sharedView.isOpen && !sharedView.canCreate)
                     .opacity(sharedView.isOpen && !sharedView.canCreate ? 0.5 : 1)
+                    .alert("画像から追加", isPresented: $showShotSoon) {
+                        Button("OK") {}
+                    } message: {
+                        Text("スクリーンショットから予定を読み取る機能は、準備中です。")
+                    }
                 }
             }
             HStack(spacing: 10) {
@@ -584,8 +596,59 @@ struct RootView: View {
     }
 
     private var addButtonTitle: String {
-        guard let d = selectedDate else { return "＋ 予定追加" }
-        return "＋ \(Rules.ymd(d).day)日に追加"
+        guard let d = selectedDate else { return "予定追加" }
+        return "\(Rules.ymd(d).day)日に予定追加"
+    }
+
+    /// 右上の ⊕ を押したとき。共有カレンダーを開いているときは、そのまま追加。そうでなければ 2 択を開閉する
+    private func tapAdd() {
+        if sharedView.isOpen {
+            addFromHeader()
+        } else {
+            withAnimation(.snappy) { addMenuOpen.toggle() }
+        }
+    }
+
+    private func closeAddMenu() {
+        withAnimation(.snappy) { addMenuOpen = false }
+    }
+
+    /// 右上の ⊕ の下に出る 2 択
+    private var addMenu: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.opacity(0.001).ignoresSafeArea().onTapGesture { closeAddMenu() }
+            VStack(alignment: .leading, spacing: 0) {
+                addMenuRow(icon: "calendar.badge.plus", title: addButtonTitle) {
+                    closeAddMenu()
+                    addFromHeader()
+                }
+                Divider()
+                addMenuRow(icon: "photo.on.rectangle", title: "画像から追加") {
+                    closeAddMenu()
+                    showShotSoon = true
+                }
+            }
+            .frame(width: 230)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+            .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+            .padding(.top, 48)
+            .padding(.trailing, 12)
+            .transition(.scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity))
+        }
+    }
+
+    private func addMenuRow(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).frame(width: 24).foregroundStyle(Theme.accent)
+                Text(title).font(.app(15)).foregroundStyle(Color.primary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 48)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// 日付セルのタップ: スタンプ中は配置、そうでなければ選択。選択中の日をもう一度タップで一覧
