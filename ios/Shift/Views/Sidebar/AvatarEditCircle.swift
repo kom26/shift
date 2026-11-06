@@ -67,10 +67,17 @@ struct AvatarEditCircle: View {
 struct ProfileEditSheet: View {
     @Environment(ProfileSettings.self) private var profile
     @Environment(AuthService.self) private var auth
+    @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var avatar = ""
     @FocusState private var nameFocused: Bool
+    /// 誕生日(登録すると、誕生日・記念日に自動で入る)
+    @State private var hasBirthday = false
+    @State private var knowsYear = false
+    @State private var birthYear = 2000
+    @State private var birthMonth = 1
+    @State private var birthDay = 1
 
     private var providerName: String { ProfileSettings.providerName(auth.account) }
     private var shownName: String {
@@ -98,6 +105,27 @@ struct ProfileEditSheet: View {
                         Button("連携した名前(\(providerName))に戻す") { name = "" }
                     }
                 }
+                Section {
+                    Toggle("誕生日を登録", isOn: $hasBirthday)
+                    if hasBirthday {
+                        Toggle("生まれ年も入力", isOn: $knowsYear)
+                        if knowsYear {
+                            Picker("年", selection: $birthYear) {
+                                ForEach((1900...Rules.ymd(Rules.today()).year).reversed(), id: \.self) { Text("\($0)年").tag($0) }
+                            }
+                        }
+                        Picker("月", selection: $birthMonth) {
+                            ForEach(1...12, id: \.self) { Text("\($0)月").tag($0) }
+                        }
+                        Picker("日", selection: $birthDay) {
+                            ForEach(1...31, id: \.self) { Text("\($0)日").tag($0) }
+                        }
+                    }
+                } header: {
+                    Text("誕生日")
+                } footer: {
+                    Text("登録すると、設定の「記念日・誕生日」に、自分の誕生日として自動で入ります。変えられるのは、ここだけです(記念日・誕生日の画面では、アイコンと色だけ変えられます)。共有カレンダーにも、自分の誕生日として追加できます。")
+                }
             }
             .navigationTitle("名前とアバター")
             .navigationBarTitleDisplayMode(.inline)
@@ -107,6 +135,12 @@ struct ProfileEditSheet: View {
                     Button("保存") {
                         profile.customName = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         profile.avatar = avatar
+                        // 自分の誕生日を、誕生日・記念日に入れる(名前を変えたときも、名前を合わせる)
+                        if hasBirthday {
+                            store.setMyBirthday(name: shownName, year: knowsYear ? birthYear : nil, month: birthMonth, day: birthDay)
+                        } else {
+                            store.clearMyBirthday()
+                        }
                         dismiss()
                     }
                 }
@@ -115,6 +149,13 @@ struct ProfileEditSheet: View {
             .onAppear {
                 name = profile.customName
                 avatar = profile.avatar
+                if let b = store.myBirthday {
+                    hasBirthday = true
+                    knowsYear = b.year != nil
+                    birthYear = b.year ?? 2000
+                    birthMonth = b.month
+                    birthDay = b.day
+                }
             }
         }
         .presentationDetents([.large])

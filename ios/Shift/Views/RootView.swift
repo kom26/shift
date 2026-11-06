@@ -26,6 +26,8 @@ struct DropChoice: Identifiable {
     let eventId: String
     let date: String
     let title: String
+    /// 離した場所(画面全体の座標)
+    var point: CGPoint = .zero
 }
 
 struct RootView: View {
@@ -125,14 +127,7 @@ struct RootView: View {
         .overlay {
             if showDrawer { drawer }
             if addMenuOpen { addMenu }
-            // 予定を日付に離したときの「移動 / コピー」(場所を取らない見えない部品に付ける)
-            Color.clear.frame(width: 0, height: 0)
-                .confirmationDialog(dropChoiceTitle, isPresented: Binding(
-                    get: { dropChoice != nil }, set: { if !$0 { dropChoice = nil } }), titleVisibility: .visible) {
-                    Button("移動") { applyDrop(copy: false) }
-                    Button("コピー") { applyDrop(copy: true) }
-                    Button("キャンセル", role: .cancel) { dropChoice = nil }
-                }
+            if let c = dropChoice { dropChoiceMenu(c) }
         }
         .onChange(of: anchor) { _, _ in
             // 「今日」ボタンで動いたときだけ、今日を選んだ状態にする
@@ -432,11 +427,7 @@ struct RootView: View {
                 }
             }
             HStack(spacing: 10) {
-                Picker("表示", selection: $mode.animation(.snappy)) {
-                    Text("週").tag(CalendarMode.week)
-                    Text("月").tag(CalendarMode.month)
-                }
-                .pickerStyle(.segmented)
+                TwoWayPicker("表示", selection: $mode.animation(.snappy), first: ("週", CalendarMode.week), second: ("月", CalendarMode.month))
                 .frame(width: 110)
                 Button { goToday() } label: {
                     Text("今日").font(.app(15)).padding(.horizontal, 6).frame(minHeight: 36).contentShape(Rectangle())
@@ -766,7 +757,7 @@ struct RootView: View {
                 Task { await sharedView.place(id: id, on: date) }
                 return
             }
-            dropChoice = DropChoice(eventId: id, date: date, title: sharedView.event(id)?.title ?? "")
+            dropChoice = DropChoice(eventId: id, date: date, title: sharedView.event(id)?.title ?? "", point: DragState.shared.dropPoint)
             return
         }
         guard !store.isOverlay(id) else { return }
@@ -782,14 +773,38 @@ struct RootView: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             return
         }
-        dropChoice = DropChoice(eventId: id, date: date, title: event.title)
+        dropChoice = DropChoice(eventId: id, date: date, title: event.title, point: DragState.shared.dropPoint)
     }
 
-    private var dropChoiceTitle: String {
-        guard let c = dropChoice else { return "" }
-        let p = Rules.ymd(c.date)
-        let name = c.title.isEmpty ? "この予定" : "「" + c.title + "」"
-        return "\(name)を\(p.month)月\(p.day)日へ"
+    /// 予定を日付に離したときの「移動 / コピー」。離した場所に、小さく出す(外をタップすると閉じる)
+    private func dropChoiceMenu(_ c: DropChoice) -> some View {
+        GeometryReader { geo in
+            let o = geo.frame(in: .global).origin
+            let w: CGFloat = 148, h: CGFloat = 40
+            let x = min(max(c.point.x - o.x, w / 2 + 8), geo.size.width - w / 2 - 8)
+            let y = min(max(c.point.y - o.y - h, h / 2 + 8), geo.size.height - h / 2 - 8)
+            ZStack {
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture { dropChoice = nil }
+                HStack(spacing: 0) {
+                    Button("移動") { applyDrop(copy: false) }
+                        .frame(maxWidth: .infinity, minHeight: h)
+                    Divider().frame(height: 20)
+                    Button("コピー") { applyDrop(copy: true) }
+                        .frame(maxWidth: .infinity, minHeight: h)
+                }
+                .font(.app(15, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .buttonStyle(.plain)
+                .frame(width: w, height: h)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+                .position(x: x, y: y)
+                .transition(.scale(scale: 0.9).combined(with: .opacity))
+            }
+        }
+        .ignoresSafeArea()
     }
 
     private func applyDrop(copy: Bool) {

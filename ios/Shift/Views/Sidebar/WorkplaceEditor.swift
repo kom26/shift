@@ -114,11 +114,7 @@ struct WorkplaceEditor: View {
                     CustomColorButton(color: $color)
                 }
                 Section {
-                    Picker("給与の形態", selection: $isDaily) {
-                        Text("時給").tag(false)
-                        Text("日給").tag(true)
-                    }
-                    .pickerStyle(.segmented)
+                    TwoWayPicker("給与の形態", selection: $isDaily, first: ("時給", false), second: ("日給", true))
                     if isDaily {
                         Text("日給は予定ごとに入力します")
                             .font(.app(12))
@@ -168,11 +164,7 @@ struct WorkplaceEditor: View {
                 }
                 Section {
                     if isDaily {
-                        Picker("支払い", selection: $dailyMonthly) {
-                            Text("日払い").tag(false)
-                            Text("月払い").tag(true)
-                        }
-                        .pickerStyle(.segmented)
+                        TwoWayPicker("支払い", selection: $dailyMonthly, first: ("日払い", false), second: ("月払い", true))
                     }
                     if usesCycle {
                         Picker("締め日", selection: $closingDay) {

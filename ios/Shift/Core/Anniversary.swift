@@ -41,6 +41,10 @@ struct Anniversary: Codable, Identifiable, Equatable {
     var icon: Icon = .cake
     var color: String = "#f28d8d"
     var memo: String = ""
+    /// 自分の誕生日(アカウント設定で決めたもの)。日付と名前は、アカウント設定からだけ変えられる(アイコンと色は、ここで変えられる)
+    var isMine: Bool? = nil
+
+    var isAccountBirthday: Bool { isMine == true }
 
     var isMonthly: Bool { kind == .anniversary && monthly }
 
@@ -127,5 +131,27 @@ extension Store {
 
     func anniversaries(on ds: String) -> [Anniversary] {
         anniversaries.filter { $0.occurs(on: ds) }
+    }
+
+    /// アカウント設定で決めた、自分の誕生日
+    var myBirthday: Anniversary? { anniversaries.first { $0.isAccountBirthday } }
+
+    /// 自分の誕生日を、誕生日・記念日に入れる。すでにあれば、名前と日付だけ直す(アイコンと色は、そのまま)
+    func setMyBirthday(name: String, year: Int?, month: Int, day: Int) {
+        var a = myBirthday ?? Anniversary()
+        a.isMine = true
+        a.kind = .birthday
+        a.monthly = false
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        a.name = trimmed.isEmpty ? "自分の誕生日" : trimmed + "の誕生日"
+        a.year = year
+        a.month = month
+        a.day = day
+        saveAnniversary(a)
+    }
+
+    /// アカウント設定で、誕生日の登録をやめたとき
+    func clearMyBirthday() {
+        if let a = myBirthday { deleteAnniversary(id: a.id) }
     }
 }

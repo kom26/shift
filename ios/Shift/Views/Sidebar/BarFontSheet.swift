@@ -14,11 +14,7 @@ struct BarFontSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("表示", selection: $target) {
-                    Text("週").tag(CalendarMode.week)
-                    Text("月").tag(CalendarMode.month)
-                }
-                .pickerStyle(.segmented)
+                TwoWayPicker("表示", selection: $target, first: ("週", CalendarMode.week), second: ("月", CalendarMode.month))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 Divider()

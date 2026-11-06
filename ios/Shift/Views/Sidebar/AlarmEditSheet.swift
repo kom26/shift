@@ -51,17 +51,7 @@ struct AlarmEditSheet: View {
                     LabeledContent("鳴る時刻", value: fireText)
                 }
                 Section {
-                    if isClock {
-                        DatePicker("時刻", selection: clockBinding, displayedComponents: .hourAndMinute)
-                            .environment(\.locale, Locale(identifier: "ja_JP"))
-                    } else {
-                        Picker("時間", selection: $hour) {
-                            ForEach(0...12, id: \.self) { Text("\($0)時間").tag($0) }
-                        }
-                        Picker("分", selection: $minute) {
-                            ForEach(Array(stride(from: 0, to: 60, by: 5)), id: \.self) { Text("\($0)分前").tag($0) }
-                        }
-                    }
+                    wheel
                 } header: {
                     Text(isClock ? "時刻" : "予定の何時間何分前")
                 } footer: {
@@ -107,15 +97,31 @@ struct AlarmEditSheet: View {
         .presentationBackground(Color(.systemGroupedBackground))
     }
 
-    /// 「時刻」のアラームの、DatePicker 用の日時(日付は、かけた日)
-    private var clockBinding: Binding<Date> {
-        Binding(
-            get: { AlarmMath.date(on: entry.date, minutes: minutes) ?? Date() },
-            set: { d in
-                let c = Calendar.current.dateComponents([.hour, .minute], from: d)
-                hour = c.hour ?? 0
-                minute = c.minute ?? 0
-            })
+    /// セット画面と同じ、ドラムロール。「時刻」は時:分、「予定前」は何時間何分前
+    private var wheel: some View {
+        HStack(spacing: 0) {
+            Picker("時", selection: $hour) {
+                ForEach(0...(isClock ? 23 : 12), id: \.self) { Text(isClock ? String(format: "%02d", $0) : "\($0)").tag($0) }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            if isClock {
+                Text(":").font(.app(22, weight: .bold))
+            } else {
+                Text("時間").font(.app(14)).foregroundStyle(.secondary)
+            }
+            Picker("分", selection: $minute) {
+                ForEach(isClock ? Array(0..<60) : Array(stride(from: 0, to: 60, by: 5)), id: \.self) {
+                    Text(String(format: "%02d", $0)).tag($0)
+                }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            if !isClock { Text("分前").font(.app(14)).foregroundStyle(.secondary) }
+        }
+        .frame(height: 150)
+        .compositingGroup()
+        .clipped()
     }
 
     private func save() async {

@@ -43,7 +43,7 @@ struct AlarmPage: View {
                         .opacity(active ? 0.45 : 1)
                         .allowsHitTesting(!active)
                     controls(height: h)
-                        .frame(width: 156)
+                        .frame(width: 176)
                 }
                 .frame(height: h)
                 HStack(spacing: 12) {
@@ -71,11 +71,7 @@ struct AlarmPage: View {
     /// 右の操作。上から、時刻・予定前の切り替え、スヌーズ、セットのボタン(高さに合わせて間を広げる)
     private func controls(height: CGFloat) -> some View {
         VStack(spacing: 8) {
-            Picker("種類", selection: $kind) {
-                Text("時刻").tag(AlarmPreset.Kind.clock)
-                Text("予定前").tag(AlarmPreset.Kind.beforeShift)
-            }
-            .pickerStyle(.segmented)
+            TwoWayPicker("種類", selection: $kind, first: ("時刻", AlarmPreset.Kind.clock), second: ("予定前", AlarmPreset.Kind.beforeShift))
             .disabled(active)
             .onChange(of: kind) { _, new in
                 if new == .clock {
@@ -124,7 +120,7 @@ struct AlarmPage: View {
                 if on { snoozeMinutes = AlarmService.snoozeOptions.contains(snoozeLast) ? snoozeLast : 9 } else { snoozeMinutes = 0 }
             })
         return HStack(spacing: 6) {
-            Text("スヌーズ").font(.app(13, weight: .semibold))
+            Text("スヌーズ").font(.app(13, weight: .semibold)).lineLimit(1).fixedSize()
             Spacer(minLength: 0)
             if snoozeMinutes > 0 {
                 Menu {
@@ -138,7 +134,7 @@ struct AlarmPage: View {
                     }
                 } label: {
                     HStack(spacing: 2) {
-                        Text("\(snoozeMinutes)分").font(.app(13, weight: .semibold))
+                        Text("\(snoozeMinutes)分").font(.app(13, weight: .semibold)).lineLimit(1).fixedSize()
                         Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .bold))
                     }
                     .foregroundStyle(Theme.accent)

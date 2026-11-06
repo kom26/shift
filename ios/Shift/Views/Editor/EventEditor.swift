@@ -163,11 +163,7 @@ struct EventEditor: View {
                         HStack {
                             Text("カレンダー上の表記")
                             Spacer()
-                            Picker("カレンダー上の表記", selection: $barShowsTitle) {
-                                Text("予定名").tag(true)
-                                Text("時間").tag(false)
-                            }
-                            .pickerStyle(.segmented)
+                            TwoWayPicker("カレンダー上の表記", selection: $barShowsTitle, first: ("予定名", true), second: ("時間", false))
                             .fixedSize()
                         }
                     }

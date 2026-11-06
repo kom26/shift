@@ -16,6 +16,10 @@ final class DragState {
     var draggingId: String?
     /// 週表示で、つかんだ側のセグメントが開始日から何日目か(日をまたぐ予定の基準日)
     var grabOffsetDays = 0
+    /// 直近のドロップ位置(画面全体の座標)。移動/コピーの小さなメニューを、離した場所に出すのに使う
+    @ObservationIgnored var dropPoint: CGPoint = .zero
+    /// ドロップ先の部品ごとの、画面全体での左上の位置(キーはドロップ先の名前)
+    @ObservationIgnored var dropOrigins: [String: CGPoint] = [:]
 
     @ObservationIgnored private var safetyItem: DispatchWorkItem?
     @ObservationIgnored private var exitItem: DispatchWorkItem?

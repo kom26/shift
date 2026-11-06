@@ -104,10 +104,7 @@ struct CalendarCreateSheet: View {
                         }
                     }
                     Section {
-                        Picker("種類", selection: $kind) {
-                            ForEach(CalendarKind.allCases, id: \.self) { Text($0.title).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
+                        TwoWayPicker("種類", selection: $kind, first: (CalendarKind.oneway.title, CalendarKind.oneway), second: (CalendarKind.mutual.title, CalendarKind.mutual))
                         Toggle("参加を許可制にする", isOn: $requireApproval)
                     } footer: {
                         Text(kind.detail + (requireApproval ? "\n参加を申し込んだ人は、あなたが承認するまで予定を見られません。" : ""))
@@ -600,11 +597,7 @@ struct CalendarDetailSheet: View {
     @ViewBuilder
     private var shareModeSection: some View {
         Section {
-            Picker("共有のしかた", selection: $shareManual) {
-                Text("自動").tag(false)
-                Text("手動(確認してから)").tag(true)
-            }
-            .pickerStyle(.segmented)
+            TwoWayPicker("共有のしかた", selection: $shareManual, first: ("自動", false), second: ("手動(確認してから)", true))
             // 手動に切り替えて保存したあとに、確認を開ける
             if shareManual && calendar.myShareManual {
                 Button { reviewing = true } label: {

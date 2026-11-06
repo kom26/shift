@@ -42,9 +42,11 @@ struct AnniversaryListView: View {
                         }
                     }
                 }
+                .deleteDisabled(a.isAccountBirthday)
             }
             .onDelete { offsets in
-                let ids = offsets.map { store.anniversaries[$0].id }
+                // 自分の誕生日は、ここでは消せない(アカウント設定で、登録をやめる)
+                let ids = offsets.map { store.anniversaries[$0] }.filter { !$0.isAccountBirthday }.map(\.id)
                 ids.forEach { store.deleteAnniversary(id: $0) }
             }
         }
@@ -143,25 +145,28 @@ struct AnniversaryEditor: View {
     }
 
     private var thisYear: Int { Rules.ymd(Rules.today()).year }
+    /// 自分の誕生日は、アイコンと色だけ変えられる(ほかは、アカウント設定から)
+    private var locked: Bool { a.isAccountBirthday }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Picker("種類", selection: $a.kind) {
-                        Text("誕生日").tag(Anniversary.Kind.birthday)
-                        Text("記念日").tag(Anniversary.Kind.anniversary)
+                if locked {
+                    Section {
+                        Text("自分の誕生日は、アカウント設定からのみ変更できます。ここでは、アイコンと色だけ変えられます。")
+                            .font(.app(13))
+                            .foregroundStyle(.secondary)
                     }
-                    .pickerStyle(.segmented)
-                    TextField("名前(記念日の名前でもOK)", text: $a.name)
                 }
                 Section {
+                    TwoWayPicker("種類", selection: $a.kind, first: ("誕生日", Anniversary.Kind.birthday), second: ("記念日", Anniversary.Kind.anniversary))
+                    TextField("名前(記念日の名前でもOK)", text: $a.name)
+                }
+                .disabled(locked)
+                .opacity(locked ? 0.5 : 1)
+                Section {
                     if a.kind == .anniversary {
-                        Picker("くり返し", selection: $a.monthly) {
-                            Text("毎年").tag(false)
-                            Text("毎月").tag(true)
-                        }
-                        .pickerStyle(.segmented)
+                        TwoWayPicker("くり返し", selection: $a.monthly, first: ("毎年", false), second: ("毎月", true))
                     }
                     Toggle(a.kind == .birthday ? "生まれ年を入力" : "年を入力", isOn: $knowsYear)
                     if knowsYear {
@@ -182,6 +187,8 @@ struct AnniversaryEditor: View {
                         Text("年が分からないときは入れなくても登録できます(年齢は出ません)。")
                     }
                 }
+                .disabled(locked)
+                .opacity(locked ? 0.5 : 1)
                 Section("アイコン") {
                     HStack(spacing: 14) {
                         ForEach(Anniversary.Icon.allCases, id: \.self) { ic in
@@ -213,7 +220,9 @@ struct AnniversaryEditor: View {
                 Section("メモ") {
                     TextField("メモ(任意)", text: $a.memo, axis: .vertical).lineLimit(2...6)
                 }
-                if item != nil {
+                .disabled(locked)
+                .opacity(locked ? 0.5 : 1)
+                if item != nil && !locked {
                     Section {
                         Button("削除", role: .destructive) { confirmDelete = true }
                     }

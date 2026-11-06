@@ -147,7 +147,11 @@ struct MonthView: View {
                     return cells[min(6, max(0, Int(p.x / w)))]
                 },
                 target: $dropTarget,
+                originKey: "week-" + cells[0],
                 onDrop: onDropEvent))
+            .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: {
+                DragState.shared.dropOrigins["week-" + cells[0]] = $0
+            }
         }
     }
 

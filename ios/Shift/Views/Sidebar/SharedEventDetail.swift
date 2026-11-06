@@ -247,11 +247,7 @@ struct SharedColorSheet: View {
                     HStack {
                         Text("カレンダー上の表記")
                         Spacer()
-                        Picker("カレンダー上の表記", selection: $showsTime) {
-                            Text("予定名").tag(false)
-                            Text("時間").tag(true)
-                        }
-                        .pickerStyle(.segmented)
+                        TwoWayPicker("カレンダー上の表記", selection: $showsTime, first: ("予定名", false), second: ("時間", true))
                         .fixedSize()
                         .disabled(!hasTime)
                     }
