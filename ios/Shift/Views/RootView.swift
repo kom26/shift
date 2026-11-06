@@ -231,22 +231,16 @@ struct RootView: View {
                         Image(systemName: "person.2.fill").frame(width: 24)
                         Text("共有カレンダー").font(.app(16, weight: .semibold))
                         Spacer()
-                        // 作る・招待で参加は、右の ⊕ からまとめて選ぶ
-                        Menu {
-                            Button { closeDrawer { showCreateCalendar = true } } label: {
-                                Label("共有カレンダーを作る", systemImage: "plus")
-                            }
-                            Button { closeDrawer { joinCode = ""; showJoinCalendar = true } } label: {
-                                Label("招待で参加", systemImage: "link")
-                            }
-                        } label: {
+                        // 右の ⊕ で、共有カレンダーを作る画面を開く(参加は、招待の QR・リンクから)
+                        Button { closeDrawer { showCreateCalendar = true } } label: {
                             Image(systemName: "plus.circle")
                                 .font(.app(20))
                                 .foregroundStyle(Theme.accent)
                                 .frame(width: 40, height: 44)
                                 .contentShape(Rectangle())
                         }
-                        .accessibilityLabel("共有カレンダーを作る・招待で参加")
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("共有カレンダーを作る")
                     }
                     .foregroundStyle(Color.secondary)
                     .padding(.leading, 12)

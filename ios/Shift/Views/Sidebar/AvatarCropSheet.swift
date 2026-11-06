@@ -3,13 +3,18 @@ import SwiftUI
 /// 共有カレンダーのアイコンを選ぶ(6 つずつ 2 段)
 struct CalendarIconPicker: View {
     @Binding var selection: String
+    /// 選んだあとの動き(選ぶ画面を閉じるなど)
+    var onPick: () -> Void = {}
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 6)
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 8) {
             ForEach(CalendarIcon.choices, id: \.name) { item in
                 let on = selection == item.name
-                Button { selection = item.name } label: {
+                Button {
+                    selection = item.name
+                    onPick()
+                } label: {
                     Image(systemName: item.name)
                         .font(.system(size: 20))
                         .foregroundStyle(on ? Theme.onAccent : Color.primary)
@@ -158,5 +163,33 @@ private struct CircleHole: Shape {
         var p = Path(rect)
         p.addEllipse(in: rect)
         return p
+    }
+}
+
+/// カレンダー名の入力。左のアイコンをタップすると、アイコンを選び直せる
+struct CalendarNameField: View {
+    @Binding var name: String
+    @Binding var icon: String
+    @State private var picking = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button { picking = true } label: {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 44, height: 44)
+                    .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("アイコンを変える")
+            .popover(isPresented: $picking) {
+                CalendarIconPicker(selection: $icon) { picking = false }
+                    .padding(16)
+                    .frame(width: 320)
+                    .presentationCompactAdaptation(.popover)
+            }
+            TextField("カレンダー名", text: $name)
+        }
     }
 }

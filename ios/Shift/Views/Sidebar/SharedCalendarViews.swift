@@ -83,10 +83,7 @@ struct CalendarCreateSheet: View {
                     InviteSection(code: made.invite, calendarName: made.calendar.name)
                 } else {
                     Section("カレンダー名") {
-                        TextField("カレンダー名", text: $name)
-                    }
-                    Section("アイコン") {
-                        CalendarIconPicker(selection: $icon)
+                        CalendarNameField(name: $name, icon: $icon)
                     }
                     Section("相手に見える自分の名前") {
                         TextField("名前", text: $displayName)
@@ -306,10 +303,7 @@ struct CalendarDetailSheet: View {
                 if isOwner && calendar.status == .active {
                     // 作るときと同じ項目を、持ち主はここから変えられる
                     Section("カレンダー名") {
-                        TextField("カレンダー名", text: $calName)
-                    }
-                    Section("アイコン") {
-                        CalendarIconPicker(selection: $calIcon)
+                        CalendarNameField(name: $calName, icon: $calIcon)
                     }
                     Section {
                         LabeledContent("種類", value: calendar.kind.title)
