@@ -10,6 +10,8 @@ struct DaySheet: View {
     @State private var date: String
     /// スワイプで、新しい日が右から(翌日)・左から(前日)入ってくる向き
     @State private var forward = true
+    /// 詳細を開いている記念日・誕生日
+    @State private var annivId: String?
     /// 共有カレンダーなど、見るだけのときは false(予定追加のボタンを出さない)
     let canAdd: Bool
     let onSelectEvent: (ShiftEvent) -> Void
@@ -45,6 +47,7 @@ struct DaySheet: View {
             }
             .clipped()
             .simultaneousGesture(daySwipe)
+            .navigationDestination(item: $annivId) { AnniversaryDetail(id: $0, asOf: date) }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
@@ -90,10 +93,8 @@ struct DaySheet: View {
                     List {
                         // 記念日・誕生日(タップで詳細。メモもそこで見られる)
                         ForEach(annivs) { a in
-                            NavigationLink {
-                                AnniversaryDetail(id: a.id, asOf: date)
-                            } label: {
-                                HStack(spacing: 10) {
+                            // 横にスワイプして指を離したときに開かないよう、ボタンではなく「タップ」だけで開く
+                            HStack(spacing: 10) {
                                     AnniversaryIcon(icon: a.icon, color: a.color, size: 24)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(a.name).font(.app(17))
@@ -106,17 +107,21 @@ struct DaySheet: View {
                                         Text(e).font(.app(15, weight: .semibold).monospacedDigit())
                                             .foregroundStyle(Color(hex: a.color))
                                     }
-                                }
+                                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                             }
+                            .contentShape(Rectangle())
+                            .onTapGesture { annivId = a.id }
+                            .accessibilityAddTraits(.isButton)
                         }
                         ForEach(summary.events) { row in
-                            Button {
-                                dismiss()
-                                onSelectEvent(row.event)
-                            } label: {
-                                eventRow(row)
-                            }
-                            .buttonStyle(.plain)
+                            // 横にスワイプして指を離したときに開かないよう、ボタンではなく「タップ」だけで開く
+                            eventRow(row)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    dismiss()
+                                    onSelectEvent(row.event)
+                                }
+                                .accessibilityAddTraits(.isButton)
                         }
                     }
                     .listStyle(.plain)
