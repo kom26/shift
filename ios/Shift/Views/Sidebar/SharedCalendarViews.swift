@@ -267,7 +267,40 @@ struct CalendarDetailSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            dialogs(
+                Form {
+                    ownerSection
+                    memberSections
+                    dangerSection
+                }
+                .navigationTitle(calendar.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
+                if calendar.status == .active {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("保存") { Task { await save() } }
+                            .disabled(service.busy || displayName.trimmingCharacters(in: .whitespaces).isEmpty
+                                      || (isOwner && calName.trimmingCharacters(in: .whitespaces).isEmpty))
+                    }
+                }
+            }
+            .task { await load() }
+            .onChange(of: service.calendars) { _, list in
+                // 承認待ちの画面を開いている間に承認されたら、そのまま共有カレンダーを開く
+                if calendar.status == .pending, let c = list.first(where: { $0.id == calendar.id }), c.status == .active {
+                    dismiss()
+                    Task { await sharedView.open(c) }
+                }
+            }
+            )
+        }
+        .presentationDetents([.large])
+    }
+
+    /// 持ち主は、作るときと同じ項目(名前・アイコン・許可制)をここから変えられる
+    @ViewBuilder
+    private var ownerSection: some View {
                 if isOwner && calendar.status == .active {
                     // 作るときと同じ項目を、持ち主はここから変えられる
                     Section("カレンダー名") {
@@ -290,6 +323,11 @@ struct CalendarDetailSheet: View {
                         if calendar.requireApproval { LabeledContent("参加", value: "許可制") }
                     }
                 }
+    }
+
+    /// 承認待ちの案内、招待、参加者、自分の名前・アバター、共有のしかた
+    @ViewBuilder
+    private var memberSections: some View {
                 if calendar.status == .pending {
                     Section { Text("承認待ちです。持ち主が承認すると、予定が見られるようになります。") }
                 } else {
@@ -320,6 +358,10 @@ struct CalendarDetailSheet: View {
                         ShareItemsSection(selection: $shared)
                     }
                 }
+    }
+
+    @ViewBuilder
+    private var dangerSection: some View {
                 if !isOwner {
                     Section {
                         Button("このカレンダーから退出", role: .destructive) { confirmLeave = true }
@@ -331,27 +373,11 @@ struct CalendarDetailSheet: View {
                         Text("参加者の画面からも消えます。共有カレンダーの中で作った予定も消えます。それぞれの元の予定は消えません。")
                     }
                 }
-            }
-            .navigationTitle(calendar.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
-                if calendar.status == .active {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("保存") { Task { await save() } }
-                            .disabled(service.busy || displayName.trimmingCharacters(in: .whitespaces).isEmpty
-                                      || (isOwner && calName.trimmingCharacters(in: .whitespaces).isEmpty))
-                    }
-                }
-            }
-            .task { await load() }
-            .onChange(of: service.calendars) { _, list in
-                // 承認待ちの画面を開いている間に承認されたら、そのまま共有カレンダーを開く
-                if calendar.status == .pending, let c = list.first(where: { $0.id == calendar.id }), c.status == .active {
-                    dismiss()
-                    Task { await sharedView.open(c) }
-                }
-            }
+    }
+
+    /// 確認のダイアログ(式が長くなりすぎて型が決まらなくなるので、本体から分けてある)
+    private func dialogs<Content: View>(_ content: Content) -> some View {
+        content
             .alert("削除しますか?", isPresented: $confirmDelete) {
                 Button("削除", role: .destructive) { Task { await deleteCalendar() } }
                 Button("キャンセル", role: .cancel) {}
@@ -407,8 +433,6 @@ struct CalendarDetailSheet: View {
             } message: {
                 Text("削除された人は、このカレンダーの予定が見られなくなります。")
             }
-        }
-        .presentationDetents([.large])
     }
 
     /// 頭文字の状態か(絵文字や写真でなければ)。このとき、背景の色を選べる
