@@ -140,7 +140,7 @@ struct SharedEventDetail: View {
 
             Button { pickingColor = true } label: {
                 HStack(spacing: 8) {
-                    Text("予定の色")
+                    Text("予定の色・表示")
                     Spacer()
                     ColorDot(hex: shared.color(for: e), size: 16)
                     Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
@@ -191,6 +191,7 @@ struct SharedColorSheet: View {
     @Environment(\.dismiss) private var dismiss
     let event: SharedEvent
     @State private var color: String
+    @State private var showsTime = false
 
     init(event: SharedEvent) {
         self.event = event
@@ -206,6 +207,17 @@ struct SharedColorSheet: View {
                     Text("同じ職場・ラベルの予定は、すべて同じ色に変わります。変わるのは、この共有カレンダーのあなたの画面上だけです。ほかの人の画面や、元の予定の色は変わりません。")
                 }
                 Section {
+                    Picker("カレンダー上の表記", selection: $showsTime) {
+                        Text("予定名").tag(false)
+                        Text("時間").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("バーの表示")
+                } footer: {
+                    Text("同じ職場・ラベルの予定は、すべて同じ表示に変わります。時間のない予定(終日など)は、予定名のままです。")
+                }
+                Section {
                     Button("元の色に戻す") {
                         shared.setColor(nil, for: event)
                         dismiss()
@@ -213,7 +225,7 @@ struct SharedColorSheet: View {
                     .disabled(shared.color(for: event) == event.color)
                 }
             }
-            .navigationTitle("予定の色")
+            .navigationTitle("予定の色・表示")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
@@ -221,11 +233,15 @@ struct SharedColorSheet: View {
                     Button("保存") {
                         store.rememberColor(color)
                         shared.setColor(color == event.color ? nil : color, for: event)
+                        shared.setShowsTime(showsTime, for: event)
                         dismiss()
                     }
                 }
             }
-            .onAppear { color = shared.color(for: event) }
+            .onAppear {
+                color = shared.color(for: event)
+                showsTime = shared.showsTime(for: event)
+            }
         }
         .presentationDetents([.medium, .large])
     }

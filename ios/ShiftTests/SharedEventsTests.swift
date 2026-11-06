@@ -182,6 +182,23 @@ struct SharedEventsTests {
         #expect(color(calendarOwned.id) == "#222222")
     }
 
+    @Test func barShowsTimeOnlyForPickedSourcesAndTimedEvents() {
+        func timed(_ id: String, owner: String, key: String) -> SharedEvent {
+            SharedEvent(id: id, ownerUid: owner, sourceKey: key, title: "早番", startDate: "2026-11-10", endDate: "2026-11-10",
+                        startTime: "09:00", endTime: "17:00", allDay: false, name: "", color: "#ef4444")
+        }
+        let mine = timed("me_a", owner: "me", key: "w:w1")
+        let yours = timed("you_a", owner: "you", key: "w:w1")
+        let allDay = shared("me_b", owner: "me", key: "w:w1", title: "休み")
+        let timeKeys: Set<String> = [SharedViewState.colorKey(for: mine)]
+        let store = SharedViewState.makeStore(events: [mine, yours, allDay], overrides: [:], timeKeys: timeKeys)
+        func shows(_ id: String) -> Bool? { store.events.first { $0.id == id }?.barShowsTime }
+        #expect(shows("me_a") == true)
+        #expect(shows("you_a") == false)
+        // 時間のない予定は、選んでいても予定名のまま
+        #expect(shows("me_b") == false)
+    }
+
     @Test func avatarColorIsStableAndInitialIsTheFirstCharacter() {
         #expect(UserAvatar.color(for: "abc123") == UserAvatar.color(for: "abc123"))
         #expect(UserAvatar.initial(of: " ゆう ") == "ゆ")
