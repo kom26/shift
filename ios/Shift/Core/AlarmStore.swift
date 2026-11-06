@@ -13,10 +13,19 @@ extension Store {
         notifyChanged()
     }
 
-    /// その日(基準日)にアラームがあるか。月表示・週表示のベルマーク用
-    func hasAlarm(on ds: String) -> Bool {
-        alarmEntries.contains { $0.date == ds }
+    /// その日に鳴るアラームを、鳴る順に返す(予定一覧の上のチップと、カレンダーのベルに使う)
+    func alarmEntries(on ds: String, calendar: Calendar = .current) -> [AlarmEntry] {
+        guard let day = Rules.parse(ds) else { return [] }
+        let start = calendar.startOfDay(for: day)
+        return alarmEntries
+            .filter { calendar.isDate(Date(timeIntervalSince1970: $0.fireTime), inSameDayAs: start) }
+            .sorted { $0.fireTime < $1.fireTime }
     }
+
+    /// その日に鳴るアラームの数。月表示・週表示のベルマーク用(2 個以上なら「+1」を添える)
+    func alarmCount(on ds: String) -> Int { alarmEntries(on: ds).count }
+
+    func hasAlarm(on ds: String) -> Bool { alarmCount(on: ds) > 0 }
 
     func alarmEntry(matching spec: AlarmPreset, on ds: String) -> AlarmEntry? {
         alarmEntries.first { $0.date == ds && $0.kind == spec.kind && $0.minutes == spec.minutes }
@@ -36,6 +45,13 @@ extension Store {
 
     func addAlarmEntry(_ entry: AlarmEntry) {
         alarmEntries.append(entry)
+        persistAlarms()
+    }
+
+    /// 記録を、同じ id の新しい内容に入れ替える(時刻やスヌーズを直したとき)
+    func updateAlarmEntry(_ entry: AlarmEntry) {
+        guard let i = alarmEntries.firstIndex(where: { $0.id == entry.id }) else { return }
+        alarmEntries[i] = entry
         persistAlarms()
     }
 

@@ -81,17 +81,20 @@ struct WeekView: View {
         .padding(.vertical, 4)
         .overlay(alignment: .topTrailing) {
             if store.hasPayday(on: ds) {
-                PaydayCoinButton { onSelectPayday(ds) }
+                PaydayCoinButton()
             }
         }
         .overlay(alignment: store.hasPayday(on: ds) ? .topLeading : .topTrailing) {
-            if store.hasAlarm(on: ds) {
-                Image(systemName: "bell.fill")
-                    .font(.app(10))
-                    .foregroundStyle(Theme.alarm)
-                    .padding(.top, 5)
-                    .padding(store.hasPayday(on: ds) ? .leading : .trailing, 5)
-                    .accessibilityLabel("アラーム")
+            let alarms = store.alarmCount(on: ds)
+            if alarms > 0 {
+                HStack(spacing: 1) {
+                    Image(systemName: "bell.fill").font(.app(10))
+                    if alarms > 1 { Text("+\(alarms - 1)").font(.app(9, weight: .bold)) }
+                }
+                .foregroundStyle(Theme.alarm)
+                .padding(.top, 5)
+                .padding(store.hasPayday(on: ds) ? .leading : .trailing, 5)
+                .accessibilityLabel("アラーム \(alarms)件")
             }
         }
         .background(conflict ? Color.red.opacity(0.16) : (isToday ? Theme.accentSoft : Color.clear))

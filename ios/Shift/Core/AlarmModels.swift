@@ -1,6 +1,6 @@
 import Foundation
 
-/// アラームのひな形。「時刻」(毎回同じ時刻) か「シフトの○分前」
+/// アラームのひな形。「時刻」(毎回同じ時刻) か「予定の○分前」
 struct AlarmPreset: Codable, Identifiable, Equatable {
     enum Kind: String, Codable { case clock, beforeShift }
 
@@ -9,15 +9,15 @@ struct AlarmPreset: Codable, Identifiable, Equatable {
     /// clock: 0時からの分(例 6:30 → 390)。beforeShift: 開始の何分前か
     var minutes: Int
 
-    /// バーに出す表記(例「6:30」「シフト3時間前」)
+    /// バーに出す表記(例「6:30」「予定3時間前」)
     var label: String {
         switch kind {
         case .clock:
             return String(format: "%d:%02d", minutes / 60, minutes % 60)
         case .beforeShift:
             let h = minutes / 60, m = minutes % 60
-            if h == 0 { return "シフト\(m)分前" }
-            return m == 0 ? "シフト\(h)時間前" : "シフト\(h)時間\(m)分前"
+            if h == 0 { return "予定\(m)分前" }
+            return m == 0 ? "予定\(h)時間前" : "予定\(h)時間\(m)分前"
         }
     }
 }
@@ -33,6 +33,8 @@ struct AlarmEntry: Codable, Identifiable, Equatable {
     var date: String
     /// 実際に鳴らす時刻(秒単位の Unix 時間)
     var fireTime: TimeInterval
+    /// このアラームのスヌーズの分数(0 はなし)。nil は、セットした当時の設定(古い記録)
+    var snoozeMinutes: Int? = nil
 }
 
 enum AlarmMath {

@@ -44,16 +44,57 @@ final class AlarmService {
         guard fire > Date() else { return .past }
         guard await authorize() else { return .denied }
         let id = UUID().uuidString
-        guard await schedule(id: id, at: fire, spec: spec) else { return .failed }
+        let snooze = Self.snoozeMinutes
+        guard await schedule(id: id, at: fire, spec: spec, snooze: snooze) else { return .failed }
         store.addAlarmEntry(AlarmEntry(id: id, kind: spec.kind, minutes: spec.minutes, date: ds,
-                                       fireTime: fire.timeIntervalSince1970))
+                                       fireTime: fire.timeIntervalSince1970, snoozeMinutes: snooze))
         return .set
     }
 
-    /// 起動時・復帰時の同期。過ぎた記録を消し、シフト前のアラームは予定の変更に合わせて入れ直す。
-    /// iCloud 経由で引き継いだ記録で、この端末に実体がないアラームは、許可を取ってから入れ直す
+    /// セット済みのアラームの内容(時刻・予定前の長さ・スヌーズ)を直す。鳴る時刻は、その日の予定から決め直す
+    func update(_ entry: AlarmEntry, spec: AlarmPreset, snooze: Int, store: Store) async -> Outcome {
+        guard Self.isSupported else { return .unsupported }
+        guard let fire = AlarmMath.fireDate(preset: spec, on: entry.date, events: store.events) else { return .noShift }
+        guard fire > Date() else { return .past }
+        guard await authorize() else { return .denied }
+        await cancel(id: entry.id)
+        guard await schedule(id: entry.id, at: fire, spec: spec, snooze: snooze) else {
+            // 実体のない記録を残さない
+            store.removeAlarmEntry(id: entry.id)
+            return .failed
+        }
+        store.updateAlarmEntry(AlarmEntry(id: entry.id, kind: spec.kind, minutes: spec.minutes, date: entry.date,
+                                          fireTime: fire.timeIntervalSince1970, snoozeMinutes: snooze))
+        return .set
+    }
+
+    /// セット済みのアラームを削除する
+    func remove(_ entry: AlarmEntry, store: Store) async {
+        await cancel(id: entry.id)
+        store.removeAlarmEntry(id: entry.id)
+    }
+
+    private var refreshing = false
+    private var rerun = false
+
+    /// 起動時・復帰時・予定を直したときの同期。過ぎた記録を消し、予定前のアラームは予定の変更に合わせて入れ直す。
+    /// 重なって呼ばれたときは、1 つずつ順に行う(同じアラームを二重に入れ直さないため)
     func refresh(store: Store) async {
         guard Self.isSupported else { return }
+        if refreshing {
+            rerun = true
+            return
+        }
+        refreshing = true
+        repeat {
+            rerun = false
+            await refreshOnce(store: store)
+        } while rerun
+        refreshing = false
+    }
+
+    /// iCloud 経由で引き継いだ記録で、この端末に実体がないアラームは、許可を取ってから入れ直す
+    private func refreshOnce(store: Store) async {
         store.pruneAlarmEntries()
         let existing = scheduledIds()
         var authorized: Bool?
@@ -73,13 +114,14 @@ final class AlarmService {
             let missing = existing.map { !$0.contains(e.id) } ?? false
             if missing {
                 if authorized == nil { authorized = await authorize() }
-                guard authorized == true, await schedule(id: e.id, at: fire, spec: spec) else { continue }
+                guard authorized == true,
+                      await schedule(id: e.id, at: fire, spec: spec, snooze: e.snoozeMinutes ?? Self.snoozeMinutes) else { continue }
                 if abs(fire.timeIntervalSince1970 - e.fireTime) >= 1 {
                     store.updateAlarmFireTime(id: e.id, to: fire.timeIntervalSince1970)
                 }
             } else if e.kind == .beforeShift, abs(fire.timeIntervalSince1970 - e.fireTime) >= 1 {
                 await cancel(id: e.id)
-                if await schedule(id: e.id, at: fire, spec: spec) {
+                if await schedule(id: e.id, at: fire, spec: spec, snooze: e.snoozeMinutes ?? Self.snoozeMinutes) {
                     store.updateAlarmFireTime(id: e.id, to: fire.timeIntervalSince1970)
                 } else {
                     store.removeAlarmEntry(id: e.id)
@@ -121,12 +163,11 @@ final class AlarmService {
         return false
     }
 
-    private func schedule(id: String, at date: Date, spec: AlarmPreset) async -> Bool {
+    private func schedule(id: String, at date: Date, spec: AlarmPreset, snooze snoozeMinutes: Int) async -> Bool {
         #if canImport(AlarmKit)
         if #available(iOS 26.0, *), let uuid = UUID(uuidString: id) {
-            let title = LocalizedStringResource(stringLiteral: "シフト(\(spec.label))")
-            // スヌーズ(設定の分数。0 ならボタンを出さない)。押すと、その分あとにもう一度鳴る
-            let snoozeMinutes = Self.snoozeMinutes
+            let title = LocalizedStringResource(stringLiteral: spec.kind == .clock ? "アラーム \(spec.label)" : spec.label)
+            // スヌーズ(0 ならボタンを出さない)。押すと、その分あとにもう一度鳴る
             let snooze: AlarmButton? = snoozeMinutes > 0
                 ? AlarmButton(text: LocalizedStringResource(stringLiteral: "スヌーズ"),
                               textColor: Color.white, systemImageName: "zzz")

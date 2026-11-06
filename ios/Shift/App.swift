@@ -33,7 +33,11 @@ struct ShiftApp: App {
         s.onLocalChange = { [weak a, weak s, weak pub] in
             a?.localChanged()
             pub?.schedule()
-            if let s { WidgetSync.publish(store: s) }
+            if let s {
+                WidgetSync.publish(store: s)
+                // 予定を直したら、「予定の○分前」のアラームの時刻も、すぐ合わせる
+                Task { await AlarmService.shared.refresh(store: s) }
+            }
         }
         a.onApplied = { [weak s] in
             guard let s else { return }

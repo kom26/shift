@@ -5,8 +5,9 @@ struct AlarmPage: View {
     @Binding var stamp: AlarmPreset?
 
     @State private var kind: AlarmPreset.Kind = .clock
-    @State private var hour = 6
-    @State private var minute = 30
+    /// 時刻の初期値は、いまの時刻。予定前の初期値は、2 時間前
+    @State private var hour = Calendar.current.component(.hour, from: Date())
+    @State private var minute = Calendar.current.component(.minute, from: Date())
     @State private var typed = ""
     @FocusState private var typing: Bool
     /// スヌーズの分数(0 はスヌーズなし)。これからセットするアラームに使う
@@ -64,18 +65,24 @@ struct AlarmPage: View {
 
     private static let minBodyHeight: CGFloat = 112
 
-    /// 右の操作。上から、時刻・シフト前の切り替え、スヌーズ、セットのボタン(高さに合わせて間を広げる)
+    /// 右の操作。上から、時刻・予定前の切り替え、スヌーズ、セットのボタン(高さに合わせて間を広げる)
     private func controls(height: CGFloat) -> some View {
         VStack(spacing: 8) {
             Picker("種類", selection: $kind) {
                 Text("時刻").tag(AlarmPreset.Kind.clock)
-                Text("シフト前").tag(AlarmPreset.Kind.beforeShift)
+                Text("予定前").tag(AlarmPreset.Kind.beforeShift)
             }
             .pickerStyle(.segmented)
             .disabled(active)
             .onChange(of: kind) { _, new in
-                hour = min(hour, new == .clock ? 23 : 12)
-                if new == .beforeShift { minute = (minute / 5) * 5; if hour == 0 && minute == 0 { hour = 3 } }
+                if new == .clock {
+                    let now = Calendar.current.dateComponents([.hour, .minute], from: Date())
+                    hour = now.hour ?? 6
+                    minute = now.minute ?? 0
+                } else {
+                    hour = 2
+                    minute = 0
+                }
                 typed = ""
             }
             Spacer(minLength: 0)

@@ -12,6 +12,8 @@ struct DaySheet: View {
     @State private var forward = true
     /// 詳細を開いている記念日・誕生日
     @State private var annivId: String?
+    /// 変更・削除を開いているアラーム
+    @State private var editingAlarm: AlarmEntry?
     /// 共有カレンダーなど、見るだけのときは false(予定追加のボタンを出さない)
     let canAdd: Bool
     let onSelectEvent: (ShiftEvent) -> Void
@@ -47,6 +49,7 @@ struct DaySheet: View {
             .clipped()
             .simultaneousGesture(daySwipe)
             .navigationDestination(item: $annivId) { AnniversaryDetail(id: $0, asOf: date) }
+            .sheet(item: $editingAlarm) { AlarmEditSheet(entry: $0) }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 右上の ⊕ で、この日に予定を追加する(閉じるのは、画面を下げる)
@@ -137,9 +140,14 @@ struct DaySheet: View {
         }
     }
 
+    private static func alarmTime(_ entry: AlarmEntry) -> String {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: Date(timeIntervalSince1970: entry.fireTime))
+        return String(format: "%d:%02d", c.hour ?? 0, c.minute ?? 0)
+    }
+
     @ViewBuilder
     private func badges(_ summary: DaySummary) -> some View {
-        let alarms = store.alarmFireMinutes(on: date).sorted()
+        let alarms = store.alarmEntries(on: date)
         if !summary.paydays.isEmpty || !alarms.isEmpty {
             HStack(spacing: 6) {
                 ForEach(summary.paydays) { r in
@@ -156,13 +164,18 @@ struct DaySheet: View {
                     }
                     .buttonStyle(.plain)
                 }
-                ForEach(alarms, id: \.self) { m in
-                    Label(String(format: "%d:%02d", m / 60, m % 60), systemImage: "bell.fill")
-                        .font(.app(11, weight: .semibold))
-                        .foregroundStyle(Theme.alarm)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Theme.alarm.opacity(0.16), in: Capsule())
+                ForEach(alarms) { entry in
+                    // タップで、時刻・スヌーズの変更と、削除
+                    Button { editingAlarm = entry } label: {
+                        Label(Self.alarmTime(entry), systemImage: "bell.fill")
+                            .font(.app(11, weight: .semibold))
+                            .foregroundStyle(Theme.alarm)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Theme.alarm.opacity(0.16), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("アラーム \(Self.alarmTime(entry))。タップで変更・削除")
                 }
                 Spacer(minLength: 0)
             }

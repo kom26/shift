@@ -188,16 +188,20 @@ struct MonthView: View {
                     .foregroundStyle(isToday ? Theme.accent : type.color)
                     .opacity(inMonth ? 1 : 0.45)
                 Spacer(minLength: 0)
-                if store.hasAlarm(on: ds) {
-                    Image(systemName: "bell.fill")
-                        .font(.app(9))
-                        .foregroundStyle(Theme.alarm)
-                        .padding(.trailing, store.hasPayday(on: ds) ? 2 : 3)
-                        .accessibilityLabel("アラーム")
+                let alarms = store.alarmCount(on: ds)
+                if alarms > 0 {
+                    // ベルの右に、2 個目からは「+1」のように、同じ色で個数を添える
+                    HStack(spacing: 1) {
+                        Image(systemName: "bell.fill").font(.app(9))
+                        if alarms > 1 { Text("+\(alarms - 1)").font(.app(8, weight: .bold)) }
+                    }
+                    .foregroundStyle(Theme.alarm)
+                    .padding(.trailing, store.hasPayday(on: ds) ? 2 : 3)
+                    .accessibilityLabel("アラーム \(alarms)件")
                 }
-                // 給料日のコインはセルの右上の角に付ける(アラームはその左)
+                // 給料日のコインはセルの右上の角に付ける(アラームはその左)。小さいので、カレンダー上では押せない(予定一覧の上のチップから開く)
                 if store.hasPayday(on: ds) {
-                    PaydayCoinButton { onSelectPayday(ds) }
+                    PaydayCoinButton()
                 }
             }
             .frame(height: numH)
@@ -222,15 +226,13 @@ struct MonthView: View {
             // 足りない分は週の高さを広げて確保している
             HStack(spacing: 0) {
                 ForEach(annivs.prefix(4)) { a in
+                    // 小さいので、カレンダー上では押せない(タップは日付セルに通す。詳細は予定一覧の上から)
                     AnniversaryIcon(icon: a.icon, color: a.color, size: LayoutMath.slotIconSize)
                         .frame(width: cellW / 4, height: stripH)
-                        .contentShape(Rectangle())
-                        .onTapGesture { annivTarget = AnnivTarget(id: a.id, date: ds) }
-                        .accessibilityAddTraits(.isButton)
                         .accessibilityLabel(a.name)
                 }
             }
-            .allowsHitTesting(!isStamping)
+            .allowsHitTesting(false)
         }
         .contentShape(Rectangle())
         .onTapGesture { onSelectDay(ds) }
@@ -260,10 +262,8 @@ struct MonthWatermark: View {
 }
 
 /// 給料日のコイン(積み重ねアイコン)。タップで給料シートを開く
+/// 給料日のコイン。小さいので、押せない見た目だけのアイコン(タップは日付セルに通る)
 struct PaydayCoinButton: View {
-    let action: () -> Void
-    /// スタンプ中は押せない(タップはその下の日付セルに通す)
-    @Environment(\.isStamping) private var isStamping
     private let gold = Color(red: 0.95, green: 0.7, blue: 0.1)
 
     var body: some View {
@@ -275,10 +275,7 @@ struct PaydayCoinButton: View {
                 .foregroundStyle(gold)
             // マスの横幅の1/4(約14pt)の枠の中央に、記念日アイコンと同じ大きさで置く。枠線には被らない
             .frame(width: 14, height: LayoutMath.numH)
-            .contentShape(Rectangle())
-        .onTapGesture(perform: action)
-        .allowsHitTesting(!isStamping)
-        .accessibilityAddTraits(.isButton)
+        .allowsHitTesting(false)
         .accessibilityLabel("給料日")
     }
 }
