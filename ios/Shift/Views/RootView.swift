@@ -41,7 +41,7 @@ struct RootView: View {
     @State private var showWorkplaces = false
     /// 右上の ⊕ を押して開く「予定追加 / 画像から追加」の 2 択(開いている間、ボタンは ⊗)
     @State private var addMenuOpen = false
-    @State private var showShotSoon = false
+    @State private var showShotImport = false
     @State private var showCreateCalendar = false
     @State private var showJoinCalendar = false
     @State private var sharedEditing: SharedEditTarget?
@@ -410,10 +410,8 @@ struct RootView: View {
                     .accessibilityLabel(addMenuOpen ? "閉じる" : (sharedView.isOpen ? "共有カレンダーに予定を追加" : addButtonTitle))
                     .disabled(sharedView.isOpen && !sharedView.canCreate)
                     .opacity(sharedView.isOpen && !sharedView.canCreate ? 0.5 : 1)
-                    .alert("画像から追加", isPresented: $showShotSoon) {
-                        Button("OK") {}
-                    } message: {
-                        Text("スクリーンショットから予定を読み取る機能は、準備中です。")
+                    .sheet(isPresented: $showShotImport) {
+                        ScreenshotImportSheet(onAdded: { showToast("\($0)件の予定を追加しました") })
                     }
                 }
             }
@@ -626,7 +624,12 @@ struct RootView: View {
                 Divider()
                 addMenuRow(icon: "photo.on.rectangle", title: "画像から追加") {
                     closeAddMenu()
-                    showShotSoon = true
+                    // 読み取りは、サーバー経由で使うので、ログインが要る
+                    if auth.account == nil {
+                        showToast("画像から追加は、ログインが必要です")
+                    } else {
+                        showShotImport = true
+                    }
                 }
             }
             .frame(width: 230)

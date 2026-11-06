@@ -1,5 +1,13 @@
 {
   "firestore": { "rules": "firestore.rules" },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs22",
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "*.test.js"]
+    }
+  ],
   "hosting": {
     "public": "hosting/public",
     "cleanUrls": true,
