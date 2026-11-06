@@ -19,13 +19,9 @@ final class DragState {
     @ObservationIgnored private var safetyItem: DispatchWorkItem?
     @ObservationIgnored private var exitItem: DispatchWorkItem?
     @ObservationIgnored private var beginItem: DispatchWorkItem?
-    @ObservationIgnored private var pendingHaptic = false
 
     /// ドラッグ開始時(draggable のペイロード評価時)に呼ぶ。id をそのまま返す
-    /// haptic: ドラッグが始まったとき「コツ」と返す(長押しメニューが無いバー用。メニューのある未配置のカードは、メニューが返す)。
-    /// ペイロードを作る時点では、システムが持ち上げの処理中で触感が出ないので、ドラッグが動き出して最初のドロップ先の反応で返す
-    func begin(_ id: String, grabOffsetDays: Int = 0, haptic: Bool = false) -> String {
-        pendingHaptic = haptic
+    func begin(_ id: String, grabOffsetDays: Int = 0) -> String {
         draggingId = id
         self.grabOffsetDays = grabOffsetDays
         // ドロップ先に入らずに終わったドラッグでも、元の予定が半透明のまま残らないようにする
@@ -42,11 +38,7 @@ final class DragState {
         beginItem = nil
         exitItem?.cancel()
         exitItem = nil
-        if !isDragging {
-            isDragging = true
-            if pendingHaptic { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() }
-            pendingHaptic = false
-        }
+        if !isDragging { isDragging = true }
         safetyItem?.cancel()
         let item = DispatchWorkItem { [weak self] in self?.clear() }
         safetyItem = item
@@ -78,6 +70,15 @@ final class DragState {
         if isOverTrash { isOverTrash = false }
         if draggingId != nil { draggingId = nil }
         grabOffsetDays = 0
-        pendingHaptic = false
+    }
+}
+
+extension View {
+    /// 長押しがこの時間続いたとき「コツ」と触感を返す。システムが予定バーを持ち上げるのとほぼ同じ瞬間になる。
+    /// 長押しメニューの無いバー用(未配置のカードは、メニューが触感を返す)。ドラッグの邪魔をしないよう、同時に動かす
+    func liftHaptic(after seconds: Double = 0.35) -> some View {
+        simultaneousGesture(LongPressGesture(minimumDuration: seconds).onEnded { _ in
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+        })
     }
 }
