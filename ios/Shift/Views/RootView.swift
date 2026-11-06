@@ -399,12 +399,13 @@ struct RootView: View {
                     // 丸い ⊕。押すと「予定追加 / 画像から追加」が開き、ボタンは ⊗ に変わる(もう一度押すと閉じて、⊕ に戻る)。
                     // 共有カレンダーを開いているときは、2 択を出さず、共有カレンダーに予定を追加する
                     Button { tapAdd() } label: {
-                        Image(systemName: addMenuOpen ? "xmark" : "plus")
+                        // 「＋」を 45 度まわして「×」に見せる(戻すときは逆にまわる)
+                        Image(systemName: "plus")
                             .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(Theme.onAccent)
+                            .rotationEffect(.degrees(addMenuOpen ? 45 : 0))
                             .frame(width: 36, height: 36)
                             .background(Theme.accent, in: Circle())
-                            .contentTransition(.symbolEffect(.replace))
                     }
                     .accessibilityLabel(addMenuOpen ? "閉じる" : (sharedView.isOpen ? "共有カレンダーに予定を追加" : addButtonTitle))
                     .disabled(sharedView.isOpen && !sharedView.canCreate)
