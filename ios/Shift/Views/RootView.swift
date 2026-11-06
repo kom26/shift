@@ -365,11 +365,11 @@ struct RootView: View {
                 }
                 if !sharedView.isOpen {
                 Button { showFilter = true } label: {
-                    Image(systemName: store.isFiltering || !sharedView.overlayIds.isEmpty
+                    Image(systemName: store.isFiltering || sharedView.isOverlaying
                           ? "line.3.horizontal.decrease.circle.fill"
                           : "line.3.horizontal.decrease.circle")
                         .font(.app(20))
-                        .foregroundStyle(store.isFiltering || !sharedView.overlayIds.isEmpty ? Theme.accent : Color.primary)
+                        .foregroundStyle(store.isFiltering || sharedView.isOverlaying ? Theme.accent : Color.primary)
                         .frame(minWidth: 36, minHeight: 36)
                         .contentShape(Rectangle())
                 }

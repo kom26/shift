@@ -323,6 +323,11 @@ final class SharedViewState {
 
     func isOverlaid(_ id: String) -> Bool { overlayIds.contains(id) }
 
+    /// 実際に重なっている共有カレンダーがあるか(退出・削除したカレンダーの古い記録は数えない)
+    var isOverlaying: Bool {
+        calendars.calendars.contains { $0.status == .active && overlayIds.contains($0.id) }
+    }
+
     /// 共有カレンダーを重ねる・外す
     func setOverlay(_ ids: [String], on: Bool) {
         if on { overlayIds.formUnion(ids) } else { overlayIds.subtract(ids) }
