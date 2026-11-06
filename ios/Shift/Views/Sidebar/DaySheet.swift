@@ -140,6 +140,13 @@ struct DaySheet: View {
         }
     }
 
+    /// チップの文字。「予定の○前」のアラームは、鳴る時刻のあとに、その長さを添える(例: 16:00(予定2時間前))
+    private static func alarmChipText(_ entry: AlarmEntry) -> String {
+        let time = alarmTime(entry)
+        guard entry.kind == .beforeShift else { return time }
+        return time + "(" + AlarmPreset(kind: .beforeShift, minutes: entry.minutes).label + ")"
+    }
+
     private static func alarmTime(_ entry: AlarmEntry) -> String {
         let c = Calendar.current.dateComponents([.hour, .minute], from: Date(timeIntervalSince1970: entry.fireTime))
         return String(format: "%d:%02d", c.hour ?? 0, c.minute ?? 0)
@@ -167,7 +174,7 @@ struct DaySheet: View {
                 ForEach(alarms) { entry in
                     // タップで、時刻・スヌーズの変更と、削除
                     Button { editingAlarm = entry } label: {
-                        Label(Self.alarmTime(entry), systemImage: "bell.fill")
+                        Label(Self.alarmChipText(entry), systemImage: "bell.fill")
                             .font(.app(11, weight: .semibold))
                             .foregroundStyle(Theme.alarm)
                             .padding(.horizontal, 8)
@@ -175,7 +182,7 @@ struct DaySheet: View {
                             .background(Theme.alarm.opacity(0.16), in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("アラーム \(Self.alarmTime(entry))。タップで変更・削除")
+                    .accessibilityLabel("アラーム \(Self.alarmChipText(entry))。タップで変更・削除")
                 }
                 Spacer(minLength: 0)
             }
