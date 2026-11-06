@@ -82,6 +82,8 @@ struct ShiftApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         sync.retryIfNeeded()
+                        // 承認や参加者の変更など、閉じている間に変わった参加の状態を取り直す
+                        Task { await calendars.refresh() }
                         publisher.schedule()
                         if sharedView.isOpen { Task { await sharedView.refresh() } }
                     }

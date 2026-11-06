@@ -194,6 +194,16 @@ final class FirestoreCalendarBacking: CalendarBacking {
         try await member(calendarId, uid).delete()
     }
 
+    func listenMyStatus(calendarId: String, uid: String, onChange: @escaping (MemberStatus?) -> Void) -> () -> Void {
+        let registration = member(calendarId, uid).addSnapshotListener { snap, _ in
+            // 読めなかったとき(通信など)は何も伝えない。文書が無くなったら、参加者から外された
+            guard let snap else { return }
+            guard snap.exists, let raw = snap.data()?["status"] as? String else { return onChange(nil) }
+            onChange(MemberStatus(rawValue: raw))
+        }
+        return { registration.remove() }
+    }
+
     func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws {
         // 招待には、名前と許可制を写してある(参加の前に見せる・参加の状態を決めるのに使う)ので、同じ内容にそろえる
         let invites = try await calendar(calendarId).collection("invites").getDocuments().documents

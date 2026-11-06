@@ -61,11 +61,20 @@ private final class FakeCalendars: CalendarBacking {
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws {
         if let i = membersByCalendar[calendarId]?.firstIndex(where: { $0.id == uid }) {
             membersByCalendar[calendarId]?[i].status = status
+            statusHandlers[calendarId]?(status)
         }
     }
 
     func removeMember(calendarId: String, uid: String) async throws {
         membersByCalendar[calendarId]?.removeAll { $0.id == uid }
+    }
+
+    /// 参加の状態の見張り(テストでは、承認したときに知らせる)
+    var statusHandlers: [String: (MemberStatus?) -> Void] = [:]
+
+    func listenMyStatus(calendarId: String, uid: String, onChange: @escaping (MemberStatus?) -> Void) -> () -> Void {
+        statusHandlers[calendarId] = onChange
+        return { [weak self] in self?.statusHandlers[calendarId] = nil }
     }
 
     func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws {
@@ -175,6 +184,41 @@ struct CalendarServiceTests {
         #expect(owner.calendars.first?.icon == "house.fill")
         #expect(owner.calendars.first?.requireApproval == false)
         #expect(backing.calendars[calendar.id]?.name == "カップル")
+    }
+
+    @Test func approvalReachesAWaitingMemberWithoutRestartingTheApp() async throws {
+        let backing = FakeCalendars()
+        let owner = CalendarService(backing: backing)
+        await owner.start(uid: "me")
+        let made = await owner.create(spec(approval: true))
+        let guest = CalendarService(backing: backing)
+        await guest.start(uid: "you")
+        var approved: [String] = []
+        guest.onApproved = { approved.append($0.name) }
+        let joined = await guest.join(code: made!.invite, displayName: "あなた", sharedKeys: [])
+        #expect(joined?.status == .pending)
+
+        let waiting = CalendarMember(id: "you", displayName: "あなた", isOwner: false, status: .pending, sharedKeys: [])
+        #expect(await owner.approve(waiting, in: made!.calendar))
+        try await Task.sleep(nanoseconds: 200_000_000)
+        #expect(guest.calendars.first?.status == .active)
+        #expect(approved == ["家族"])
+    }
+
+    @Test func refreshPicksUpAnApprovalMadeWhileTheAppWasClosed() async {
+        let backing = FakeCalendars()
+        let owner = CalendarService(backing: backing)
+        await owner.start(uid: "me")
+        let made = await owner.create(spec(approval: true))
+        let guest = CalendarService(backing: backing)
+        await guest.start(uid: "you")
+        _ = await guest.join(code: made!.invite, displayName: "あなた", sharedKeys: [])
+        // この端末が見張っていない間に、持ち主が承認した
+        backing.statusHandlers.removeAll()
+        try? await backing.setStatus(calendarId: made!.calendar.id, uid: "you", status: .active)
+        #expect(guest.calendars.first?.status == .pending)
+        await guest.refresh()
+        #expect(guest.calendars.first?.status == .active)
     }
 
     @Test func onlyTheOwnerCanChangeTheCalendar() async {

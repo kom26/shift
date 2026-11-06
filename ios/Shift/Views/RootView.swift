@@ -132,6 +132,10 @@ struct RootView: View {
             selectedDate = nil
         }
         .onChange(of: auth.account?.uid) { _, _ in presentPendingJoin() }
+        .onAppear {
+            // 承認待ちだった共有カレンダーが承認されたら、すぐ見られることを知らせる
+            calendarService.onApproved = { cal in showToast("「" + cal.name + "」に参加できました") }
+        }
         .onOpenURL { url in
             // 招待リンクから: shiftpalette://join/<招待コード> で、参加の確認を開く(ログイン前なら設定へ)
             // https://shift-palette.web.app/join/<招待コード> (QR やリンク。Universal Links)でも同じ

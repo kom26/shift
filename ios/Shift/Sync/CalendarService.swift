@@ -145,6 +145,8 @@ protocol CalendarBacking: AnyObject {
     func members(calendarId: String) async throws -> [CalendarMember]
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws
     func removeMember(calendarId: String, uid: String) async throws
+    /// 自分の参加の状態を見張る。承認待ちの間、持ち主が承認したことがすぐ届く。参加者から外されたら nil。戻り値で見張りをやめる
+    func listenMyStatus(calendarId: String, uid: String, onChange: @escaping (MemberStatus?) -> Void) -> () -> Void
     func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String,
                     shareManual: Bool) async throws
     /// 持ち主が、カレンダーの名前・アイコン・許可制を変える(招待に写してある分も合わせる)
@@ -163,12 +165,16 @@ final class CalendarService {
     private(set) var busy = false
     /// 参加の一覧や、自分の共有する項目が変わったとき(予定を共有に載せ直す合図)
     @ObservationIgnored var onChange: (() -> Void)?
+    /// 承認待ちだった共有カレンダーが、承認されたとき(すぐ見られるようになった合図)
+    @ObservationIgnored var onApproved: ((SharedCalendar) -> Void)?
     /// ログイン中の自分
     var myUid: String? { uid }
     var errorMessage: String?
 
     private let backing: CalendarBacking
     private var uid: String?
+    /// 承認待ちのカレンダーごとの、参加の状態の見張り
+    @ObservationIgnored private var statusListeners: [String: () -> Void] = [:]
 
     init(backing: CalendarBacking) {
         self.backing = backing
@@ -181,6 +187,7 @@ final class CalendarService {
             let list = try await backing.joined(uid: uid)
             guard self.uid == uid else { return }
             calendars = list
+            syncStatusListeners()
             onChange?()
         } catch {
             // 取れなかったときは一覧が空のまま。ドロワーを開き直したときに取り直す
@@ -190,7 +197,53 @@ final class CalendarService {
     func stop() {
         uid = nil
         calendars = []
+        syncStatusListeners()
         onChange?()
+    }
+
+    /// 承認待ちのカレンダーだけ、参加の状態を見張る。承認されたら、すぐ見られるようにする(アプリを閉じなくてよい)
+    private func syncStatusListeners() {
+        let waiting = Set(calendars.filter { $0.status == .pending }.map(\.id))
+        for (id, stop) in statusListeners where uid == nil || !waiting.contains(id) {
+            stop()
+            statusListeners[id] = nil
+        }
+        guard let uid else { return }
+        for id in waiting where statusListeners[id] == nil {
+            statusListeners[id] = backing.listenMyStatus(calendarId: id, uid: uid) { [weak self] status in
+                Task { @MainActor in self?.applyStatus(status, for: id) }
+            }
+        }
+    }
+
+    private func applyStatus(_ status: MemberStatus?, for id: String) {
+        guard let i = calendars.firstIndex(where: { $0.id == id }), calendars[i].status == .pending else { return }
+        if status == .active {
+            calendars[i].status = .active
+            syncStatusListeners()
+            onChange?()
+            onApproved?(calendars[i])
+        } else if status == nil {
+            // 申し込みが却下された(参加者から外された)
+            calendars.remove(at: i)
+            syncStatusListeners()
+            onChange?()
+        }
+    }
+
+    /// 参加している共有カレンダーの一覧を取り直す(アプリに戻ったときなど)
+    func refresh() async {
+        guard let uid, let list = try? await backing.joined(uid: uid), self.uid == uid else { return }
+        let before = Dictionary(calendars.map { ($0.id, $0.status) }, uniquingKeysWith: { a, _ in a })
+        // 読めなかったカレンダーが一覧から消えないよう、取れた分だけ入れ替える(増えた分は足す)
+        var merged = calendars
+        for c in list {
+            if let i = merged.firstIndex(where: { $0.id == c.id }) { merged[i] = c } else { merged.append(c) }
+        }
+        calendars = merged
+        syncStatusListeners()
+        onChange?()
+        for c in list where before[c.id] == .pending && c.status == .active { onApproved?(c) }
     }
 
     @discardableResult
@@ -229,6 +282,7 @@ final class CalendarService {
             var joined = try await self.backing.join(uid: uid, code: code, displayName: name, sharedKeys: sharedKeys)
             joined.mySharedKeys = joined.kind == .oneway ? [] : sharedKeys
             self.calendars.append(joined)
+            self.syncStatusListeners()
             self.onChange?()
             return joined
         }
@@ -246,6 +300,7 @@ final class CalendarService {
         _ = await run("退出できませんでした") {
             try await self.backing.leave(uid: uid, calendarId: calendar.id)
             self.calendars.removeAll { $0.id == calendar.id }
+            self.syncStatusListeners()
             self.onChange?()
         }
     }

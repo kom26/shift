@@ -345,6 +345,13 @@ struct CalendarDetailSheet: View {
                 }
             }
             .task { await load() }
+            .onChange(of: service.calendars) { _, list in
+                // 承認待ちの画面を開いている間に承認されたら、そのまま共有カレンダーを開く
+                if calendar.status == .pending, let c = list.first(where: { $0.id == calendar.id }), c.status == .active {
+                    dismiss()
+                    Task { await sharedView.open(c) }
+                }
+            }
             .alert("削除しますか?", isPresented: $confirmDelete) {
                 Button("削除", role: .destructive) { Task { await deleteCalendar() } }
                 Button("キャンセル", role: .cancel) {}
