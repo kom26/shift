@@ -170,9 +170,14 @@ struct LabelManageView: View {
                         }
                         .foregroundStyle(.primary)
                     }
+                    .onDelete { offsets in
+                        // 削除したラベルの予定は「指定なし」に戻る(予定は消えない)
+                        let ids = offsets.map { store.labels[$0].id }
+                        ids.forEach { store.deleteLabel(id: $0) }
+                    }
                     .onMove { store.moveLabels(from: $0, to: $1) }
                 } footer: {
-                    Text("ラベルは、職場を選ばない予定の分類で、1 つの予定に 1 つ付けられます。職場は設定から直せます。")
+                    Text("ラベルは、職場を選ばない予定の分類で、1 つの予定に 1 つ付けられます。左にスワイプすると削除できます(予定は「指定なし」に戻ります)。職場はドロワーの「職場の管理」から直せます。")
                 }
                 Section {
                     Button { target = LabelTarget(label: store.newLabelDraft(), isNew: true) } label: {
@@ -180,10 +185,12 @@ struct LabelManageView: View {
                     }
                 }
             }
-            .environment(\.editMode, .constant(.active))
             .navigationTitle("ラベルの管理")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { EditButton() }
+                ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
+            }
             .sheet(item: $target) { LabelEditor(label: $0.label, isNew: $0.isNew) }
         }
     }
