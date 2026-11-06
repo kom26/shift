@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 import UIKit
 
 /// ドラッグ中かどうかの推定状態。SwiftUI にはドラッグ開始/終了のコールバックが無いため、
