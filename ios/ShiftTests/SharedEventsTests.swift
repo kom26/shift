@@ -147,7 +147,7 @@ struct SharedEventsTests {
         var cal = calendar(keys: ["l:"])
         // 自動の間に、2 件が共有された
         var current = cal
-        let publisher = SharedPublisher(backing: backing, store: store, calendars: { [current] in [current] }, uid: { "me" })
+        let publisher = SharedPublisher(backing: backing, store: store, calendars: { return [current] }, uid: { "me" })
         await publisher.syncNow()
         #expect(backing.sets == 2)
 
@@ -190,7 +190,7 @@ struct SharedEventsTests {
         var cal = calendar(keys: ["l:"])
         cal.myShareManual = true
         var current = cal
-        let publisher = SharedPublisher(backing: backing, store: store, calendars: { [current] in [current] }, uid: { "me" })
+        let publisher = SharedPublisher(backing: backing, store: store, calendars: { return [current] }, uid: { "me" })
         await publisher.syncNow()
         #expect(backing.sets == 0)
         #expect(publisher.pendingCount(for: "c1") == 1)
