@@ -64,18 +64,36 @@ protocol SharedEventsBacking: AnyObject {
     func mineIds(calendarId: String, uid: String) async throws -> Set<String>
 }
 
+/// 手動共有で、確認を待っている変更 1 件
+struct ShareChange: Identifiable, Equatable {
+    enum Kind: Equatable { case added, changed, removed }
+
+    let kind: Kind
+    /// 追加・変更は、これから共有する内容。共有から消えるものは、いま共有されている内容
+    let event: SharedEvent
+
+    var id: String { event.id }
+}
+
 /// 自分の予定のうち、共有に出す職場・ラベルの予定を、参加している共有カレンダーに載せる。
-/// 変わったところだけ送る。共有をやめた項目や、消した予定は、カレンダーからも消す
+/// 自動のカレンダーには、変わったところだけ送る(共有をやめた項目や、消した予定は、カレンダーからも消す)。
+/// 手動のカレンダーには送らず、いまの共有との違いを「確認を待つ変更」として持つ。確認して許可した分だけ送る
 @MainActor
+@Observable
 final class SharedPublisher {
-    private let backing: SharedEventsBacking
-    private weak var store: Store?
-    private let calendars: () -> [SharedCalendar]
-    private let uid: () -> String?
+    @ObservationIgnored private let backing: SharedEventsBacking
+    @ObservationIgnored private weak var store: Store?
+    @ObservationIgnored private let calendars: () -> [SharedCalendar]
+    @ObservationIgnored private let uid: () -> String?
     /// カレンダーごとに、いま載せてある内容(送り直しを避ける)
-    private var pushed: [String: [String: SharedEvent]] = [:]
-    private var task: Task<Void, Never>?
-    private let debounce: Duration
+    @ObservationIgnored private var pushed: [String: [String: SharedEvent]] = [:]
+    /// 手動のカレンダーごとに、いま共有されている自分の予定(クラウドから一度読んで、送ったぶんだけ更新する)
+    @ObservationIgnored private var remote: [String: [String: SharedEvent]] = [:]
+    @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private let debounce: Duration
+
+    /// 手動のカレンダーごとの、確認を待つ変更
+    private(set) var pending: [String: [ShareChange]] = [:]
 
     init(backing: SharedEventsBacking, store: Store, debounce: Duration = .seconds(2),
          calendars: @escaping () -> [SharedCalendar], uid: @escaping () -> String?) {
@@ -85,6 +103,8 @@ final class SharedPublisher {
         self.calendars = calendars
         self.uid = uid
     }
+
+    func pendingCount(for calendarId: String) -> Int { pending[calendarId]?.count ?? 0 }
 
     /// 予定や参加の状態が変わったとき。少し待って、まとめて載せる
     func schedule() {
@@ -102,18 +122,32 @@ final class SharedPublisher {
         let mine = calendars()
         // 抜けたカレンダーの記録は捨てる
         pushed = pushed.filter { id, _ in mine.contains { $0.id == id } }
+        let manualIds = Set(mine.filter { $0.myShareManual && $0.canPublish(uid: uid) }.map(\.id))
+        remote = remote.filter { manualIds.contains($0.key) }
+        pending = pending.filter { manualIds.contains($0.key) }
         for cal in mine where cal.canPublish(uid: uid) {
-            await publish(to: cal, uid: uid, store: store)
+            if cal.myShareManual {
+                pushed[cal.id] = nil
+                await refreshPending(for: cal, uid: uid, store: store)
+            } else {
+                await publish(to: cal, uid: uid, store: store)
+            }
         }
     }
 
-    private func publish(to cal: SharedCalendar, uid: String, store: Store) async {
+    /// 共有に出す予定(共有する勤務予定・ラベルに入っているもの)を、共有の形にしたもの
+    private func desiredEvents(for cal: SharedCalendar, uid: String, store: Store) -> [String: SharedEvent] {
         let keys = Set(cal.mySharedKeys)
         var desired: [String: SharedEvent] = [:]
         for e in store.events {
             guard let shared = SharedEvent.make(from: e, uid: uid, store: store), keys.contains(shared.sourceKey) else { continue }
             desired[shared.id] = shared
         }
+        return desired
+    }
+
+    private func publish(to cal: SharedCalendar, uid: String, store: Store) async {
+        let desired = desiredEvents(for: cal, uid: uid, store: store)
         do {
             var current: [String: SharedEvent]
             if let known = pushed[cal.id] {
@@ -137,6 +171,66 @@ final class SharedPublisher {
             pushed[cal.id] = current
         } catch {
             // 送れなかったときは、次の変更か起動でやり直す(記録は更新しない)
+        }
+    }
+
+    // MARK: 手動共有
+
+    /// いま共有されている自分の予定を、クラウドから読んでおく(共有カレンダーの中で作った予定は除く)
+    private func loadRemote(for cal: SharedCalendar, uid: String) async -> [String: SharedEvent]? {
+        if let known = remote[cal.id] { return known }
+        guard let all = try? await backing.fetch(calendarId: cal.id) else { return nil }
+        let mine = all.filter { $0.ownerUid == uid && !$0.isCalendarOwned }
+        let loaded = Dictionary(mine.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        remote[cal.id] = loaded
+        return loaded
+    }
+
+    private func refreshPending(for cal: SharedCalendar, uid: String, store: Store) async {
+        guard let current = await loadRemote(for: cal, uid: uid) else { return }
+        pending[cal.id] = Self.changes(desired: desiredEvents(for: cal, uid: uid, store: store), remote: current)
+    }
+
+    /// いま共有されている内容と、共有するはずの内容の違い。開始日の順に並べる
+    static func changes(desired: [String: SharedEvent], remote: [String: SharedEvent]) -> [ShareChange] {
+        var list: [ShareChange] = []
+        for (id, e) in desired {
+            if let old = remote[id] {
+                if old != e { list.append(ShareChange(kind: .changed, event: e)) }
+            } else {
+                list.append(ShareChange(kind: .added, event: e))
+            }
+        }
+        for (id, old) in remote where desired[id] == nil {
+            list.append(ShareChange(kind: .removed, event: old))
+        }
+        return list.sorted { ($0.event.startDate, $0.event.id) < ($1.event.startDate, $1.event.id) }
+    }
+
+    /// 確認して許可した変更だけを共有に送る。許可しなかった分は、確認を待つ変更に残る
+    @discardableResult
+    func share(_ changes: [ShareChange], in cal: SharedCalendar) async -> Bool {
+        guard let store, let uid = uid(), cal.canPublish(uid: uid) else { return false }
+        guard var current = await loadRemote(for: cal, uid: uid) else { return false }
+        do {
+            for change in changes {
+                switch change.kind {
+                case .added, .changed:
+                    try await backing.set(calendarId: cal.id, event: change.event)
+                    current[change.id] = change.event
+                case .removed:
+                    try await backing.delete(calendarId: cal.id, id: change.id)
+                    current[change.id] = nil
+                }
+            }
+            remote[cal.id] = current
+            pending[cal.id] = Self.changes(desired: desiredEvents(for: cal, uid: uid, store: store), remote: current)
+            return true
+        } catch {
+            // 途中で止まったときは、いまの状態を読み直す
+            remote[cal.id] = nil
+            await refreshPending(for: cal, uid: uid, store: store)
+            return false
         }
     }
 }

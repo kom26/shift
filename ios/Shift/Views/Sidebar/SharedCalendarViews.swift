@@ -234,6 +234,7 @@ struct CalendarDetailSheet: View {
     @Environment(AuthService.self) private var auth
     @Environment(Store.self) private var store
     @Environment(SharedViewState.self) private var sharedView
+    @Environment(SharedPublisher.self) private var publisher
     @Environment(\.dismiss) private var dismiss
     let calendar: SharedCalendar
     @State private var confirmDelete = false
@@ -253,6 +254,12 @@ struct CalendarDetailSheet: View {
     @State private var calIcon = CalendarIcon.defaultName
     @State private var calApproval = false
     @State private var confirmOpenApproval = false
+    /// 共有のしかた(手動なら、確認してから共有する)
+    @State private var shareManual = false
+    @State private var reviewing = false
+    @State private var confirmAuto = false
+    @State private var approvalConfirmed = false
+    @State private var autoConfirmed = false
 
     private var uid: String? { auth.account?.uid }
     private var isOwner: Bool { calendar.ownerUid == uid }
@@ -309,6 +316,7 @@ struct CalendarDetailSheet: View {
                         Text("この共有カレンダーの中で、あなたの予定のそばに表示されます。写真は正方形に切り取って丸く表示します。")
                     }
                     if canShareMine {
+                        shareModeSection
                         ShareItemsSection(selection: $shared)
                     }
                 }
@@ -344,11 +352,24 @@ struct CalendarDetailSheet: View {
                 Text("「\(calendar.name)」を削除します。この操作は取り消せません。")
             }
             .alert("許可制をやめますか?", isPresented: $confirmOpenApproval) {
-                Button("許可して保存") { Task { await performSave() } }
+                Button("許可して保存") {
+                    approvalConfirmed = true
+                    Task { await save() }
+                }
                 Button("キャンセル", role: .cancel) {}
             } message: {
                 Text("申請中の\(pendingCount)人は、全員参加が許可されます。")
             }
+            .alert("自動に切り替えますか?", isPresented: $confirmAuto) {
+                Button("切り替えて共有する") {
+                    autoConfirmed = true
+                    Task { await save() }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("まだ共有していない\(publisher.pendingCount(for: calendar.id))件の変更が、すぐに共有されます。")
+            }
+            .sheet(isPresented: $reviewing) { ShareReviewSheet(calendar: calendar) }
             .alert("できませんでした", isPresented: Binding(
                 get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
                 Button("OK") { actionError = nil }
@@ -517,10 +538,53 @@ struct CalendarDetailSheet: View {
 
     private var pendingCount: Int { members.filter { $0.status == .pending }.count }
 
+    /// 共有のしかた。自動は、予定を変えるとすぐ共有。手動は、確認してから共有する
+    @ViewBuilder
+    private var shareModeSection: some View {
+        Section {
+            Picker("共有のしかた", selection: $shareManual) {
+                Text("自動").tag(false)
+                Text("手動(確認してから)").tag(true)
+            }
+            .pickerStyle(.segmented)
+            // 手動に切り替えて保存したあとに、確認を開ける
+            if shareManual && calendar.myShareManual {
+                Button { reviewing = true } label: {
+                    HStack {
+                        Text("共有の内容を確認する").foregroundStyle(Theme.accent).fontWeight(.semibold)
+                        Spacer()
+                        let n = publisher.pendingCount(for: calendar.id)
+                        if n > 0 {
+                            Text("\(n)")
+                                .font(.app(13, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 7)
+                                .frame(minWidth: 22, minHeight: 22)
+                                .background(Color.red, in: Capsule())
+                        }
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+            }
+        } header: {
+            Text("共有のしかた")
+        } footer: {
+            Text(shareManual
+                 ? "予定を入れても、すぐには共有されません。「共有の内容を確認する」で、新しく共有される予定と、共有から消える予定をカレンダーで見て、よければ共有します。確認するまで、相手には前回の内容のまま見えます。"
+                 : "予定を入れたり直したりすると、すぐに相手のカレンダーに反映されます。")
+        }
+    }
+
     /// 保存する。許可制をやめるとき、申請中の人がいれば、全員許可されることを先に確かめる
     private func save() async {
-        if isOwner, calendar.requireApproval, !calApproval, pendingCount > 0 {
+        if isOwner, calendar.requireApproval, !calApproval, pendingCount > 0, !approvalConfirmed {
             confirmOpenApproval = true
+            return
+        }
+        // 手動から自動へ切り替えると、確認を待っている変更が、すぐ共有される
+        if calendar.myShareManual, !shareManual, publisher.pendingCount(for: calendar.id) > 0, !autoConfirmed {
+            confirmAuto = true
             return
         }
         await performSave()
@@ -536,7 +600,8 @@ struct CalendarDetailSheet: View {
             }
         }
         let ok = await service.updateMine(in: calendar, displayName: displayName,
-                                          sharedKeys: canShareMine ? shared.sorted() : [], avatar: avatar)
+                                          sharedKeys: canShareMine ? shared.sorted() : [], avatar: avatar,
+                                          shareManual: canShareMine ? shareManual : false)
         guard ok else {
             actionError = service.errorMessage ?? "保存できませんでした"
             return
@@ -568,6 +633,7 @@ struct CalendarDetailSheet: View {
             displayName = me.displayName
             shared = Set(me.sharedKeys)
             avatar = me.avatar
+            shareManual = me.shareManual
         }
     }
 }

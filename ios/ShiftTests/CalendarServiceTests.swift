@@ -74,11 +74,13 @@ private final class FakeCalendars: CalendarBacking {
         calendars[calendarId]?.requireApproval = requireApproval
     }
 
-    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws {
+    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String,
+                    shareManual: Bool) async throws {
         if let i = membersByCalendar[calendarId]?.firstIndex(where: { $0.id == uid }) {
             membersByCalendar[calendarId]?[i].displayName = displayName
             membersByCalendar[calendarId]?[i].sharedKeys = sharedKeys
             membersByCalendar[calendarId]?[i].avatar = avatar
+            membersByCalendar[calendarId]?[i].shareManual = shareManual
         }
     }
 }

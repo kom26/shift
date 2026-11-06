@@ -59,6 +59,7 @@ struct ShiftApp: App {
                 .environment(sync)
                 .environment(calendars)
                 .environment(sharedView)
+                .environment(publisher)
                 .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
                 .tint(Theme.accent)
                 .preferredColorScheme(appearance.colorScheme)

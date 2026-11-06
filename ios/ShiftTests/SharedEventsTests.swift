@@ -139,6 +139,69 @@ struct SharedEventsTests {
         #expect(Set(backing.docs["c1"]?.keys.map { $0 } ?? []) == ["me_keep", "you_x"])
     }
 
+    @Test func manualCalendarHoldsChangesUntilConfirmedAndOnlyAllowedOnesAreShared() async {
+        let store = makeStore()
+        store.save(event("a", title: "共有済み"))
+        store.save(event("gone", title: "消す予定"))
+        let backing = FakeSharedEvents()
+        var cal = calendar(keys: ["l:"])
+        // 自動の間に、2 件が共有された
+        var current = cal
+        let publisher = SharedPublisher(backing: backing, store: store, calendars: { [current] in [current] }, uid: { "me" })
+        await publisher.syncNow()
+        #expect(backing.sets == 2)
+
+        // 手動に切り替えたあとの変更は、送られず、確認を待つ
+        cal.myShareManual = true
+        current = cal
+        store.save(event("a", title: "直した"))
+        store.save(event("new", title: "新しい予定"))
+        store.delete(id: "gone")
+        await publisher.syncNow()
+        #expect(backing.sets == 2)
+        #expect(backing.deletes == 0)
+        let changes = publisher.pending["c1"] ?? []
+        #expect(Set(changes.map(\.id)) == ["me_a", "me_new", "me_gone"])
+        #expect(changes.first { $0.id == "me_a" }?.kind == .changed)
+        #expect(changes.first { $0.id == "me_new" }?.kind == .added)
+        #expect(changes.first { $0.id == "me_gone" }?.kind == .removed)
+        #expect(publisher.pendingCount(for: "c1") == 3)
+
+        // 追加と変更だけを許可すると、消える予定は共有に残り、確認を待つ変更に残る
+        let allowed = changes.filter { $0.kind != .removed }
+        let ok = await publisher.share(allowed, in: cal)
+        #expect(ok)
+        #expect(backing.docs["c1"]?["me_a"]?.title == "直した")
+        #expect(backing.docs["c1"]?["me_new"]?.title == "新しい予定")
+        #expect(backing.docs["c1"]?["me_gone"] != nil)
+        #expect(publisher.pending["c1"]?.map(\.id) == ["me_gone"])
+
+        // 消すことも許可すると、共有からも消えて、確認を待つ変更はなくなる
+        let rest = publisher.pending["c1"] ?? []
+        _ = await publisher.share(rest, in: cal)
+        #expect(backing.docs["c1"]?["me_gone"] == nil)
+        #expect(publisher.pendingCount(for: "c1") == 0)
+    }
+
+    @Test func switchingBackToAutoSharesWhatWasPending() async {
+        let store = makeStore()
+        store.save(event("a"))
+        let backing = FakeSharedEvents()
+        var cal = calendar(keys: ["l:"])
+        cal.myShareManual = true
+        var current = cal
+        let publisher = SharedPublisher(backing: backing, store: store, calendars: { [current] in [current] }, uid: { "me" })
+        await publisher.syncNow()
+        #expect(backing.sets == 0)
+        #expect(publisher.pendingCount(for: "c1") == 1)
+
+        cal.myShareManual = false
+        current = cal
+        await publisher.syncNow()
+        #expect(backing.docs["c1"]?["me_a"] != nil)
+        #expect(publisher.pendingCount(for: "c1") == 0)
+    }
+
     @Test func guestsOfAOnewayCalendarAndPendingMembersPublishNothing() async {
         let store = makeStore()
         store.save(event("a"))

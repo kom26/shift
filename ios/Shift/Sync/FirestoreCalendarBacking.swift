@@ -19,14 +19,15 @@ final class FirestoreCalendarBacking: CalendarBacking {
         return e.domain == FirestoreErrorDomain && e.code == FirestoreErrorCode.permissionDenied.rawValue
     }
 
-    private static func calendar(id: String, data: [String: Any], status: MemberStatus, sharedKeys: [String] = []) -> SharedCalendar {
+    private static func calendar(id: String, data: [String: Any], status: MemberStatus, sharedKeys: [String] = [],
+                                 shareManual: Bool = false) -> SharedCalendar {
         SharedCalendar(id: id,
                        name: data["name"] as? String ?? "",
                        ownerUid: data["ownerUid"] as? String ?? "",
                        kind: CalendarKind(rawValue: data["kind"] as? String ?? "") ?? .mutual,
                        requireApproval: data["requireApproval"] as? Bool ?? false,
                        status: status, mySharedKeys: sharedKeys,
-                       icon: CalendarIcon.resolved(data["icon"] as? String ?? ""))
+                       icon: CalendarIcon.resolved(data["icon"] as? String ?? ""), myShareManual: shareManual)
     }
 
     func create(uid: String, spec: NewCalendar) async throws -> (calendar: SharedCalendar, invite: InviteCode) {
@@ -67,7 +68,8 @@ final class FirestoreCalendarBacking: CalendarBacking {
             // 名前・アイコン・許可制は、持ち主が変えるので、本体の最新を読む(読めなければ自分の記録のまま)
             let latest = (try? await calendar(d.documentID).getDocument())?.data() ?? d.data()
             out.append(Self.calendar(id: d.documentID, data: latest, status: status,
-                                     sharedKeys: data["sharedKeys"] as? [String] ?? []))
+                                     sharedKeys: data["sharedKeys"] as? [String] ?? [],
+                                     shareManual: data["shareMode"] as? String == "manual"))
         }
         return out
     }
@@ -178,7 +180,8 @@ final class FirestoreCalendarBacking: CalendarBacking {
                                   isOwner: x["role"] as? String == "owner",
                                   status: MemberStatus(rawValue: x["status"] as? String ?? "") ?? .active,
                                   sharedKeys: x["sharedKeys"] as? [String] ?? [],
-                                  avatar: x["avatar"] as? String ?? "")
+                                  avatar: x["avatar"] as? String ?? "",
+                                  shareManual: x["shareMode"] as? String == "manual")
         }
         .sorted { ($0.isOwner ? 0 : 1, $0.displayName) < ($1.isOwner ? 0 : 1, $1.displayName) }
     }
@@ -203,8 +206,10 @@ final class FirestoreCalendarBacking: CalendarBacking {
         try await batch.commit()
     }
 
-    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws {
-        try await member(calendarId, uid).updateData(["displayName": displayName, "sharedKeys": sharedKeys, "avatar": avatar])
+    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String,
+                    shareManual: Bool) async throws {
+        try await member(calendarId, uid).updateData(["displayName": displayName, "sharedKeys": sharedKeys, "avatar": avatar,
+                                                      "shareMode": shareManual ? "manual" : "auto"])
     }
 }
 

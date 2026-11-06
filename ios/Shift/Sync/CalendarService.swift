@@ -31,6 +31,8 @@ struct SharedCalendar: Equatable, Identifiable {
     var mySharedKeys: [String] = []
     /// ドロワーなどに出すアイコン(SF Symbols の名前。CalendarIcon.choices から選ぶ)
     var icon: String = CalendarIcon.defaultName
+    /// 自分の予定を、確認してから共有する(手動)か。false は、予定を変えるとすぐ共有する(自動)
+    var myShareManual = false
 
     /// 自分の予定を共有に出せるか。見せるだけのカレンダーでは、持ち主だけ
     func canPublish(uid: String) -> Bool { status == .active && (kind == .mutual || ownerUid == uid) }
@@ -44,8 +46,10 @@ struct CalendarMember: Equatable, Identifiable {
     var status: MemberStatus
     /// 共有に出している職場・ラベル(ShareKey の文字列)
     var sharedKeys: [String]
-    /// アバター。空なら名前の頭文字、それ以外は絵文字
+    /// アバター。空なら名前の頭文字、bg: は背景色を選んだ頭文字、img: は写真(以前の絵文字も表示はできる)
     var avatar: String = ""
+    /// 共有のしかたが手動か
+    var shareManual = false
 }
 
 /// 共有に出す項目のキー。職場は "w:<id>"、ラベルは "l:<id>"(「指定なし」は "l:")
@@ -141,7 +145,8 @@ protocol CalendarBacking: AnyObject {
     func members(calendarId: String) async throws -> [CalendarMember]
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws
     func removeMember(calendarId: String, uid: String) async throws
-    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String) async throws
+    func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String,
+                    shareManual: Bool) async throws
     /// 持ち主が、カレンダーの名前・アイコン・許可制を変える(招待に写してある分も合わせる)
     func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws
 }
@@ -310,12 +315,19 @@ final class CalendarService {
     }
 
     /// 自分の共有者名と、共有に出す項目を変える
-    func updateMine(in calendar: SharedCalendar, displayName: String, sharedKeys: [String], avatar: String = "") async -> Bool {
+    /// shareManual: nil なら、いまの共有のしかたのまま
+    func updateMine(in calendar: SharedCalendar, displayName: String, sharedKeys: [String], avatar: String = "",
+                    shareManual: Bool? = nil) async -> Bool {
         let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let uid, !name.isEmpty else { return false }
+        let manual = shareManual ?? calendar.myShareManual
         return await run("保存できませんでした") {
-            try await self.backing.updateMine(calendarId: calendar.id, uid: uid, displayName: name, sharedKeys: sharedKeys, avatar: avatar)
-            if let i = self.calendars.firstIndex(where: { $0.id == calendar.id }) { self.calendars[i].mySharedKeys = sharedKeys }
+            try await self.backing.updateMine(calendarId: calendar.id, uid: uid, displayName: name, sharedKeys: sharedKeys,
+                                              avatar: avatar, shareManual: manual)
+            if let i = self.calendars.firstIndex(where: { $0.id == calendar.id }) {
+                self.calendars[i].mySharedKeys = sharedKeys
+                self.calendars[i].myShareManual = manual
+            }
             self.onChange?()
             return true
         } ?? false

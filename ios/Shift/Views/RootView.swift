@@ -26,6 +26,7 @@ struct RootView: View {
     @Environment(AuthService.self) private var auth
     @Environment(CalendarService.self) private var calendarService
     @Environment(SharedViewState.self) private var sharedView
+    @Environment(SharedPublisher.self) private var publisher
     @AppStorage("mode") private var mode: CalendarMode = .month
     @AppStorage("startMonday") private var startMonday = false
     @AppStorage("summaryOn") private var summaryOn = false
@@ -47,6 +48,8 @@ struct RootView: View {
     /// リンクから開いたが、ログインの確認が済むまで待っている招待コード
     @State private var pendingJoinCode: String?
     @State private var calendarDetail: SharedCalendar?
+    /// 手動共有の確認を開いている共有カレンダー
+    @State private var reviewCalendar: SharedCalendar?
     @State private var paydayTarget: PaydayTarget?
     @State private var dayTarget: DayTarget?
     @State private var pagerCommand: PagerCommand?
@@ -67,6 +70,10 @@ struct RootView: View {
             header
             Divider()
             if sharedView.isOpen { sharedBanner }
+            if sharedView.isOpen, let cal = sharedView.calendar.flatMap({ latestCalendar($0) }),
+               cal.myShareManual, publisher.pendingCount(for: cal.id) > 0 {
+                sharedPendingStrip(cal)
+            }
             GeometryReader { geo in
                 VStack(spacing: 0) {
                     if sharedView.isOpen {
@@ -174,6 +181,7 @@ struct RootView: View {
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
         .sheet(isPresented: $showJoinCalendar, onDismiss: { joinCode = "" }) { CalendarJoinSheet(code: joinCode) }
         .sheet(item: $calendarDetail) { CalendarDetailSheet(calendar: $0) }
+        .sheet(item: $reviewCalendar) { ShareReviewSheet(calendar: $0) }
     }
 
     /// 待っている招待コードがあり、ログインしていれば、参加画面を開く(ほかのシートが開いていれば閉じてから)
@@ -277,11 +285,57 @@ struct RootView: View {
                     closeDrawer { calendarDetail = cal }
                 }
             }
+            // 手動共有で、まだ共有していない変更の数
+            if cal.myShareManual, publisher.pendingCount(for: cal.id) > 0 {
+                Text("\(publisher.pendingCount(for: cal.id))")
+                    .font(.app(12, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 6)
+                    .frame(minWidth: 20, minHeight: 20)
+                    .background(Color.red, in: Capsule())
+            }
             Button { closeDrawer { calendarDetail = cal } } label: {
                 Image(systemName: "info.circle").foregroundStyle(.secondary).frame(width: 40, height: 44)
             }
             .accessibilityLabel("\(cal.name)の情報")
         }
+    }
+
+    /// 共有カレンダーの、いまの状態(設定を変えたあとも新しい内容で見る)
+    private func latestCalendar(_ cal: SharedCalendar) -> SharedCalendar {
+        calendarService.calendars.first { $0.id == cal.id } ?? cal
+    }
+
+    /// 手動共有で、まだ共有していない変更があるときだけ出る帯。タップで確認の画面へ
+    private func sharedPendingStrip(_ cal: SharedCalendar) -> some View {
+        let n = publisher.pendingCount(for: cal.id)
+        return Button { reviewCalendar = cal } label: {
+            HStack(spacing: 8) {
+                Text("\(n)")
+                    .font(.app(12, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 6)
+                    .frame(minWidth: 22, minHeight: 22)
+                    .background(Theme.alarm, in: Capsule())
+                Text("\(n)件の変更がまだ共有されていません")
+                    .font(.app(13, weight: .bold))
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("確認して共有")
+                    .font(.app(12, weight: .bold))
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Theme.accent, in: Capsule())
+            }
+            .foregroundStyle(Theme.payText)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Theme.payFill)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(n)件の変更がまだ共有されていません。確認して共有する")
     }
 
     /// 共有カレンダーを開いている間の帯。ほかの人の予定は見るだけで、自分の予定には触れないことを示す
