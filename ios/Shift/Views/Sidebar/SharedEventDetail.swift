@@ -173,6 +173,7 @@ struct SharedEventDetail: View {
     }
 
     private static func dateText(_ ds: String) -> String {
+        guard Rules.parse(ds) != nil else { return "日付なし" }
         let p = Rules.ymd(ds)
         let wd = Rules.weekdayLabels(startMonday: false)[Rules.weekday(ds)]
         return "\(p.year)年\(p.month)月\(p.day)日(\(wd))"
@@ -180,7 +181,12 @@ struct SharedEventDetail: View {
 
     @ViewBuilder
     private func timeRow(_ e: SharedEvent) -> some View {
-        if e.allDay {
+        if !e.placed {
+            VStack(spacing: 2) {
+                Text("日付なし(未配置)").font(.app(15, weight: .semibold))
+                Text(e.allDay ? "終日" : (e.startTime ?? "") + " - " + (e.endTime ?? "")).font(.app(13)).foregroundStyle(.secondary)
+            }
+        } else if e.allDay {
             VStack(spacing: 2) {
                 Text(e.startDate == e.endDate ? Self.dateText(e.startDate)
                      : "\(Self.dateText(e.startDate)) 〜 \(Self.dateText(e.endDate))")

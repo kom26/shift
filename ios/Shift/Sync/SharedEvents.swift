@@ -19,6 +19,8 @@ struct SharedEvent: Equatable, Identifiable {
     let color: String
     /// 共有した人のカレンダーで、この予定のバーに時間を出しているか(受け取る側の初期の表示になる)
     var barTime: Bool = false
+    /// 日付を決めた予定か。false は「未配置」(共有カレンダーの中で作った予定だけ。startDate・endDate は空)
+    var placed: Bool = true
 
     /// 共有カレンダーの中で作った予定のキー(参加者全員が直せる)
     static let calendarKey = "calendar"
@@ -29,6 +31,35 @@ struct SharedEvent: Equatable, Identifiable {
     static func newInCalendar(uid: String, date: String, color: String = EventLabel.noneColor) -> SharedEvent {
         SharedEvent(id: "cal_" + UUID().uuidString, ownerUid: uid, sourceKey: calendarKey, title: "",
                     startDate: date, endDate: date, startTime: nil, endTime: nil, allDay: true, name: "", color: color)
+    }
+
+    /// 日付を決めない予定(未配置)の下書き。あとで、カレンダーの日にドラッグして置く
+    static func newUnplacedInCalendar(uid: String, color: String = EventLabel.noneColor) -> SharedEvent {
+        var e = newInCalendar(uid: uid, date: "", color: color)
+        e.placed = false
+        return e
+    }
+
+    /// その日へ動かした予定(複数日の予定は、日数を保つ。未配置からは、時間があれば夜をまたぐ分を足す)
+    func moved(to date: String) -> SharedEvent {
+        var end = date
+        if placed {
+            end = Rules.addDays(date, max(0, Rules.daysBetween(startDate, endDate)))
+        } else if !allDay, let st = startTime, let et = endTime {
+            end = Rules.resolveEndDate(start: date, end: date, allDay: false, startTime: st, endTime: et) ?? date
+        }
+        var e = SharedEvent(id: id, ownerUid: ownerUid, sourceKey: sourceKey, title: title, startDate: date, endDate: end,
+                            startTime: startTime, endTime: endTime, allDay: allDay, name: name, color: color, barTime: barTime)
+        e.placed = true
+        return e
+    }
+
+    /// 未配置に戻した予定(日付を空にする。時間は残す)
+    func unplaced() -> SharedEvent {
+        var e = SharedEvent(id: id, ownerUid: ownerUid, sourceKey: sourceKey, title: title, startDate: "", endDate: "",
+                            startTime: startTime, endTime: endTime, allDay: allDay, name: name, color: color, barTime: barTime)
+        e.placed = false
+        return e
     }
 
     /// 共有に出せる予定ならコピーを作る(日付のある予定だけ)
@@ -47,8 +78,9 @@ struct SharedEvent: Equatable, Identifiable {
     /// showsTime: この端末で選んだ表示(true: 時間 / false: 予定名)。nil なら共有した人の表示に合わせる。
     /// 時間のない予定は、どちらでも予定名のまま
     func shiftEvent(color shownColor: String? = nil, showsTime: Bool? = nil) -> ShiftEvent {
-        ShiftEvent(id: id, title: title, memo: "", color: shownColor ?? color, startDate: startDate, endDate: endDate,
-                   placed: true, allDay: allDay, startTime: startTime, endTime: endTime, workHours: nil,
+        ShiftEvent(id: id, title: title, memo: "", color: shownColor ?? color,
+                   startDate: placed ? startDate : nil, endDate: placed ? endDate : nil,
+                   placed: placed, allDay: allDay, startTime: startTime, endTime: endTime, workHours: nil,
                    barShowsTitle: (showsTime ?? barTime) ? nil : true)
     }
 }
@@ -311,6 +343,29 @@ final class SharedViewState {
 
     func isEditable(_ id: String) -> Bool { event(id)?.isCalendarOwned == true && canWrite(in: calendarOf(id)) }
 
+    /// ドラッグで動かせるか。共有カレンダーの中で作った予定だけ(ほかの人の予定や、共有に出した自分の予定は動かせない)
+    func canDrag(_ id: String) -> Bool { isEditable(id) }
+
+    /// その日へ動かす(未配置の予定は、その日に置く)
+    @discardableResult
+    func place(id: String, on date: String) async -> Bool {
+        guard isEditable(id), let e = event(id) else { return false }
+        return await save(e.moved(to: date))
+    }
+
+    /// 未配置に戻す
+    @discardableResult
+    func unplace(id: String) async -> Bool {
+        guard isEditable(id), let e = event(id) else { return false }
+        return await save(e.unplaced())
+    }
+
+    /// 日付を決めない予定の下書き
+    func newUnplacedEvent() -> SharedEvent? {
+        guard canCreate, let uid = calendars.myUid else { return nil }
+        return SharedEvent.newUnplacedInCalendar(uid: uid)
+    }
+
     func event(_ id: String) -> SharedEvent? { items[id] ?? overlayItems[id] }
 
     /// 予定をつくった人(日の一覧のアバター用)
@@ -519,6 +574,8 @@ final class SharedViewState {
             let map = saved[cid] ?? [:]
             let modes = savedTime[cid] ?? [:]
             for e in overlayLatest[cid] ?? [] {
+                // 日付のない予定(未配置)は、重ねない
+                if !e.placed { continue }
                 if !e.isCalendarOwned, let me, e.ownerUid == me { continue }
                 guard seen.insert(e.id).inserted else { continue }
                 items[e.id] = e

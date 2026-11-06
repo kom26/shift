@@ -79,20 +79,18 @@ struct RootView: View {
             }
             GeometryReader { geo in
                 VStack(spacing: 0) {
-                    if sharedView.isOpen {
-                        pager
-                    } else if !unplacedCollapsed {
+                    if !unplacedCollapsed {
                         // 未配置エリアの高さは月(5週)基準で固定。6週の月でも週表示でも変えない
                         pager.frame(height: LayoutMath.monthCalendarHeight(available: geo.size.height, weeks: 5))
                     } else {
                         pager
                     }
-                    if !sharedView.isOpen {
+                    // 共有カレンダーでも、下に未配置エリアを出す(中身は、共有カレンダーの未配置の予定だけ)
                     UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday,
                                  fillHeight: true, revealUnplaced: revealToken, stampId: $stampId, alarmStamp: $alarmStamp, onSelectEvent: edit,
                                  onEditFavorite: { editing = EditorTarget(event: $0, isNew: false, favorite: true) },
                                  onNewFavorite: { editing = EditorTarget(event: .newUnplaced(), isNew: true, favorite: true) })
-                    }
+                        .environment(displayStore)
                 }
             }
         }
@@ -696,7 +694,12 @@ struct RootView: View {
     }
 
     private func addFromHeader() {
-        if let d = selectedDate { createEvent(on: d) } else if sharedView.isOpen { createEvent(on: Rules.today()) } else { addUnplaced() }
+        if let d = selectedDate { createEvent(on: d) } else if sharedView.isOpen { addSharedUnplaced() } else { addUnplaced() }
+    }
+
+    /// 共有カレンダーの中に、日付を決めない予定(未配置)を作る。あとで、日にドラッグして置く
+    private func addSharedUnplaced() {
+        if let e = sharedView.newUnplacedEvent() { sharedEditing = SharedEditTarget(event: e, isNew: true) }
     }
 
     private func addEvent(on date: String) {
@@ -734,7 +737,14 @@ struct RootView: View {
     }
 
     private func drop(id: String, on date: String) {
-        guard !sharedView.isOpen, !store.isOverlay(id) else { return }
+        if sharedView.isOpen {
+            // 共有カレンダーでは、共有カレンダーの中で作った予定だけ動かせる(日付を移す・未配置から置く)
+            guard !id.hasPrefix(Store.favoritePrefix), sharedView.canDrag(id) else { return }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Task { await sharedView.place(id: id, on: date) }
+            return
+        }
+        guard !store.isOverlay(id) else { return }
         if id.hasPrefix(Store.favoritePrefix) {
             withAnimation(.snappy) { store.stampCopy(favoriteId: String(id.dropFirst(Store.favoritePrefix.count)), on: date) }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()

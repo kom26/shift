@@ -419,6 +419,71 @@ private final class ListeningEvents: SharedEventsBacking {
     func mineIds(calendarId: String, uid: String) async throws -> Set<String> { [] }
 }
 
+private final class RecordingEvents: SharedEventsBacking {
+    var docs: [String: [SharedEvent]] = [:]
+    var saved: [SharedEvent] = []
+    var deleted: [String] = []
+    func fetch(calendarId: String) async throws -> [SharedEvent] { docs[calendarId] ?? [] }
+    func listen(calendarId: String, onChange: @escaping ([SharedEvent]) -> Void) -> () -> Void { {} }
+    func set(calendarId: String, event: SharedEvent) async throws { saved.append(event) }
+    func delete(calendarId: String, id: String) async throws { deleted.append(id) }
+    func mineIds(calendarId: String, uid: String) async throws -> Set<String> { [] }
+}
+
+@MainActor
+struct SharedDragTests {
+    private func event(_ id: String, owner: String = "you", key: String = "l:", start: String = "2026-11-10",
+                       end: String = "2026-11-10", times: (String, String)? = nil) -> SharedEvent {
+        SharedEvent(id: id, ownerUid: owner, sourceKey: key, title: id, startDate: start, endDate: end,
+                    startTime: times?.0, endTime: times?.1, allDay: times == nil, name: "", color: "#bec1cc")
+    }
+
+    @Test func movingKeepsTheLengthAndAnUnplacedTimedEventCrossesMidnightWhenNeeded() {
+        let span = event("a", start: "2026-11-10", end: "2026-11-12").moved(to: "2026-11-20")
+        #expect(span.startDate == "2026-11-20" && span.endDate == "2026-11-22" && span.placed)
+
+        var night = event("n", times: ("22:00", "06:30")).unplaced()
+        #expect(!night.placed && night.startDate.isEmpty && night.endDate.isEmpty)
+        night = night.moved(to: "2026-11-30")
+        #expect(night.placed && night.startDate == "2026-11-30" && night.endDate == "2026-12-01")
+
+        let plain = event("p", times: ("17:00", "21:00")).unplaced().moved(to: "2026-11-08")
+        #expect(plain.endDate == "2026-11-08")
+        // 未配置の予定は、表示用では日付なしになる
+        #expect(event("u").unplaced().shiftEvent().placed == false)
+        #expect(event("u").unplaced().shiftEvent().startDate == nil)
+    }
+
+    @Test func onlyEventsMadeInTheCalendarCanBeDraggedMovedOrReturnedToUnplaced() async throws {
+        let service = CalendarService(backing: FakeCalendars())
+        await service.start(uid: "me")
+        let made = try #require(await service.create(NewCalendar(name: "家族", displayName: "わたし", kind: .mutual,
+                                                                  requireApproval: false, sharedKeys: [])))
+        let backing = RecordingEvents()
+        let mine = SharedEvent.newInCalendar(uid: "me", date: "2026-11-10")
+        let theirs = event("you_x")
+        let myCopy = event("me_y", owner: "me")
+        backing.docs[made.calendar.id] = [mine, theirs, myCopy]
+        let view = SharedViewState(events: backing, calendars: service, defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        await view.open(made.calendar)
+
+        #expect(view.canDrag(mine.id))
+        #expect(!view.canDrag(theirs.id))
+        #expect(!view.canDrag(myCopy.id))
+
+        #expect(await view.place(id: mine.id, on: "2026-11-15"))
+        #expect(backing.saved.last?.startDate == "2026-11-15")
+        #expect(await view.place(id: theirs.id, on: "2026-11-15") == false)
+        #expect(await view.place(id: myCopy.id, on: "2026-11-15") == false)
+        #expect(backing.saved.count == 1)
+
+        #expect(await view.unplace(id: mine.id))
+        #expect(backing.saved.last?.placed == false)
+        #expect(backing.saved.last?.startDate == "")
+        #expect(view.newUnplacedEvent()?.placed == false)
+    }
+}
+
 @MainActor
 struct OverlayTests {
     private func plain(_ id: String, owner: String, key: String = "l:") -> SharedEvent {

@@ -17,7 +17,7 @@ final class FirestoreSharedEvents: SharedEventsBacking {
                            startTime: x["startTime"] as? String, endTime: x["endTime"] as? String,
                            allDay: x["allDay"] as? Bool ?? true,
                            name: x["name"] as? String ?? "", color: x["color"] as? String ?? "#bec1cc",
-                           barTime: x["barTime"] as? Bool ?? false)
+                           barTime: x["barTime"] as? Bool ?? false, placed: x["placed"] as? Bool ?? true)
     }
 
     func fetch(calendarId: String) async throws -> [SharedEvent] {
@@ -36,7 +36,7 @@ final class FirestoreSharedEvents: SharedEventsBacking {
         var data: [String: Any] = [
             "ownerUid": e.ownerUid, "sourceKey": e.sourceKey, "title": e.title,
             "startDate": e.startDate, "endDate": e.endDate, "allDay": e.allDay,
-            "name": e.name, "color": e.color, "barTime": e.barTime,
+            "name": e.name, "color": e.color, "barTime": e.barTime, "placed": e.placed,
         ]
         if let t = e.startTime { data["startTime"] = t }
         if let t = e.endTime { data["endTime"] = t }

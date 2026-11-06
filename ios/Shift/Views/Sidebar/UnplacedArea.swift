@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct UnplacedArea: View {
     @Environment(Store.self) private var store
     @Environment(Holidays.self) private var holidays
+    @Environment(SharedViewState.self) private var shared
     let anchor: String
     let selectedDate: String?
     let startMonday: Bool
@@ -27,6 +28,8 @@ struct UnplacedArea: View {
     private static let pageCount = 4
     private static let pageTitles = ["よく使う予定", "未配置の予定", "労働時間・給料", "アラームセット"]
     private var page: Int { (tab - 1 + Self.pageCount) % Self.pageCount }
+    /// 共有カレンダーを開いているとき。未配置の予定だけの 1 ページで、動かせるのは共有カレンダーの中で作った予定
+    private var inShared: Bool { shared.isOpen }
     @AppStorage("payBasis") private var payBasisRaw = PayBasis.work.rawValue
 
     private var anchorMonthShort: String {
@@ -40,13 +43,19 @@ struct UnplacedArea: View {
 
     private var unplaceDelegate: UnplaceDropDelegate {
         UnplaceDropDelegate(onDrop: { id in
-            withAnimation(.snappy) { store.unplace(id: id) }
+            if inShared {
+                guard shared.canDrag(id) else { return }
+                Task { await shared.unplace(id: id) }
+            } else {
+                withAnimation(.snappy) { store.unplace(id: id) }
+            }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         })
     }
 
     private var trashDelegate: UnplaceDropDelegate {
         UnplaceDropDelegate(trash: true, onDrop: { id in
+            if inShared && !shared.canDrag(id) { return }
             if store.events.contains(where: { $0.id == id }) { pendingDeleteId = id }
         })
     }
@@ -62,7 +71,7 @@ struct UnplacedArea: View {
         let over = drag.isOverUnplaced
         VStack(spacing: 0) {
             ZStack {
-                if !collapsed {
+                if !collapsed && !inShared {
                     HStack(spacing: 4) {
                         ForEach(0..<Self.pageCount, id: \.self) { i in
                             Circle()
@@ -73,7 +82,7 @@ struct UnplacedArea: View {
                 }
                 HStack {
                     if !collapsed {
-                        Text(Self.pageTitles[page])
+                        Text(inShared ? "未配置の予定" : Self.pageTitles[page])
                             .font(.app(12, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -93,13 +102,16 @@ struct UnplacedArea: View {
             .frame(minHeight: LayoutMath.unplacedHeaderH)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 12).onEnded { v in
-                guard !collapsed else { return }
+                guard !collapsed, !inShared else { return }
                 if v.translation.width < -30 { go(1) } else if v.translation.width > 30 { go(-1) }
             })
 
             if !collapsed {
                 Divider()
                 ZStack {
+                    if inShared {
+                        chipsPage(items, hidden: dragging)
+                    } else {
                     TabView(selection: $tab) {
                         pageContent(3, items: items, dragging: dragging).tag(0)
                         pageContent(0, items: items, dragging: dragging).tag(1)
@@ -122,6 +134,7 @@ struct UnplacedArea: View {
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
+                    }
                     if dragging && !(drag.draggingId?.hasPrefix(Store.favoritePrefix) ?? false) {
                         dropPrompt(over: over, overTrash: drag.isOverTrash)
                     }
@@ -133,6 +146,14 @@ struct UnplacedArea: View {
         }
         .frame(maxHeight: (fillHeight && !collapsed) ? .infinity : nil, alignment: .top)
         .background(Color(.secondarySystemBackground).ignoresSafeArea(edges: .bottom))
+        .onChange(of: dragging) { _, now in
+            // ドラッグを始めたら、折りたたんであっても、未配置・削除エリアを開く(自分の予定でも、共有カレンダーでも)
+            guard now, collapsed else { return }
+            withAnimation(.snappy) {
+                collapsed = false
+                if !inShared { tab = 2 }
+            }
+        }
         .onChange(of: revealUnplaced) { _, _ in
             withAnimation(.snappy) {
                 collapsed = false
@@ -145,7 +166,13 @@ struct UnplacedArea: View {
                                                  set: { if !$0 { pendingDeleteId = nil } }),
                             titleVisibility: .visible) {
             Button("削除", role: .destructive) {
-                if let id = pendingDeleteId { withAnimation(.snappy) { store.delete(id: id) } }
+                if let id = pendingDeleteId {
+                if inShared {
+                    Task { await shared.delete(id: id) }
+                } else {
+                    withAnimation(.snappy) { store.delete(id: id) }
+                }
+            }
                 pendingDeleteId = nil
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
@@ -352,9 +379,11 @@ struct UnplacedArea: View {
             Text("未配置 \(count)件")
                 .font(.app(12))
                 .foregroundStyle(.secondary)
-            sideButton("\(anchorMonthShort)の予定を全て回収") { confirmRecall = true }
-            sideButton("並べ替え") {
-                withAnimation(.snappy) { store.sortUnplaced() }
+            if !inShared {
+                sideButton("\(anchorMonthShort)の予定を全て回収") { confirmRecall = true }
+                sideButton("並べ替え") {
+                    withAnimation(.snappy) { store.sortUnplaced() }
+                }
             }
             Spacer(minLength: 0)
         }

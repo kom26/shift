@@ -135,8 +135,7 @@ struct SpanBars: View {
                             onTap(s.event, s.col + min(s.span - 1, max(0, inBar)))
                         })
                         // 長押しはドラッグ専用(メニューを付けると、長押しが取り合いになって動かせなくなる)
-                        .draggable(DragState.shared.begin(s.event.id))
-                        .opacity(DragState.shared.isDragging && DragState.shared.draggingId == s.event.id ? 0.35 : 1)
+                        .eventDragSource(s.event, onOpen: onEdit)
                         .offset(x: leading + colW * CGFloat(s.col) + 1, y: CGFloat(r) * (barH + gap))
                 }
             }

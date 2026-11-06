@@ -15,6 +15,8 @@ struct SharedEventEditor: View {
     let target: SharedEditTarget
     @State private var title: String
     @State private var allDay: Bool
+    /// 日付を決めるか。決めないと「未配置」になり、あとで、カレンダーの日にドラッグして置く
+    @State private var hasDate: Bool
     @State private var start: Date
     @State private var end: Date
     @State private var color: String
@@ -27,6 +29,7 @@ struct SharedEventEditor: View {
         let e = target.event
         _title = State(initialValue: e.title)
         _allDay = State(initialValue: e.allDay)
+        _hasDate = State(initialValue: e.placed)
         _start = State(initialValue: Self.combine(e.startDate, e.startTime, fallbackHour: 9))
         _end = State(initialValue: Self.combine(e.endDate, e.endTime, fallbackHour: 18))
         _color = State(initialValue: e.color)
@@ -46,7 +49,9 @@ struct SharedEventEditor: View {
     }
 
     private var endsBeforeStart: Bool {
-        allDay ? Rules.format(end) < Rules.format(start) : end < start
+        // 日付を決めない予定は、時間だけなので、夜をまたぐ時間も入れられる
+        guard hasDate else { return false }
+        return allDay ? Rules.format(end) < Rules.format(start) : end < start
     }
 
     private var canSave: Bool {
@@ -55,11 +60,13 @@ struct SharedEventEditor: View {
 
     private func built() -> SharedEvent {
         let e = target.event
-        return SharedEvent(id: e.id, ownerUid: e.ownerUid, sourceKey: e.sourceKey,
-                           title: title.trimmingCharacters(in: .whitespaces),
-                           startDate: Rules.format(start), endDate: Rules.format(end),
-                           startTime: allDay ? nil : Self.timeText(start), endTime: allDay ? nil : Self.timeText(end),
-                           allDay: allDay, name: e.name, color: color, barTime: e.barTime)
+        var out = SharedEvent(id: e.id, ownerUid: e.ownerUid, sourceKey: e.sourceKey,
+                              title: title.trimmingCharacters(in: .whitespaces),
+                              startDate: hasDate ? Rules.format(start) : "", endDate: hasDate ? Rules.format(end) : "",
+                              startTime: allDay ? nil : Self.timeText(start), endTime: allDay ? nil : Self.timeText(end),
+                              allDay: allDay, name: e.name, color: color, barTime: e.barTime)
+        out.placed = hasDate
+        return out
     }
 
     var body: some View {
@@ -69,12 +76,18 @@ struct SharedEventEditor: View {
                     TextField("タイトル(必須)", text: $title)
                     ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
                 } footer: {
-                    Text("この予定は、共有カレンダーの参加者全員が見られて、直せます。給料やメモは持ちません。")
+                    Text("この予定は、共有カレンダーの参加者全員が見られて、直せます。給料やメモは持ちません。日付を決めない予定は、下の未配置エリアに入ります。")
                 }
                 Section {
+                    Toggle("日付を決める", isOn: $hasDate)
                     Toggle("終日", isOn: $allDay)
-                    DatePicker("開始", selection: $start, displayedComponents: allDay ? [.date] : [.date, .hourAndMinute])
-                    DatePicker("終了", selection: $end, displayedComponents: allDay ? [.date] : [.date, .hourAndMinute])
+                    if hasDate {
+                        DatePicker("開始", selection: $start, displayedComponents: allDay ? [.date] : [.date, .hourAndMinute])
+                        DatePicker("終了", selection: $end, displayedComponents: allDay ? [.date] : [.date, .hourAndMinute])
+                    } else if !allDay {
+                        DatePicker("開始", selection: $start, displayedComponents: [.hourAndMinute])
+                        DatePicker("終了", selection: $end, displayedComponents: [.hourAndMinute])
+                    }
                     if endsBeforeStart {
                         Text("終了は開始より前には設定できません")
                             .font(.footnote)
