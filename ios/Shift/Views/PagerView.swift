@@ -7,9 +7,8 @@ struct PagerCommand: Equatable {
     let id: UUID
 }
 
-/// この秒数以内に横へ動き出したタッチだけを月/週スワイプとみなす
-private let pagerSwipeMaxHold: TimeInterval = 0.2
-/// 動き出しとみなす最小移動量(pt)。この時点で swipe かどうかが決まる
+/// 動き出しとみなす最小移動量(pt)。この距離を動くまで、ジェスチャーは始まらない
+/// (触れた瞬間から反応させると、iOS 26 で予定バーの長押しドラッグの開始を邪魔する)
 private let pagerMoveThreshold: CGFloat = 4
 
 /// 3ページ横並びのページャ。ドラッグ中に高速に変わる状態(dragX など)をすべてここに閉じ込め、
@@ -25,7 +24,7 @@ struct PagerView<Page: View>: View {
     @State private var lockFrames: [CGRect] = []
     @State private var committing = false
     @State private var swipeActive = false
-    @GestureState private var touchStart: Date? = nil
+    @GestureState private var touching = false
 
     init(prev: Page, current: Page, next: Page, command: Binding<PagerCommand?>, onCommit: @escaping (Int) -> Void) {
         self.prev = prev
@@ -48,13 +47,9 @@ struct PagerView<Page: View>: View {
             .clipped()
             .contentShape(Rectangle())
             .simultaneousGesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .named("pager"))
-                    .updating($touchStart) { v, state, _ in
-                        if state == nil { state = v.time }
-                    }
+                DragGesture(minimumDistance: pagerMoveThreshold, coordinateSpace: .named("pager"))
+                    .updating($touching) { _, state, _ in state = true }
                     .onChanged { v in
-                        let t0 = touchStart ?? v.time
-                        let held = v.time.timeIntervalSince(t0)
                         let blocked = lockFrames.contains { $0.contains(v.startLocation) }
                         if blocked { return }
                         let dx = v.translation.width
@@ -64,8 +59,6 @@ struct PagerView<Page: View>: View {
                             return
                         }
                         if committing { return }
-                        if hypot(dx, dy) < pagerMoveThreshold { return }
-                        if held > pagerSwipeMaxHold { return }
                         if abs(dx) > abs(dy) {
                             swipeActive = true
                             dragX = dx
@@ -82,8 +75,8 @@ struct PagerView<Page: View>: View {
                         }
                         swipeActive = false
                     })
-            .onChange(of: touchStart) { _, new in
-                if new == nil && swipeActive && !committing {
+            .onChange(of: touching) { _, new in
+                if !new && swipeActive && !committing {
                     withAnimation(.snappy) { dragX = 0 }
                     swipeActive = false
                 }
