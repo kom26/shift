@@ -62,7 +62,7 @@ struct FirebaseScreenshotReader: ScreenshotReading {
             let e = error as NSError
             if e.domain == FunctionsErrorDomain, let code = FunctionsErrorCode(rawValue: e.code) {
                 switch code {
-                case .unauthenticated: throw ScreenshotReadError(message: "画像から追加するには、ログインが必要です")
+                case .unauthenticated: throw ScreenshotReadError(message: "画像から追加するには、アカウント登録かログインが必要です")
                 case .resourceExhausted, .invalidArgument, .internal:
                     // サーバーが、利用者に見せる言葉で返している
                     throw ScreenshotReadError(message: e.localizedDescription)

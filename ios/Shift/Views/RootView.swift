@@ -254,7 +254,7 @@ struct RootView: View {
                     }
                     .padding(.leading, 16)
                 } else {
-                    drawerRow(title: "ログインして共有カレンダーを使う", icon: "person.crop.circle.badge.plus") {
+                    drawerRow(title: "アカウント登録かログインして共有カレンダーを使う", icon: "person.crop.circle.badge.plus") {
                         closeDrawer { showSettings = true }
                     }
                 }
@@ -624,7 +624,7 @@ struct RootView: View {
                     closeAddMenu()
                     // 読み取りは、サーバー経由で使うので、ログインが要る
                     if auth.account == nil {
-                        showToast("画像から追加は、ログインが必要です")
+                        showToast("画像から追加は、アカウント登録かログインが必要です")
                     } else {
                         showShotImport = true
                     }
