@@ -54,6 +54,7 @@ final class Store {
         static let hiddenSuggestions = "shift-hidden-suggestions"
         static let labels = "shift-labels"
         static let checkedLabels = "shift-checked-labels"
+        static let seededLabels = "shift-seeded-labels"
         /// 以前のレイヤー(読むだけ)
         static let legacyLayers = "shift-layers"
     }
@@ -460,6 +461,18 @@ final class Store {
             touched = true
         }
         if touched { persist() }
+    }
+
+    /// 初回だけ、よく使うラベルを入れる(消したあとに、また戻ってこないよう、入れたことを覚えておく)
+    func seedDefaultLabelsIfNeeded() {
+        guard !defaults.bool(forKey: Keys.seededLabels) else { return }
+        defaults.set(true, forKey: Keys.seededLabels)
+        guard labels.isEmpty else { return }
+        for (name, color) in [("食事", "#f28d8d"), ("用事", "#8dbff2"), ("サークル", "#f2bf8d"),
+                              ("デート", "#f28dae"), ("やること", "#8df29d")] {
+            labels.append(EventLabel(id: UUID().uuidString, name: name, color: color))
+        }
+        persistLabels()
     }
 
     private func persistLabels() {

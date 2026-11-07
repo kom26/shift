@@ -22,6 +22,7 @@ struct ShiftApp: App {
         AppFont.register()
         FirebaseApp.configure()
         let s = Store()
+        s.seedDefaultLabelsIfNeeded()
         let a = AccountSync(store: s, backing: FirestoreBacking())
         let cal = CalendarService(backing: FirestoreCalendarBacking())
         let eventsBacking = FirestoreSharedEvents()
