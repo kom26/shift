@@ -20,11 +20,11 @@ struct TimedLanesTests {
     }
 
     @Test func laterEventReusesFreeLaneInSameCluster() {
-        // a が長く、b と c はその間に順に入る(c は b の列を使い回す)
+        // a が長く、b と c はその間に順に入る(同じ開始なら終わりの早い b が左。c は b の列を使い回す)
         let r = TimedLanes.assign([item("a", 0.1, 0.6), item("b", 0.1, 0.3), item("c", 0.35, 0.5)])
-        #expect(r["a"]?.count == 2)
-        #expect(r["b"]?.lane == 1)
-        #expect(r["c"]?.lane == 1)
+        #expect(r["b"]?.lane == 0)
+        #expect(r["a"]?.lane == 1)
+        #expect(r["c"]?.lane == 0)
         #expect(r["c"]?.count == 2)
     }
 
