@@ -3,6 +3,8 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct MonthView: View {
+    /// 位置を覚えるときのキー。隣の月のページにも同じ週が出るので、月ごとに分ける
+    private var dropKeyPrefix: String { "week-" + String(anchor.prefix(7)) + "-" }
     @Environment(Store.self) private var store
     @Environment(\.calendarBackground) private var calBg
     @Environment(Holidays.self) private var holidays
@@ -150,14 +152,14 @@ struct MonthView: View {
                     return cells[min(6, max(0, Int(p.x / w)))]
                 },
                 target: $dropTarget,
-                originKey: "week-" + cells[0],
+                originKey: dropKeyPrefix + cells[0],
                 cellRect: { p in
                     guard w > 0 else { return .zero }
                     return CGRect(x: CGFloat(min(6, max(0, Int(p.x / w)))) * w, y: 0, width: w, height: rowH)
                 },
                 onDrop: onDropEvent))
             .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: {
-                DragState.shared.dropOrigins["week-" + cells[0]] = $0
+                DragState.shared.dropOrigins[dropKeyPrefix + cells[0]] = $0
             }
         }
     }
