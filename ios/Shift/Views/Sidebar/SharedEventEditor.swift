@@ -29,7 +29,7 @@ struct SharedEventEditor: View {
         let e = target.event
         _title = State(initialValue: e.title)
         _allDay = State(initialValue: e.allDay)
-        _hasDate = State(initialValue: e.placed)
+        _hasDate = State(initialValue: e.placed && !e.startDate.isEmpty)
         _start = State(initialValue: Self.combine(e.startDate, e.startTime, fallbackHour: 9))
         _end = State(initialValue: Self.combine(e.endDate, e.endTime, fallbackHour: 18))
         _color = State(initialValue: e.color)
@@ -69,6 +69,36 @@ struct SharedEventEditor: View {
         return out
     }
 
+    /// 開始/終了の 1 行。日付を決めていないときは「日付未定」を出し、押すと今日になる(自分の予定の追加と同じ)
+    @ViewBuilder
+    private func dateTimeRow(_ label: String, _ value: Binding<Date>, isStart: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+            Spacer()
+            if hasDate {
+                DatePicker("", selection: value, displayedComponents: .date).labelsHidden()
+            } else {
+                Button {
+                    let d = Rules.parse(Rules.today()) ?? Date()
+                    start = Self.combine(Rules.format(d), Self.timeText(start), fallbackHour: 9)
+                    end = Self.combine(Rules.format(d), Self.timeText(end), fallbackHour: 18)
+                    hasDate = true
+                } label: {
+                    Text("日付未定")
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color(.secondarySystemFill)))
+                }
+                .buttonStyle(.borderless)
+                .disabled(!isStart)
+                .opacity(isStart ? 1 : 0.4)
+            }
+            if !allDay {
+                DatePicker("", selection: value, displayedComponents: .hourAndMinute).labelsHidden()
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -76,18 +106,12 @@ struct SharedEventEditor: View {
                     TextField("タイトル(必須)", text: $title)
                     ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
                 } footer: {
-                    Text("この予定は、共有カレンダーの参加者全員が見られて、直せます。給料やメモは持ちません。日付を決めない予定は、下の未配置エリアに入ります。")
+                    Text("この予定は、共有カレンダーの参加者全員が見られて、直せます。給料やメモは持ちません。日付未定の予定は、下の未配置エリアに入ります。")
                 }
                 Section {
-                    Toggle("日付を決める", isOn: $hasDate)
                     Toggle("終日", isOn: $allDay)
-                    if hasDate {
-                        DatePicker("開始", selection: $start, displayedComponents: allDay ? [.date] : [.date, .hourAndMinute])
-                        DatePicker("終了", selection: $end, displayedComponents: allDay ? [.date] : [.date, .hourAndMinute])
-                    } else if !allDay {
-                        DatePicker("開始", selection: $start, displayedComponents: [.hourAndMinute])
-                        DatePicker("終了", selection: $end, displayedComponents: [.hourAndMinute])
-                    }
+                    dateTimeRow("開始", $start, isStart: true)
+                    dateTimeRow("終了", $end, isStart: false)
                     if endsBeforeStart {
                         Text("終了は開始より前には設定できません")
                             .font(.footnote)
