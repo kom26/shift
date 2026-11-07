@@ -127,6 +127,7 @@ struct ProfileEditSheet: View {
                 } footer: {
                     Text("登録すると、設定の「記念日・誕生日」に、自分の誕生日として自動で入ります。変えられるのは、ここだけです(記念日・誕生日の画面では、アイコンと色だけ変えられます)。共有カレンダーにも、自分の誕生日として追加できます。")
                 }
+                AccountManageSection()
             }
             .navigationTitle("名前とアバター")
             .navigationBarTitleDisplayMode(.inline)

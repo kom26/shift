@@ -7,7 +7,6 @@ struct AccountSection: View {
     @Environment(AccountSync.self) private var sync
     @Environment(ProfileSettings.self) private var profile
     @Environment(\.colorScheme) private var scheme
-    @State private var confirmDelete = false
     @State private var editingProfile = false
 
     private var errorShown: Binding<Bool> {
@@ -33,6 +32,11 @@ struct AccountSection: View {
                     .contentShape(Rectangle())
                 }
                 .sheet(isPresented: $editingProfile) { ProfileEditSheet() }
+                .alert("エラー", isPresented: errorShown) {
+                    Button("OK") { auth.errorMessage = nil }
+                } message: {
+                    Text(auth.errorMessage ?? "")
+                }
                 if let t = sync.status.lastSync {
                     HStack {
                         Text("最後の同期")
@@ -40,27 +44,6 @@ struct AccountSection: View {
                         Text(t.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(.secondary)
                     }
                 }
-                Button("ログアウト") { auth.signOut() }
-                    .alert("エラー", isPresented: errorShown) {
-                        Button("OK") { auth.errorMessage = nil }
-                    } message: {
-                        Text(auth.errorMessage ?? "")
-                    }
-                Button("アカウントを削除", role: .destructive) { confirmDelete = true }
-                .alert("アカウントを削除しますか?", isPresented: $confirmDelete) {
-                        Button("削除", role: .destructive) {
-                            Task {
-                                // 先にアカウントのデータを消す。削除に失敗したら、端末のデータをもう一度送って元に戻す
-                                await sync.eraseRemote()
-                                if await !auth.deleteAccount(), let uid = auth.account?.uid {
-                                    await sync.start(uid: uid)
-                                }
-                            }
-                        }
-                        Button("キャンセル", role: .cancel) {}
-                    } message: {
-                        Text("この操作は取り消せません。")
-                    }
             } else {
                 SignInWithAppleButton(.signIn) { request in
                     auth.prepareApple(request)
@@ -94,7 +77,7 @@ struct AccountSection: View {
         } footer: {
             Text(auth.account == nil
                  ? "アカウント登録かログインをすると、予定・職場・よく使う予定・記念日がアカウントに保存され、機種変更でも引き継げます。登録しなくても今までどおり使えます(共有カレンダーと画像から追加は、アカウントが必要です)。"
-                 : "予定などは自動でアカウントに保存されます。アカウントを削除すると、アカウントのデータとログイン情報が消えます。端末の中の予定は残ります。")
+                 : "予定などは自動でアカウントに保存されます。ログアウトとアカウントの削除は、上の名前の画面の一番下にあります。")
         }
     }
 }

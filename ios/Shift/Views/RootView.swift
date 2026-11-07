@@ -339,7 +339,7 @@ struct RootView: View {
                 } else {
                     // 登録の前に開いた招待は、参加待ちとして並べる(押すと、登録をうながす案内をもう一度出す)
                     ForEach(pendingInvites) { inv in
-                        drawerRow(title: (inv.name.isEmpty ? "共有カレンダー" : inv.name) + "(参加待ち)", icon: "person.2") {
+                        drawerRow(title: inv.name.isEmpty ? "共有カレンダー" : inv.name, icon: "person.2", caption: "参加待ち(アカウント登録が必要)") {
                             closeDrawer {
                                 alertInvite = inv
                                 showJoinNeedsAccount = true
@@ -369,7 +369,7 @@ struct RootView: View {
     /// 共有カレンダーの行。タップで開く(承認待ちなら案内)。右の ⓘ で、招待・参加者・自分の設定
     private func calendarRow(_ cal: SharedCalendar) -> some View {
         HStack(spacing: 0) {
-            drawerRow(title: cal.status == .pending ? "\(cal.name)(承認待ち)" : cal.name, icon: cal.icon,
+            drawerRow(title: cal.name, icon: cal.icon, caption: cal.status == .pending ? "承認待ち" : nil,
                       selected: sharedView.calendar?.id == cal.id) {
                 if cal.status == .active {
                     closeDrawer { Task { await sharedView.open(cal) } }
@@ -451,11 +451,15 @@ struct RootView: View {
         .background(Theme.accent)
     }
 
-    private func drawerRow(title: String, icon: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
+    private func drawerRow(title: String, icon: String, caption: String? = nil, selected: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: icon).frame(width: 24)
-                Text(title).font(.app(16, weight: selected ? .semibold : .regular))
+                // 状態(参加待ち・承認待ち)は、名前の下の小さな文字で出す。名前が長くても、切れない
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.app(16, weight: selected ? .semibold : .regular)).lineLimit(2)
+                    if let caption { Text(caption).font(.app(11)).foregroundStyle(.secondary) }
+                }
                 Spacer()
                 if selected { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
             }
