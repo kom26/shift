@@ -5,10 +5,16 @@ struct WidgetSettingsView: View {
     @Environment(Store.self) private var store
     @Environment(CalendarService.self) private var calendarService
     @Environment(SharedViewState.self) private var sharedView
+    @Environment(\.dismiss) private var dismiss
     /// 0: 小 / 1: 中
     @State private var size = 0
+    /// 画面の中で直している設定。「保存」を押すまで、ウィジェットには渡さない
     @State private var small = WidgetPrefs.load(WidgetPrefsKey.small)
     @State private var medium = WidgetPrefs.load(WidgetPrefsKey.medium)
+    private let savedSmall = WidgetPrefs.load(WidgetPrefsKey.small)
+    private let savedMedium = WidgetPrefs.load(WidgetPrefsKey.medium)
+
+    private var hasChanges: Bool { small != savedSmall || medium != savedMedium }
 
     private var prefs: Binding<WidgetPrefs> { size == 0 ? $small : $medium }
     private var activeCalendars: [SharedCalendar] { calendarService.calendars.filter { $0.status == .active } }
@@ -35,14 +41,19 @@ struct WidgetSettingsView: View {
         }
         .navigationTitle("ウィジェット")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: small) { _, new in changed(new, key: WidgetPrefsKey.small) }
-        .onChange(of: medium) { _, new in changed(new, key: WidgetPrefsKey.medium) }
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) { Button("保存") { save() }.disabled(!hasChanges) }
+        }
     }
 
-    private func changed(_ new: WidgetPrefs, key: String) {
-        new.save(key)
+    private func save() {
+        small.save(WidgetPrefsKey.small)
+        medium.save(WidgetPrefsKey.medium)
         WidgetSync.publish(store: store)
         Task { await WidgetSharedFeed.refresh(store: store, calendars: calendarService.calendars, sharedView: sharedView) }
+        dismiss()
     }
 
     private func calendarRow(title: String, id: String?) -> some View {
