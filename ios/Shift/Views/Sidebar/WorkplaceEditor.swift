@@ -264,7 +264,7 @@ private struct BreakRuleRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             TextField("0", text: Binding(
                 get: { rule.hours },
                 set: { input in
@@ -277,15 +277,16 @@ private struct BreakRuleRow: View {
                 }))
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 44)
+                .frame(width: 40)
                 .focused(focus, equals: "rule-h-" + rule.id)
-            Text("時間")
+            Text("時間").lineLimit(1).fixedSize()
             Picker("条件", selection: $rule.comparison) {
                 Text("以上").tag(BreakComparison.atLeast)
                 Text("を超える").tag(BreakComparison.over)
             }
             .pickerStyle(.menu)
             .labelsHidden()
+            .fixedSize()
             Spacer(minLength: 0)
             TextField("0", text: Binding(
                 get: { rule.minutes },
@@ -294,9 +295,9 @@ private struct BreakRuleRow: View {
                 }))
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 40)
+                .frame(width: 34)
                 .focused(focus, equals: "rule-m-" + rule.id)
-            Text("分")
+            Text("分").lineLimit(1).fixedSize()
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "trash")
             }
