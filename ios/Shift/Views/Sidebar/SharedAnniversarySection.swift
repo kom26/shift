@@ -1,10 +1,8 @@
 import SwiftUI
 
-/// 共有カレンダーの設定の「誕生日・記念日」。+ を押すと、新規作成か、自分の誕生日を追加かを選べる(開いている間は × になる)。
-/// 自分の誕生日を追加したものは、アカウントの誕生日と連動し、ここからはアイコンと色だけ変えられる
+/// 共有カレンダーの設定の「誕生日・記念日」。押すと一覧が開き、右上の + から追加する
+/// (自分のカレンダーの設定の「記念日・誕生日」と同じ作り)
 struct SharedAnniversarySection: View {
-    @Environment(SharedViewState.self) private var sharedView
-    @Environment(Store.self) private var store
     let calendar: SharedCalendar
     let canWrite: Bool
     /// 参加者の名前(uid から引ける)
@@ -13,30 +11,51 @@ struct SharedAnniversarySection: View {
     /// 相手に見える自分の名前(自分の誕生日の名前に使う)
     let displayName: String
 
+    var body: some View {
+        Section {
+            NavigationLink {
+                SharedAnniversaryListView(calendar: calendar, canWrite: canWrite, names: names, myUid: myUid,
+                                          displayName: displayName)
+            } label: {
+                Text("誕生日・記念日")
+            }
+        }
+    }
+}
+
+/// 共有カレンダーの誕生日・記念日の一覧。右上の + を押すと、新規作成か、自分の誕生日を追加かを選べる(開いている間は × になる)。
+/// 自分の誕生日を追加したものは、アカウントの誕生日と連動し、ここからはアイコンと色だけ変えられる
+struct SharedAnniversaryListView: View {
+    @Environment(SharedViewState.self) private var sharedView
+    @Environment(Store.self) private var store
+    let calendar: SharedCalendar
+    let canWrite: Bool
+    let names: [String: String]
+    let myUid: String?
+    let displayName: String
+
     @State private var items: [SharedAnniversary] = []
     @State private var menuOpen = false
     @State private var editing: AnniversaryEditTarget?
     @State private var message: String?
 
     var body: some View {
-        Section {
+        List {
+            if items.isEmpty {
+                Text("登録されていません").foregroundStyle(.secondary)
+            }
             ForEach(items.sorted { ($0.month, $0.day) < ($1.month, $1.day) }) { item in
                 row(item)
             }
-            if items.isEmpty {
-                Text("まだありません").foregroundStyle(.secondary)
+        }
+        .navigationTitle("誕生日・記念日")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if canWrite {
+                ToolbarItem(placement: .primaryAction) { plusButton }
             }
-        } header: {
-            HStack {
-                Text("誕生日・記念日")
-                Spacer()
-                if canWrite { plusButton }
-            }
-        } footer: {
-            Text("「自分の誕生日を追加」は、アカウントの誕生日が入ります。ここからは変えられず(アイコンと色だけ変えられます)、アカウント設定を変えるとここも変わります。")
         }
         .task { await reload() }
-        .animation(.snappy, value: menuOpen)
         .sheet(item: $editing) { target in
             AnniversaryEditor(
                 item: target.item,
@@ -60,21 +79,17 @@ struct SharedAnniversarySection: View {
         }
     }
 
-    /// 開いている間は 45° 傾いて × になる丸いボタン
+    /// 開いている間は 45° 傾いて × になる + ボタン
     private var plusButton: some View {
         Button {
             // アカウントに誕生日がなければ、選ばずに新規作成へ
             if store.myBirthday == nil { newOne() } else { menuOpen.toggle() }
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Theme.onAccent)
-                .frame(width: 28, height: 28)
-                .background(Theme.accent, in: Circle())
                 .rotationEffect(.degrees(menuOpen ? 45 : 0))
+                .animation(.snappy, value: menuOpen)
         }
-        .buttonStyle(.borderless)
-        .textCase(nil)
+        .accessibilityLabel(menuOpen ? "閉じる" : "追加")
         .popover(isPresented: $menuOpen, attachmentAnchor: .point(.bottom), arrowEdge: .top) {
             VStack(alignment: .leading, spacing: 0) {
                 Button { newOne() } label: {
@@ -90,7 +105,6 @@ struct SharedAnniversarySection: View {
             .frame(width: 230)
             .presentationCompactAdaptation(.popover)
         }
-        .accessibilityLabel(menuOpen ? "閉じる" : "誕生日・記念日を追加")
     }
 
     private func row(_ item: SharedAnniversary) -> some View {
@@ -111,6 +125,7 @@ struct SharedAnniversarySection: View {
                     Image(systemName: "link").font(.app(12)).foregroundStyle(.secondary)
                 }
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
@@ -124,7 +139,8 @@ struct SharedAnniversarySection: View {
 
     private func newOne() {
         menuOpen = false
-        editing = AnniversaryEditTarget(item: nil)
+        // ポップオーバーが閉じきってから、編集画面を開く
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { editing = AnniversaryEditTarget(item: nil) }
     }
 
     private func addMine() {

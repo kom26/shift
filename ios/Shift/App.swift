@@ -15,6 +15,7 @@ struct ShiftApp: App {
     /// アプリを入れた直後は、ライトモード(設定で、自動・ダークに変えられる)
     @AppStorage(Appearance.key) private var appearance = Appearance.light
     @State private var profile = ProfileSettings()
+    @State private var updater = UpdateChecker()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -71,6 +72,8 @@ struct ShiftApp: App {
                 .onOpenURL { GIDSignIn.sharedInstance.handle($0) }
                 .tint(Theme.accent)
                 .preferredColorScheme(appearance.colorScheme)
+                .overlay { UpdateNoticeOverlay(checker: updater) }
+                .task { await updater.check() }
                 .overlay {
                     if sync.status.restoring || sync.status.choice != nil { RestoringOverlay(sync: sync) }
                 }
@@ -90,6 +93,7 @@ struct ShiftApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
+                        Task { await updater.check() }
                         sync.retryIfNeeded()
                         // 承認や参加者の変更など、閉じている間に変わった参加の状態を取り直す
                         Task { await calendars.refresh() }

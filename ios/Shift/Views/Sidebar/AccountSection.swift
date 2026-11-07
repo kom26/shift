@@ -10,6 +10,10 @@ struct AccountSection: View {
     @State private var confirmDelete = false
     @State private var editingProfile = false
 
+    private var errorShown: Binding<Bool> {
+        Binding(get: { auth.errorMessage != nil }, set: { if !$0 { auth.errorMessage = nil } })
+    }
+
     var body: some View {
         Section {
             if let account = auth.account {
@@ -28,6 +32,7 @@ struct AccountSection: View {
                     }
                     .contentShape(Rectangle())
                 }
+                .sheet(isPresented: $editingProfile) { ProfileEditSheet() }
                 if let t = sync.status.lastSync {
                     HStack {
                         Text("最後の同期")
@@ -36,7 +41,26 @@ struct AccountSection: View {
                     }
                 }
                 Button("ログアウト") { auth.signOut() }
+                    .alert("エラー", isPresented: errorShown) {
+                        Button("OK") { auth.errorMessage = nil }
+                    } message: {
+                        Text(auth.errorMessage ?? "")
+                    }
                 Button("アカウントを削除", role: .destructive) { confirmDelete = true }
+                .alert("アカウントを削除しますか?", isPresented: $confirmDelete) {
+                        Button("削除", role: .destructive) {
+                            Task {
+                                // 先にアカウントのデータを消す。削除に失敗したら、端末のデータをもう一度送って元に戻す
+                                await sync.eraseRemote()
+                                if await !auth.deleteAccount(), let uid = auth.account?.uid {
+                                    await sync.start(uid: uid)
+                                }
+                            }
+                        }
+                        Button("キャンセル", role: .cancel) {}
+                    } message: {
+                        Text("この操作は取り消せません。")
+                    }
             } else {
                 SignInWithAppleButton(.signIn) { request in
                     auth.prepareApple(request)
@@ -59,6 +83,11 @@ struct AccountSection: View {
                 }
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+                .alert("エラー", isPresented: errorShown) {
+                    Button("OK") { auth.errorMessage = nil }
+                } message: {
+                    Text(auth.errorMessage ?? "")
+                }
             }
         } header: {
             Text("アカウント")
@@ -66,27 +95,6 @@ struct AccountSection: View {
             Text(auth.account == nil
                  ? "アカウント登録かログインをすると、予定・職場・よく使う予定・記念日がアカウントに保存され、機種変更でも引き継げます。登録しなくても今までどおり使えます(共有カレンダーと画像から追加は、アカウントが必要です)。"
                  : "予定などは自動でアカウントに保存されます。アカウントを削除すると、アカウントのデータとログイン情報が消えます。端末の中の予定は残ります。")
-        }
-        .sheet(isPresented: $editingProfile) { ProfileEditSheet() }
-        .alert("アカウントを削除しますか?", isPresented: $confirmDelete) {
-            Button("削除", role: .destructive) {
-                Task {
-                    // 先にアカウントのデータを消す。削除に失敗したら、端末のデータをもう一度送って元に戻す
-                    await sync.eraseRemote()
-                    if await !auth.deleteAccount(), let uid = auth.account?.uid {
-                        await sync.start(uid: uid)
-                    }
-                }
-            }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("この操作は取り消せません。")
-        }
-        .alert("エラー", isPresented: Binding(get: { auth.errorMessage != nil },
-                                              set: { if !$0 { auth.errorMessage = nil } })) {
-            Button("OK") { auth.errorMessage = nil }
-        } message: {
-            Text(auth.errorMessage ?? "")
         }
     }
 }
