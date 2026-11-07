@@ -56,7 +56,6 @@ struct RootView: View {
     @State private var dropChoice: DropChoice?
     /// 招待リンクから開いたが、アカウント登録がまだのとき、案内を出す
     @State private var showJoinNeedsAccount = false
-    @State private var joinInviteName: String?
     /// 右上の ⊕ を押して開く「予定追加 / 画像から追加」の 2 択(開いている間、ボタンは ⊗)
     @State private var addMenuOpen = false
     @State private var showShotImport = false
@@ -66,13 +65,16 @@ struct RootView: View {
     @State private var sharedDetail: SharedDetailTarget?
     /// 招待リンクから開いたときの招待コード
     @State private var joinCode = ""
-    /// リンクから開いたが、ログインの確認が済むまで待っている招待コード
-    /// 端末に残しておく。「あとで」にしたり、アプリを閉じたりしても、アカウント登録が済んだときに参加の確認を開く
-    @AppStorage("pending-join-code") private var pendingJoinStored = ""
-    private var pendingJoinCode: String? {
-        get { pendingJoinStored.isEmpty ? nil : pendingJoinStored }
-        nonmutating set { pendingJoinStored = newValue ?? "" }
+    /// アカウント登録の前に開いた招待。端末に残しておき、登録が済んだら上から順に参加の確認を開く
+    @AppStorage("pending-invites") private var pendingInvitesJSON = ""
+    private var pendingInvites: [PendingInvite] {
+        get { PendingInvite.decode(pendingInvitesJSON) }
+        nonmutating set { pendingInvitesJSON = PendingInvite.encode(newValue) }
     }
+    /// 登録をうながす案内を出している招待
+    @State private var alertInvite: PendingInvite?
+    /// 参加の確認を開く準備中(続けて 2 つ開かないための印)
+    @State private var joinPresenting = false
     @State private var calendarDetail: SharedCalendar?
     /// 手動共有の確認を開いている共有カレンダー
     @State private var reviewCalendar: SharedCalendar?
@@ -173,6 +175,7 @@ struct RootView: View {
             // 承認待ちだった共有カレンダーが承認されたら、すぐ見られることを知らせる
             calendarService.onApproved = { cal in showToast("「" + cal.name + "」に参加できました") }
             presentPendingJoin()
+            fillInviteNames()
         }
         .onOpenURL { url in
             // 招待リンクから: shiftpalette://join/<招待コード> で、参加の確認を開く(ログイン前なら設定へ)
@@ -181,16 +184,14 @@ struct RootView: View {
                 || (url.scheme == "https" && url.host == "shift-palette.web.app" && url.pathComponents.dropFirst().first == "join")
             if isJoin, let code = url.pathComponents.last, code != "/", code != "join" {
                 // 起動直後はログインの復元が終わっていないので、コードを覚えておき、確認できたら参加画面を開く
-                pendingJoinCode = code
+                stockInvite(code)
                 presentPendingJoin()
                 if auth.account == nil {
-                    // しばらく待ってもログインしていなければ、設定を開いてログインしてもらう
+                    // しばらく待ってもログインしていなければ、アカウント登録をうながす
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        if let code = pendingJoinCode, auth.account == nil {
-                            Task {
-                                joinInviteName = await calendarService.inviteName(code: code)
-                                if pendingJoinCode != nil, auth.account == nil { showJoinNeedsAccount = true }
-                            }
+                        if auth.account == nil, let inv = pendingInvites.first(where: { $0.code == code }) {
+                            alertInvite = inv
+                            showJoinNeedsAccount = true
                         }
                     }
                 }
@@ -220,7 +221,7 @@ struct RootView: View {
             .environment(displayStore)
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
-        .alert(joinInviteName.map { "「($0)」に招待されました" } ?? "共有カレンダーに招待されました", isPresented: $showJoinNeedsAccount) {
+        .alert(inviteAlertTitle, isPresented: $showJoinNeedsAccount) {
             Button("アカウント登録") { showSettings = true }
             Button("あとで", role: .cancel) {}
         } message: {
@@ -232,17 +233,52 @@ struct RootView: View {
         .sheet(item: $sharedEditing) { SharedEventEditor(target: $0) }
         .sheet(item: $sharedDetail) { SharedEventDetail(eventId: $0.eventId) }
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
-        .sheet(isPresented: $showJoinCalendar, onDismiss: { joinCode = "" }) { CalendarJoinSheet(code: joinCode) }
+        .sheet(isPresented: $showJoinCalendar, onDismiss: {
+            joinCode = ""
+            joinPresenting = false
+            // ほかに待っている招待があれば、続けて開く
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { presentPendingJoin() }
+        }) { CalendarJoinSheet(code: joinCode) }
         .sheet(item: $calendarDetail) { CalendarDetailSheet(calendar: $0) }
         .sheet(item: $reviewCalendar) { ShareReviewSheet(calendar: $0) }
     }
 
-    /// 待っている招待コードがあり、ログインしていれば、参加画面を開く(ほかのシートが開いていれば閉じてから)
+    private var inviteAlertTitle: String {
+        let name = pendingInvites.first { $0.code == alertInvite?.code }?.name ?? ""
+        return name.isEmpty ? "共有カレンダーに招待されました" : "「(name)」に招待されました"
+    }
+
+    /// 開いた招待を、順番待ちに入れる(同じ共有カレンダーの招待は、新しい方に置き換える)
+    private func stockInvite(_ code: String) {
+        var list = pendingInvites
+        let cid = InviteCode.parse(code)?.calendarId
+        list.removeAll { $0.code == code || (cid != nil && InviteCode.parse($0.code)?.calendarId == cid) }
+        list.append(PendingInvite(code: code, name: ""))
+        pendingInvites = list
+        fillInviteNames()
+    }
+
+    /// 名前がまだ分からない招待の名前を調べる
+    private func fillInviteNames() {
+        for inv in pendingInvites where inv.name.isEmpty {
+            Task {
+                guard let n = await calendarService.inviteName(code: inv.code) else { return }
+                var list = pendingInvites
+                if let i = list.firstIndex(where: { $0.code == inv.code }) {
+                    list[i].name = n
+                    pendingInvites = list
+                }
+            }
+        }
+    }
+
+    /// 待っている招待があり、ログインしていれば、先頭から参加画面を開く(ほかのシートが開いていれば閉じてから)
     private func presentPendingJoin() {
-        guard let code = pendingJoinCode, auth.account != nil else { return }
-        pendingJoinCode = nil
+        guard auth.account != nil, !showJoinCalendar, !joinPresenting, let next = pendingInvites.first else { return }
+        pendingInvites = Array(pendingInvites.dropFirst())
+        joinPresenting = true
         let open = {
-            joinCode = code
+            joinCode = next.code
             showJoinCalendar = true
         }
         if showSettings || showDrawer {
@@ -301,6 +337,15 @@ struct RootView: View {
                     }
                     .padding(.leading, 16)
                 } else {
+                    // 登録の前に開いた招待は、参加待ちとして並べる(押すと、登録をうながす案内をもう一度出す)
+                    ForEach(pendingInvites) { inv in
+                        drawerRow(title: (inv.name.isEmpty ? "共有カレンダー" : inv.name) + "(参加待ち)", icon: "person.2") {
+                            closeDrawer {
+                                alertInvite = inv
+                                showJoinNeedsAccount = true
+                            }
+                        }
+                    }
                     drawerRow(title: "アカウント登録かログインして共有カレンダーを使う", icon: "person.crop.circle.badge.plus") {
                         closeDrawer { showSettings = true }
                     }
