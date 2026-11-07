@@ -83,7 +83,8 @@ struct AlarmEditSheet: View {
                         .disabled(saving || fireDate == nil || (!isClock && minutes == 0))
                 }
             }
-            .confirmationDialog("このアラームを削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            // 画面の真ん中に出す確認(上に出ないように、アラートにしてある)
+            .alert("このアラームを削除しますか?", isPresented: $confirmDelete) {
                 Button("削除", role: .destructive) {
                     Task {
                         await AlarmService.shared.remove(entry, store: store)
@@ -91,6 +92,7 @@ struct AlarmEditSheet: View {
                         dismiss()
                     }
                 }
+                Button("キャンセル", role: .cancel) {}
             }
         }
         .presentationDetents([.large])
