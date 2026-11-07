@@ -99,6 +99,21 @@ struct RootView: View {
     }
 
     var body: some View {
+        mainBody
+            // 開いた共有カレンダーで、まだ見ていない退会のお知らせがあれば出す
+            .onChange(of: sharedView.calendar?.id) { _, id in showNotices(for: id) }
+    }
+
+    private func showNotices(for id: String?) {
+        guard let id else { return }
+        Task {
+            let lines = await calendarService.takeNotices(for: id)
+            if !lines.isEmpty { showToast(lines.joined(separator: "\n")) }
+        }
+    }
+
+    // 式が長くなりすぎて型が決まらなくなるので、本体を分けてある
+    private var mainBody: some View {
         VStack(spacing: 0) {
             header
             Divider()
@@ -171,14 +186,6 @@ struct RootView: View {
             selectedDate = nil
         }
         .onChange(of: auth.account?.uid) { _, _ in presentPendingJoin() }
-        .onChange(of: sharedView.calendar?.id) { _, id in
-            // 開いた共有カレンダーで、まだ見ていない退会のお知らせがあれば出す
-            guard let id else { return }
-            Task {
-                let lines = await calendarService.takeNotices(for: id)
-                if !lines.isEmpty { showToast(lines.joined(separator: "\n")) }
-            }
-        }
         .onAppear {
             // 承認待ちだった共有カレンダーが承認されたら、すぐ見られることを知らせる
             calendarService.onApproved = { cal in showToast("「" + cal.name + "」に参加できました") }
