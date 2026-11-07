@@ -67,7 +67,12 @@ struct RootView: View {
     /// 招待リンクから開いたときの招待コード
     @State private var joinCode = ""
     /// リンクから開いたが、ログインの確認が済むまで待っている招待コード
-    @State private var pendingJoinCode: String?
+    /// 端末に残しておく。「あとで」にしたり、アプリを閉じたりしても、アカウント登録が済んだときに参加の確認を開く
+    @AppStorage("pending-join-code") private var pendingJoinStored = ""
+    private var pendingJoinCode: String? {
+        get { pendingJoinStored.isEmpty ? nil : pendingJoinStored }
+        nonmutating set { pendingJoinStored = newValue ?? "" }
+    }
     @State private var calendarDetail: SharedCalendar?
     /// 手動共有の確認を開いている共有カレンダー
     @State private var reviewCalendar: SharedCalendar?
@@ -167,6 +172,7 @@ struct RootView: View {
         .onAppear {
             // 承認待ちだった共有カレンダーが承認されたら、すぐ見られることを知らせる
             calendarService.onApproved = { cal in showToast("「" + cal.name + "」に参加できました") }
+            presentPendingJoin()
         }
         .onOpenURL { url in
             // 招待リンクから: shiftpalette://join/<招待コード> で、参加の確認を開く(ログイン前なら設定へ)
@@ -216,7 +222,7 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) { SettingsView() }
         .alert(joinInviteName.map { "「($0)」に招待されました" } ?? "共有カレンダーに招待されました", isPresented: $showJoinNeedsAccount) {
             Button("アカウント登録") { showSettings = true }
-            Button("あとで", role: .cancel) { pendingJoinCode = nil }
+            Button("あとで", role: .cancel) {}
         } message: {
             Text("共有カレンダーに参加するには、アカウント登録(ログイン)が必要です。登録が済むと、参加の確認が開きます。")
         }
