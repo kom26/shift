@@ -1,7 +1,107 @@
 import UIKit
 
+/// 24時をこえる時間の種類
+enum OvernightKind: String, Equatable {
+    /// 開始は24時前で、終了が24時をこえる(22:00〜30:00 など)
+    case lateEnd
+    /// 開始が24時以降(24:00〜30:00 など)
+    case afterMidnight
+}
+
+/// 終了が24時をこえる予定の取り込み方
+enum LateEndChoice: String, CaseIterable, Equatable {
+    /// 22:00〜30:00 のまま、その日に収める
+    case fit
+    /// 22:00〜翌日6:00 の日またぎにする
+    case cross
+}
+
+/// 開始が24時以降の予定の取り込み方
+enum AfterMidnightChoice: String, CaseIterable, Equatable {
+    /// 24:00〜30:00 のまま
+    case keep
+    /// 24:00〜翌日6:00 の日またぎにする
+    case cross
+    /// 翌日の 0:00〜6:00 として、翌日に置く
+    case next
+}
+
+struct OvernightChoices: Equatable {
+    var lateEnd = LateEndChoice.fit
+    var afterMidnight = AfterMidnightChoice.keep
+}
+
+/// 同じ時間の組み合わせ(例: 22:00〜30:00)とその日付
+struct OvernightPattern: Identifiable, Equatable {
+    let start: String
+    let end: String
+    var dates: [String]
+    var id: String { start + "-" + end }
+}
+
+struct OvernightGroup: Identifiable, Equatable {
+    let kind: OvernightKind
+    var patterns: [OvernightPattern]
+    var id: String { kind.rawValue }
+    var dayCount: Int { patterns.reduce(0) { $0 + $1.dates.count } }
+    /// いちばん日数の多い組み合わせ(説明の例に使う)
+    var representative: OvernightPattern? { patterns.max { $0.dates.count < $1.dates.count } }
+}
+
+extension ShiftLine {
+    /// 24時をこえる時間か(休みと、時間のない行は nil)。24:00 ちょうどまでの終了は、こえるに入れない
+    var overnightKind: OvernightKind? {
+        guard !off, let s = Rules.minutes(start), let e = Rules.minutes(end) else { return nil }
+        if s >= 1440 { return .afterMidnight }
+        return e > 1440 ? .lateEnd : nil
+    }
+}
+
 /// 読み取った 1 日分(ShiftLine)から、予定を作る
 enum ShiftLineImport {
+    /// 分から "HH:mm"
+    static func timeText(_ minutes: Int) -> String { String(format: "%02d:%02d", minutes / 60, minutes % 60) }
+
+    /// 24時をこえる時間を、種類ごと・時間の組み合わせごとにまとめる(日付順)
+    static func overnightGroups(of lines: [ShiftLine]) -> [OvernightGroup] {
+        var out: [OvernightGroup] = []
+        for kind in [OvernightKind.lateEnd, .afterMidnight] {
+            var patterns: [OvernightPattern] = []
+            for line in lines where line.overnightKind == kind {
+                guard let s = line.start, let e = line.end else { continue }
+                if let i = patterns.firstIndex(where: { $0.start == s && $0.end == e }) {
+                    patterns[i].dates.append(line.date)
+                } else {
+                    patterns.append(OvernightPattern(start: s, end: e, dates: [line.date]))
+                }
+            }
+            if !patterns.isEmpty { out.append(OvernightGroup(kind: kind, patterns: patterns)) }
+        }
+        return out
+    }
+
+    /// 選んだ取り込み方を当てはめた行。24時をこえない行は、そのまま
+    static func resolved(_ line: ShiftLine, _ choices: OvernightChoices) -> ShiftLine {
+        guard let kind = line.overnightKind, let s = Rules.minutes(line.start), let e = Rules.minutes(line.end) else { return line }
+        var out = line
+        switch kind {
+        case .lateEnd:
+            // 日またぎ: 終了を、翌日の時刻に書き直す(終了日は、取り込みのときに翌日になる)
+            if choices.lateEnd == .cross { out.end = timeText(e - 1440) }
+        case .afterMidnight:
+            switch choices.afterMidnight {
+            case .keep: break
+            case .cross:
+                if e >= 1440 { out.end = timeText(e - 1440) }
+            case .next:
+                out.date = Rules.addDays(line.date, 1)
+                out.start = timeText(s - 1440)
+                if e >= 1440 { out.end = timeText(e - 1440) }
+            }
+        }
+        return out
+    }
+
     /// 読み取り結果から、追加する予定を作る。休みの日は作らない。
     /// 職場を選んでいれば勤務予定(休憩は職場の標準で、労働時間も入れる)、そうでなければラベルの通常予定
     static func events(from lines: [ShiftLine], title: String, workplace: Workplace?, label: EventLabel?,

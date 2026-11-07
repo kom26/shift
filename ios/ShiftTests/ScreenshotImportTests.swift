@@ -73,6 +73,51 @@ struct ScreenshotImportTests {
         #expect(events[0].color == EventLabel.noneColor)
     }
 
+    // MARK: 24時をこえる時間
+
+    @Test func overnightGroupsSplitByKindAndGatherTheSameTimes() {
+        let lines = [line("2026-11-03", "22:00", "30:00"), line("2026-11-05", "21:00", "30:00"),
+                     line("2026-11-10", "22:00", "30:00"), line("2026-11-12", "24:00", "30:00"),
+                     line("2026-11-13", "17:00", "24:00"), line("2026-11-14", "22:00", "06:30")]
+        let groups = ShiftLineImport.overnightGroups(of: lines)
+        #expect(groups.map(\.kind) == [.lateEnd, .afterMidnight])
+        #expect(groups[0].dayCount == 3)
+        #expect(groups[0].patterns.map(\.id) == ["22:00-30:00", "21:00-30:00"])
+        #expect(groups[0].representative?.id == "22:00-30:00")
+        #expect(groups[1].patterns.first?.dates == ["2026-11-12"])
+        // 24:00 ちょうどまでと、普通の日またぎ(22:00〜06:30)は、確認の対象にしない
+        #expect(lines[4].overnightKind == nil && lines[5].overnightKind == nil)
+    }
+
+    @Test func lateEndCanFitInOneDayOrCrossMidnight() {
+        let store = makeStore()
+        let l = line("2026-11-03", "22:00", "30:00")
+        let fit = ShiftLineImport.events(from: [ShiftLineImport.resolved(l, OvernightChoices())], title: "夜", workplace: nil, label: nil, store: store)
+        #expect(fit[0].endTime == "30:00" && fit[0].endDate == "2026-11-03")
+        var c = OvernightChoices()
+        c.lateEnd = .cross
+        let cross = ShiftLineImport.events(from: [ShiftLineImport.resolved(l, c)], title: "夜", workplace: nil, label: nil, store: store)
+        #expect(cross[0].startTime == "22:00" && cross[0].endTime == "06:00" && cross[0].endDate == "2026-11-04")
+    }
+
+    @Test func afterMidnightKeepsCrossesOrMovesToTheNextDay() {
+        let store = makeStore()
+        let l = line("2026-11-12", "24:00", "30:00")
+        func make(_ choice: AfterMidnightChoice) -> ShiftEvent {
+            var c = OvernightChoices()
+            c.afterMidnight = choice
+            return ShiftLineImport.events(from: [ShiftLineImport.resolved(l, c)], title: "夜", workplace: nil, label: nil, store: store)[0]
+        }
+        let keep = make(.keep)
+        #expect(keep.startDate == "2026-11-12" && keep.startTime == "24:00" && keep.endTime == "30:00" && keep.endDate == "2026-11-12")
+        let cross = make(.cross)
+        #expect(cross.startTime == "24:00" && cross.endTime == "06:00" && cross.endDate == "2026-11-13")
+        let next = make(.next)
+        #expect(next.startDate == "2026-11-13" && next.startTime == "00:00" && next.endTime == "06:00" && next.endDate == "2026-11-13")
+        // どれを選んでも、時間の長さは同じ
+        #expect(keep.workHours == cross.workHours && cross.workHours == next.workHours)
+    }
+
     // MARK: 読み取りの入口
 
     private struct FakeReader: ScreenshotReading {

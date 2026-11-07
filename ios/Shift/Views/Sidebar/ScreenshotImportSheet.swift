@@ -27,6 +27,12 @@ struct ScreenshotImportSheet: View {
     @State private var labelId: String?
     @State private var choosing = false
     @State private var errorMessage: String?
+    /// 24時をこえる時間の取り込み方(確認のシートで選ぶ)
+    @State private var spanChoices = OvernightChoices()
+    @State private var showSpanSheet = false
+
+    private var overnightGroups: [OvernightGroup] { ShiftLineImport.overnightGroups(of: lines) }
+    private func resolved(_ line: ShiftLine) -> ShiftLine { ShiftLineImport.resolved(line, spanChoices) }
     @FocusState private var titleFocused: Bool
 
     /// 確認画面から、予定追加と同じ編集画面を開くための組
@@ -40,7 +46,7 @@ struct ScreenshotImportSheet: View {
     /// その日の予定(直していれば、直した内容。そうでなければ、まとめて設定から作る)
     private func draft(_ line: ShiftLine) -> ShiftEvent? {
         if let e = edited[line.id] { return e }
-        return ShiftLineImport.events(from: [line], title: title, workplace: workplace,
+        return ShiftLineImport.events(from: [resolved(line)], title: title, workplace: workplace,
                                       label: store.label(for: labelId), store: store).first
     }
     private var addCount: Int { lines.filter { !$0.off && included.contains($0.id) }.count }
@@ -212,7 +218,10 @@ struct ScreenshotImportSheet: View {
             lines = result
             included = Set(result.filter { !$0.off }.map(\.id))
             edited = [:]
+            spanChoices = OvernightChoices()
             step = .review
+            // 24時をこえる時間があれば、取り込む前に、取り込み方を確認する
+            showSpanSheet = !ShiftLineImport.overnightGroups(of: result).isEmpty
         } catch {
             errorMessage = error.localizedDescription
             step = .pick
@@ -227,6 +236,22 @@ struct ScreenshotImportSheet: View {
                 Text("\(rangeText) ・ \(lines.count)日分を読み取りました")
                     .font(.app(13, weight: .semibold))
                     .foregroundStyle(Theme.deltaUp)
+            }
+            if !overnightGroups.isEmpty {
+                Section {
+                    Button { showSpanSheet = true } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "moon.stars.fill").foregroundStyle(.orange)
+                            Text("日またぎ・24時以降の予定が\(overnightGroups.count)パターンあります。確認する")
+                                .font(.app(14, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                }
+                .listRowBackground(Color.orange.opacity(0.14))
             }
             Section {
                 HStack {
@@ -271,6 +296,9 @@ struct ScreenshotImportSheet: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(Color(.systemGroupedBackground))
+        }
+        .sheet(isPresented: $showSpanSheet) {
+            DaySpanSheet(groups: overnightGroups, choices: $spanChoices)
         }
         .sheet(item: $lineEdit) { target in
             EventEditor(original: target.event, isNew: false, onCommit: { edited[target.id] = $0 })
@@ -328,7 +356,7 @@ struct ScreenshotImportSheet: View {
                     if let e = draft(line) { lineEdit = LineEdit(id: line.id, event: e) }
                 } label: {
                     HStack(spacing: 8) {
-                        Text(dateText(line.date)).fontWeight(.semibold).frame(width: 84, alignment: .leading)
+                        Text(dateText(resolved(line).date)).fontWeight(.semibold).frame(width: 84, alignment: .leading)
                         Text(timeText(line)).strikethrough(!on)
                         Spacer(minLength: 4)
                         if edited[line.id] != nil {
@@ -356,7 +384,8 @@ struct ScreenshotImportSheet: View {
             guard !e.allDay, let s = e.startTime, let t = e.endTime else { return "終日" }
             return s + "-" + t
         }
-        guard let s = line.start, let e = line.end else { return "終日" }
+        let r = resolved(line)
+        guard let s = r.start, let e = r.end else { return "終日" }
         return s + "-" + e
     }
 
@@ -365,7 +394,7 @@ struct ScreenshotImportSheet: View {
         // 直した予定は、直した内容のまま。それ以外は、まとめて設定から作る
         let events = chosen.flatMap { line -> [ShiftEvent] in
             if let e = edited[line.id] { return [e] }
-            return ShiftLineImport.events(from: [line], title: title, workplace: workplace,
+            return ShiftLineImport.events(from: [resolved(line)], title: title, workplace: workplace,
                                           label: store.label(for: labelId), store: store)
         }
         events.forEach { store.save($0) }
