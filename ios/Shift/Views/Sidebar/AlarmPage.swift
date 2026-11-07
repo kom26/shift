@@ -128,7 +128,7 @@ struct AlarmPage: View {
                 .labelsHidden()
                 .fixedSize()
         }
-        .frame(height: 28)
+        .frame(height: 31)
     }
 
     /// スタンプモードを終える
