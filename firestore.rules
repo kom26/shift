@@ -58,8 +58,9 @@ service cloud.firestore {
       }
 
       match /invites/{token} {
-        // 招待を持っている人は、中身(名前と種類)を見てから参加できる。コードは推測できない長さにしてある
-        allow get: if signedIn();
+        // 招待を持っている人は、中身(名前と種類)を見てから参加できる。コードは推測できない長さにしてある。
+        // アカウント登録の前でも、「〇〇に招待されました」と出せるよう、ログイン不要で 1 件だけ読める(一覧は不可)
+        allow get: if true;
         allow list: if isActive() || isOwner();
         // 作成と同じ書き込みの中でカレンダーができるので、書き込み後の状態(getAfter)で持ち主を調べる
         allow create, update, delete: if signedIn()

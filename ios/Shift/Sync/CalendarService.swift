@@ -268,6 +268,12 @@ final class CalendarService {
     /// ログインの引き継ぎが済んで、共有カレンダーの操作ができるか(起動直後は、まだのことがある)
     var isReady: Bool { uid != nil }
 
+    /// アカウント登録の前に、招待された共有カレンダーの名前だけ調べる(失敗したら nil)
+    func inviteName(code raw: String) async -> String? {
+        guard let code = InviteCode.parse(raw), let p = try? await backing.preview(code: code), !p.calendarName.isEmpty else { return nil }
+        return p.calendarName
+    }
+
     func preview(code raw: String) async -> (code: InviteCode, preview: InvitePreview)? {
         guard uid != nil else { return nil }
         guard let code = InviteCode.parse(raw) else {

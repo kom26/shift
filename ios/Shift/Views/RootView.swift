@@ -56,6 +56,7 @@ struct RootView: View {
     @State private var dropChoice: DropChoice?
     /// 招待リンクから開いたが、アカウント登録がまだのとき、案内を出す
     @State private var showJoinNeedsAccount = false
+    @State private var joinInviteName: String?
     /// 右上の ⊕ を押して開く「予定追加 / 画像から追加」の 2 択(開いている間、ボタンは ⊗)
     @State private var addMenuOpen = false
     @State private var showShotImport = false
@@ -179,7 +180,12 @@ struct RootView: View {
                 if auth.account == nil {
                     // しばらく待ってもログインしていなければ、設定を開いてログインしてもらう
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        if pendingJoinCode != nil, auth.account == nil { showJoinNeedsAccount = true }
+                        if let code = pendingJoinCode, auth.account == nil {
+                            Task {
+                                joinInviteName = await calendarService.inviteName(code: code)
+                                if pendingJoinCode != nil, auth.account == nil { showJoinNeedsAccount = true }
+                            }
+                        }
                     }
                 }
                 return
@@ -208,7 +214,7 @@ struct RootView: View {
             .environment(displayStore)
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
-        .alert("共有カレンダーに招待されました", isPresented: $showJoinNeedsAccount) {
+        .alert(joinInviteName.map { "「($0)」に招待されました" } ?? "共有カレンダーに招待されました", isPresented: $showJoinNeedsAccount) {
             Button("アカウント登録") { showSettings = true }
             Button("あとで", role: .cancel) { pendingJoinCode = nil }
         } message: {
