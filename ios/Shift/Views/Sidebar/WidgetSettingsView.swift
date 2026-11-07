@@ -99,6 +99,15 @@ struct WidgetSettingsView: View {
         prefs.wrappedValue = p
     }
 
+    /// 労働時間・見込み給料を出せない理由(出せるなら nil)。自分のカレンダーは職場、共有カレンダーは共有している職場が要る
+    private var workUnavailableReason: String? {
+        if let id = prefs.wrappedValue.calendarId {
+            let keys = calendarService.calendars.first { $0.id == id }?.mySharedKeys ?? []
+            return keys.contains { $0.hasPrefix("w:") } ? nil : "勤務予定を共有していません"
+        }
+        return store.workplaces.isEmpty ? "職場が登録されていません" : nil
+    }
+
     @ViewBuilder
     private var itemsSection: some View {
         Section {
@@ -108,18 +117,28 @@ struct WidgetSettingsView: View {
                 if prefs.wrappedValue.calendarId == nil { toggleRow("アラーム", \.showAlarms) }
                 toggleRow("給料日", \.showPayday)
             } else {
-                toggleRow("労働時間", \.showHours)
-                toggleRow("見込み給料", \.showEstimatedPay)
+                toggleRow("労働時間", \.showHours, unavailable: workUnavailableReason != nil)
+                toggleRow("見込み給料", \.showEstimatedPay, unavailable: workUnavailableReason != nil)
             }
         } header: {
             Text("表示する項目")
         } footer: {
-            if size == 1 { Text("中(1週間)は、予定のバーと、週の労働時間・見込み給料を表示します。") }
+            if size == 1 {
+                if let reason = workUnavailableReason {
+                    Text(reason + "。労働時間と見込み給料は表示できません。")
+                } else if prefs.wrappedValue.calendarId != nil {
+                    Text("労働時間と見込み給料は、自分の職場のうち、この共有カレンダーに共有している職場の予定で集計します。")
+                } else {
+                    Text("中(1週間)は、予定のバーと、週の労働時間・見込み給料を表示します。")
+                }
+            }
         }
     }
 
-    private func toggleRow(_ title: String, _ keyPath: WritableKeyPath<WidgetPrefs, Bool>) -> some View {
-        Toggle(title, isOn: Binding(get: { prefs.wrappedValue[keyPath: keyPath] },
-                                    set: { prefs.wrappedValue[keyPath: keyPath] = $0 }))
+    /// unavailable なら、オフのまま押せない
+    private func toggleRow(_ title: String, _ keyPath: WritableKeyPath<WidgetPrefs, Bool>, unavailable: Bool = false) -> some View {
+        Toggle(title, isOn: Binding(get: { !unavailable && prefs.wrappedValue[keyPath: keyPath] },
+                                    set: { if !unavailable { prefs.wrappedValue[keyPath: keyPath] = $0 } }))
+            .disabled(unavailable)
     }
 }

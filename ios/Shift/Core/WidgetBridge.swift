@@ -17,6 +17,8 @@ struct WidgetSharedCalendar: Codable, Equatable {
     var name: String
     var events: [ShiftEvent]
     var anniversaries: [Anniversary]
+    /// この共有カレンダーに、自分が共有している職場(労働時間・見込み給料の集計に使う)。古いデータには無いので省略可
+    var sharedWorkplaceIds: [String]?
 }
 
 /// アプリとウィジェットが App Group の共有領域でやり取りする

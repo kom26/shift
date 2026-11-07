@@ -8,29 +8,48 @@ struct WidgetSource {
     let alarms: [AlarmEntry]
     let prefs: WidgetPrefs
 
+    /// 労働時間・見込み給料の集計に使う入れ物。共有カレンダーを見ているときだけ、自分の職場(共有している分)で作る
+    let workStore: Store?
+
+    private static func tempStore() -> (store: Store, defaults: UserDefaults) {
+        let name = "widget-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: name) ?? .standard
+        return (Store(fileURL: FileManager.default.temporaryDirectory.appending(path: name + ".json"), defaults: defaults), defaults)
+    }
+
     /// アプリが書き出したデータから組み立てる。まだ書き出されていなければ空のカレンダー。
     /// prefs の calendarId が共有カレンダーなら、その中身を見る(アラームは自分のものなので出さない)
     static func load(prefs: WidgetPrefs = WidgetPrefs()) -> WidgetSource {
-        let name = "widget-" + UUID().uuidString
-        let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: name + ".json"),
-                          defaults: UserDefaults(suiteName: name) ?? .standard)
+        let (store, defaults) = tempStore()
         let data = WidgetBridge.read()
         var alarms = data?.snapshot.alarms ?? []
+        var workStore: Store?
         if let id = prefs.calendarId {
             alarms = []
             if let cal = data?.shared?.first(where: { $0.id == id }) {
                 store.applySnapshot(SyncSnapshot(events: cal.events, workplaces: [], favorites: [], customColors: [],
                                                  hiddenSuggestions: []))
                 cal.anniversaries.forEach { store.saveAnniversary($0) }
+                // 労働時間・見込み給料は、自分の職場のうち、この共有カレンダーに共有している分で集計する
+                let ids = cal.sharedWorkplaceIds ?? []
+                if let data, !ids.isEmpty {
+                    let work = tempStore().store
+                    work.applySnapshot(data.snapshot)
+                    ids.forEach { work.toggleWorkplaceFilter($0) }
+                    workStore = work
+                }
             }
         } else {
             if let data { store.applySnapshot(data.snapshot) }
             prefs.workplaceIds.forEach { store.toggleWorkplaceFilter($0) }
             prefs.labelIds.forEach { store.toggleLabelFilter($0) }
         }
-        return WidgetSource(store: store, holidays: Holidays(defaults: UserDefaults(suiteName: name) ?? .standard),
-                            startMonday: data?.startMonday ?? false, alarms: alarms, prefs: prefs)
+        return WidgetSource(store: store, holidays: Holidays(defaults: defaults),
+                            startMonday: data?.startMonday ?? false, alarms: alarms, prefs: prefs, workStore: workStore)
     }
+
+    /// 労働時間・見込み給料を出せるか。自分のカレンダーなら職場が登録されているとき、共有カレンダーなら職場を共有しているとき
+    var canShowWork: Bool { prefs.calendarId == nil ? !store.workplaces.isEmpty : workStore != nil }
 
     func isHoliday(_ ds: String) -> Bool { holidays.name(on: ds) != nil }
 }
@@ -168,7 +187,7 @@ extension WidgetSource {
                                     text: text, color: ev.color, showsTime: s.isStart && ev.barShowsTime))
             }
         }
-        let totals = store.totals(from: days[0], to: days[6], isHoliday: isHoliday)
+        let totals = (workStore ?? store).totals(from: days[0], to: days[6], isHoliday: isHoliday)
         let hours = totals.reduce(0) { $0 + $1.hours }
         let pay = totals.reduce(0) { $0 + $1.pay }
         let s = Rules.ymd(days[0]), e = Rules.ymd(days[6])
@@ -176,8 +195,8 @@ extension WidgetSource {
         return WeekContent(title: title, days: days, dayNumbers: days.map { Rules.ymd($0).day },
                            dayTypes: days.map { Rules.dayType($0, isHoliday: isHoliday($0)) },
                            todayCol: days.firstIndex(of: today), bars: bars,
-                           hours: prefs.showHours ? Rules.formatHours(hours) : nil,
-                           pay: prefs.showEstimatedPay ? Money.yen(pay) : nil,
+                           hours: prefs.showHours && canShowWork ? Rules.formatHours(hours) : nil,
+                           pay: prefs.showEstimatedPay && canShowWork ? Money.yen(pay) : nil,
                            calendarId: prefs.calendarId)
     }
 }
