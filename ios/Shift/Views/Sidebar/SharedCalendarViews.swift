@@ -163,9 +163,13 @@ struct CalendarJoinSheet: View {
     @State private var avatar = ""
     @State private var shared: Set<String> = []
     @State private var joined: SharedCalendar?
+    /// 招待リンク(QR)から開いたか。その場合は、リンクの貼り付け欄は出さず、確認の状況だけを出す
+    private let fromLink: Bool
+    @State private var checking = false
 
     init(code: String = "") {
         _code = State(initialValue: code)
+        fromLink = !code.isEmpty
     }
 
     var body: some View {
@@ -193,6 +197,17 @@ struct CalendarJoinSheet: View {
                     }
                     if found.preview.kind == .mutual {
                         ShareItemsSection(selection: $shared)
+                    }
+                } else if fromLink {
+                    Section {
+                        if checking || service.busy {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                Text("招待を確認しています…")
+                            }
+                        } else {
+                            Button("もう一度確認する") { Task { await check() } }
+                        }
                     }
                 } else {
                     Section {
@@ -242,7 +257,19 @@ struct CalendarJoinSheet: View {
     }
 
     private func check() async {
-        if let result = await service.preview(code: code) { found = result }
+        checking = true
+        defer { checking = false }
+        // 起動直後は、ログインの引き継ぎが終わるまで少し待つ(待たないと、何も出ずに失敗する)
+        var waited = 0
+        while !service.isReady, waited < 25 {
+            try? await Task.sleep(for: .milliseconds(200))
+            waited += 1
+        }
+        if let result = await service.preview(code: code) {
+            found = result
+        } else if service.errorMessage == nil {
+            service.errorMessage = "招待を確認できませんでした。通信を確認して、もう一度お試しください"
+        }
     }
 }
 

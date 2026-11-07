@@ -54,6 +54,8 @@ struct RootView: View {
     @State private var showWorkplaces = false
     /// 予定をドラッグして日付で離したときの「移動 / コピー」の選択
     @State private var dropChoice: DropChoice?
+    /// 招待リンクから開いたが、アカウント登録がまだのとき、案内を出す
+    @State private var showJoinNeedsAccount = false
     /// 右上の ⊕ を押して開く「予定追加 / 画像から追加」の 2 択(開いている間、ボタンは ⊗)
     @State private var addMenuOpen = false
     @State private var showShotImport = false
@@ -177,7 +179,7 @@ struct RootView: View {
                 if auth.account == nil {
                     // しばらく待ってもログインしていなければ、設定を開いてログインしてもらう
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        if pendingJoinCode != nil, auth.account == nil { showSettings = true }
+                        if pendingJoinCode != nil, auth.account == nil { showJoinNeedsAccount = true }
                     }
                 }
                 return
@@ -206,6 +208,12 @@ struct RootView: View {
             .environment(displayStore)
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .alert("共有カレンダーに招待されました", isPresented: $showJoinNeedsAccount) {
+            Button("アカウント登録") { showSettings = true }
+            Button("あとで", role: .cancel) { pendingJoinCode = nil }
+        } message: {
+            Text("共有カレンダーに参加するには、アカウント登録(ログイン)が必要です。登録が済むと、参加の確認が開きます。")
+        }
         .sheet(isPresented: $showFilter) { FilterSheet() }
         .sheet(isPresented: $showLabels) { LabelManageView() }
         .sheet(isPresented: $showWorkplaces) { WorkplaceManageView() }

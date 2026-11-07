@@ -265,6 +265,9 @@ final class CalendarService {
         }
     }
 
+    /// ログインの引き継ぎが済んで、共有カレンダーの操作ができるか(起動直後は、まだのことがある)
+    var isReady: Bool { uid != nil }
+
     func preview(code raw: String) async -> (code: InviteCode, preview: InvitePreview)? {
         guard uid != nil else { return nil }
         guard let code = InviteCode.parse(raw) else {
