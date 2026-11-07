@@ -120,7 +120,9 @@ extension AnniversaryDetail {
             AnniversaryEditor(
                 item: a,
                 onCommit: { x in Task { await shared.saveAnniversary(x, in: cid, ownerUid: shared.anniversaryOwners[x.id]) } },
-                onRemove: { Task { await shared.removeAnniversary(id: a.id, in: cid) } })
+                // 連動した誕生日は、本人しか消せない
+                onRemove: a.isAccountBirthday && shared.anniversaryOwners[a.id] != shared.myUid ? nil
+                    : { Task { await shared.removeAnniversary(id: a.id, in: cid) } })
         } else {
             AnniversaryEditor(item: a)
         }

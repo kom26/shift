@@ -82,7 +82,9 @@ service cloud.firestore {
         allow read: if isActive() || isOwner();
         allow create: if isActive() && canShare() && request.resource.data.ownerUid == request.auth.uid;
         allow update: if isActive() && canShare() && request.resource.data.ownerUid == resource.data.ownerUid;
-        allow delete: if (isActive() && canShare()) || isOwner();
+        // 連動した誕生日(linked)は、入れた本人だけが消せる
+        allow delete: if (isActive() && canShare() && resource.data.linked != true)
+          || (isActive() && resource.data.ownerUid == request.auth.uid) || isOwner();
       }
     }
   }

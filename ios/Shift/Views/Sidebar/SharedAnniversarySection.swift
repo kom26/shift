@@ -47,8 +47,10 @@ struct SharedAnniversarySection: View {
                         await reload()
                     }
                 },
-                onRemove: target.item.map { old in
-                    { Task { await sharedView.removeAnniversary(id: old.id, in: calendar.id); await reload() } }
+                onRemove: target.item.flatMap { old -> (() -> Void)? in
+                    // 連動した誕生日は、本人しか消せない
+                    if let s = items.first(where: { $0.id == old.id }), s.linked, s.ownerUid != myUid { return nil }
+                    return { Task { await sharedView.removeAnniversary(id: old.id, in: calendar.id); await reload() } }
                 })
         }
         .alert("お知らせ", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
@@ -112,7 +114,7 @@ struct SharedAnniversarySection: View {
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
-            if canWrite {
+            if canWrite && !(item.linked && !mine) {
                 Button("削除", role: .destructive) {
                     Task { await sharedView.removeAnniversary(id: item.id, in: calendar.id); await reload() }
                 }

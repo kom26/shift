@@ -670,6 +670,8 @@ final class SharedViewState {
     // MARK: 誕生日・記念日
 
     /// 誕生日・記念日を直せるか。共有カレンダーに書ける人なら、だれが入れたものでも直せる・消せる
+    var myUid: String? { calendars.myUid }
+
     func canEditAnniversary(_ id: String) -> Bool {
         anniversaryOwners[id] != nil && canCreate
     }
