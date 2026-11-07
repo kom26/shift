@@ -13,8 +13,9 @@ struct AccountManageSection: View {
     @State private var failed = false
 
     private var uid: String? { auth.account?.uid }
-    private var owned: [SharedCalendar] { service.calendars.filter { $0.ownerUid == uid } }
-    private var joined: [SharedCalendar] { service.calendars.filter { $0.ownerUid != uid } }
+    /// 見せるだけのカレンダーの持ち主(先にカレンダーを削除してもらう)。相互に共有するカレンダーは、退出すれば済む
+    private var owned: [SharedCalendar] { service.calendars.filter { $0.kind == .oneway && $0.ownerUid == uid } }
+    private var joined: [SharedCalendar] { service.calendars.filter { !($0.kind == .oneway && $0.ownerUid == uid) } }
 
     var body: some View {
         Section {
@@ -45,7 +46,7 @@ struct AccountManageSection: View {
         .alert("持ち主の共有カレンダーがあります", isPresented: $ownerBlocked) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("「\(owned.map(\.name).joined(separator: "」「"))」の持ち主のままでは、アカウントを削除できません。先に、共有カレンダーを削除してください。")
+            Text("見せるだけの共有カレンダー「\(owned.map(\.name).joined(separator: "」「"))」の持ち主のままでは、アカウントを削除できません。先に、そのカレンダーを削除してください。")
         }
     }
 
@@ -59,7 +60,7 @@ struct AccountManageSection: View {
             await sharedView.removeMyLinkedBirthday(in: cal.id)
             await service.leave(cal)
         }
-        guard service.calendars.allSatisfy({ $0.ownerUid == uid }) else {
+        guard service.calendars.allSatisfy({ $0.kind == .oneway && $0.ownerUid == uid }) else {
             failed = true
             return
         }

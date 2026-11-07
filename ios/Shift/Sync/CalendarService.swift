@@ -147,6 +147,9 @@ protocol CalendarBacking: AnyObject {
     /// 持ち主が、カレンダーを予定・招待・参加者ごと消す
     func deleteCalendar(calendarId: String, uid: String) async throws
     func members(calendarId: String) async throws -> [CalendarMember]
+    /// 退会・削除のお知らせを残す(残った人が、次に開いたときに見る)
+    func addNotice(calendarId: String, kind: String, name: String, byUid: String) async throws
+    func notices(calendarId: String) async throws -> [CalendarNotice]
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws
     func removeMember(calendarId: String, uid: String) async throws
     /// 自分の参加の状態を見張る。承認待ちの間、持ち主が承認したことがすぐ届く。参加者から外されたら nil。戻り値で見張りをやめる
@@ -155,6 +158,23 @@ protocol CalendarBacking: AnyObject {
                     shareManual: Bool) async throws
     /// 持ち主が、カレンダーの名前・アイコン・許可制を変える(招待に写してある分も合わせる)
     func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws
+}
+
+extension CalendarBacking {
+    func addNotice(calendarId: String, kind: String, name: String, byUid: String) async throws {}
+    func notices(calendarId: String) async throws -> [CalendarNotice] { [] }
+}
+
+/// 共有カレンダーの、退会・削除のお知らせ 1 件
+struct CalendarNotice: Equatable {
+    let id: String
+    /// "left"(自分で退会) / "removed"(外された)
+    let kind: String
+    let name: String
+    let byUid: String
+    let at: Double
+
+    var text: String { name + (kind == "removed" ? "さんが外されました" : "さんが退会しました") }
 }
 
 enum CalendarError: Error, Equatable {
@@ -308,27 +328,46 @@ final class CalendarService {
         }
     }
 
-    /// 招待を作り直す。いまの QR コード・リンクは使えなくなる(持ち主だけ)
+    /// カレンダーの設定・承認・参加者の削除・招待ができるか。見せるだけは持ち主、相互に共有は参加している全員
+    func canManage(_ calendar: SharedCalendar) -> Bool {
+        guard let uid, calendar.status == .active else { return false }
+        return calendar.kind == .mutual || calendar.ownerUid == uid
+    }
+
+    /// 招待を作り直す。いまの QR コード・リンクは使えなくなる
     func reissueInvite(for calendar: SharedCalendar) async -> InviteCode? {
-        guard let uid, calendar.ownerUid == uid else { return nil }
+        guard let uid, canManage(calendar) else { return nil }
         return await run("招待を作り直せませんでした") {
             try await self.backing.reissueInvite(uid: uid, calendar: calendar)
         }
     }
 
+    /// 退出する。相互に共有するカレンダーでは、最後の 1 人が退出すると、カレンダーごと消える。
+    /// 残る人がいるときは、退会のお知らせを残す。見せるだけのカレンダーの持ち主は、退出できない(削除する)
     func leave(_ calendar: SharedCalendar) async {
-        guard let uid, calendar.ownerUid != uid else { return }
+        guard let uid, calendar.kind == .mutual || calendar.ownerUid != uid else { return }
         _ = await run("退出できませんでした") {
-            try await self.backing.leave(uid: uid, calendarId: calendar.id)
+            if calendar.kind == .mutual, calendar.status == .active {
+                let list = try await self.backing.members(calendarId: calendar.id)
+                if !list.contains(where: { $0.id != uid && $0.status == .active }) {
+                    try await self.backing.deleteCalendar(calendarId: calendar.id, uid: uid)
+                } else {
+                    let myName = list.first { $0.id == uid }?.displayName ?? ""
+                    try? await self.backing.addNotice(calendarId: calendar.id, kind: "left", name: myName, byUid: uid)
+                    try await self.backing.leave(uid: uid, calendarId: calendar.id)
+                }
+            } else {
+                try await self.backing.leave(uid: uid, calendarId: calendar.id)
+            }
             self.calendars.removeAll { $0.id == calendar.id }
             self.syncStatusListeners()
             self.onChange?()
         }
     }
 
-    /// 持ち主が、共有カレンダーを消す。参加者の画面からも消える(予定のコピーも消えるが、みんなの元の予定は消えない)
+    /// 共有カレンダーを消す(見せるだけの持ち主、または相互に共有する最後の 1 人)。参加者の画面からも消える
     func delete(_ calendar: SharedCalendar) async -> Bool {
-        guard let uid, calendar.ownerUid == uid else { return false }
+        guard let uid, canManage(calendar) else { return false }
         busy = true
         errorMessage = nil
         defer { busy = false }
@@ -344,23 +383,37 @@ final class CalendarService {
         }
     }
 
+    /// まだ見ていない退会のお知らせ(自分のものは除く)。初めて開いたときは、昔のお知らせは出さない
+    func takeNotices(for calendarId: String) async -> [String] {
+        guard let uid, let list = try? await backing.notices(calendarId: calendarId) else { return [] }
+        let key = "notice-seen-\(uid)-\(calendarId)"
+        let now = (Date().timeIntervalSince1970 * 1000).rounded()
+        let seen = UserDefaults.standard.object(forKey: key) as? Double
+        UserDefaults.standard.set(max(seen ?? now, list.map(\.at).max() ?? 0, seen == nil ? now : 0), forKey: key)
+        guard let seen else { return [] }
+        return list.filter { $0.at > seen && $0.byUid != uid }.sorted { $0.at < $1.at }.map(\.text)
+    }
+
     func members(of calendar: SharedCalendar) async -> [CalendarMember]? {
         await run("参加者を取得できませんでした") { try await self.backing.members(calendarId: calendar.id) }
     }
 
-    /// 持ち主が、承認待ちの人を承認する
+    /// 承認待ちの人を承認する
     func approve(_ member: CalendarMember, in calendar: SharedCalendar) async -> Bool {
-        guard uid == calendar.ownerUid else { return false }
+        guard canManage(calendar) else { return false }
         return await run("承認できませんでした") {
             try await self.backing.setStatus(calendarId: calendar.id, uid: member.id, status: .active)
             return true
         } ?? false
     }
 
-    /// 持ち主が、参加者を削除する(承認待ちの却下も同じ)
+    /// 参加者を削除する(承認待ちの却下も同じ)。参加していた人なら、残った人へのお知らせを残す
     func remove(_ member: CalendarMember, from calendar: SharedCalendar) async -> Bool {
-        guard uid == calendar.ownerUid, member.id != uid else { return false }
+        guard let uid, canManage(calendar), member.id != uid else { return false }
         return await run("削除できませんでした") {
+            if member.status == .active {
+                try? await self.backing.addNotice(calendarId: calendar.id, kind: "removed", name: member.displayName, byUid: uid)
+            }
             try await self.backing.removeMember(calendarId: calendar.id, uid: member.id)
             return true
         } ?? false
@@ -370,7 +423,7 @@ final class CalendarService {
     /// 許可制をやめるときは、申請中の人を全員承認してから切り替える(承認されないまま取り残されないように)
     func updateCalendar(_ calendar: SharedCalendar, name: String, icon: String, requireApproval: Bool) async -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let uid, uid == calendar.ownerUid, !trimmed.isEmpty else { return false }
+        guard let uid, canManage(calendar), !trimmed.isEmpty else { return false }
         return await run("保存できませんでした") {
             if calendar.requireApproval && !requireApproval {
                 let pending = try await self.backing.members(calendarId: calendar.id).filter { $0.status == .pending }

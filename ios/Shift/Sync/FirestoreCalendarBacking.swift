@@ -166,7 +166,7 @@ final class FirestoreCalendarBacking: CalendarBacking {
             return
         }
         // 予定 → 招待 → 参加者 → カレンダー本体の順。持ち主の参加者情報は、予定を消し終えるまで残す必要がある
-        for (sub, label) in [("events", "予定"), ("anniversaries", "誕生日・記念日"), ("invites", "招待"), ("members", "参加者")] {
+        for (sub, label) in [("events", "予定"), ("anniversaries", "誕生日・記念日"), ("notices", "お知らせ"), ("invites", "招待"), ("members", "参加者")] {
             try await step(label) {
                 let docs = try await cal.collection(sub).getDocuments().documents
                 for chunk in stride(from: 0, to: docs.count, by: 400).map({ Array(docs[$0..<min($0 + 400, docs.count)]) }) {
@@ -202,6 +202,21 @@ final class FirestoreCalendarBacking: CalendarBacking {
                                   shareManual: x["shareMode"] as? String == "manual")
         }
         .sorted { ($0.isOwner ? 0 : 1, $0.displayName) < ($1.isOwner ? 0 : 1, $1.displayName) }
+    }
+
+    func addNotice(calendarId: String, kind: String, name: String, byUid: String) async throws {
+        _ = try await calendar(calendarId).collection("notices").addDocument(data: [
+            "kind": kind, "name": name, "byUid": byUid, "at": Self.nowMillis(),
+        ])
+    }
+
+    func notices(calendarId: String) async throws -> [CalendarNotice] {
+        let snap = try await calendar(calendarId).collection("notices").getDocuments()
+        return snap.documents.map { d in
+            let x = d.data()
+            return CalendarNotice(id: d.documentID, kind: x["kind"] as? String ?? "", name: x["name"] as? String ?? "",
+                                  byUid: x["byUid"] as? String ?? "", at: (x["at"] as? NSNumber)?.doubleValue ?? 0)
+        }
     }
 
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws {

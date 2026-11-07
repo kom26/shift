@@ -63,6 +63,12 @@ private final class FakeCalendars: CalendarBacking {
 
     func members(calendarId: String) async throws -> [CalendarMember] { membersByCalendar[calendarId] ?? [] }
 
+    var noticeLog: [CalendarNotice] = []
+    func addNotice(calendarId: String, kind: String, name: String, byUid: String) async throws {
+        noticeLog.append(CalendarNotice(id: UUID().uuidString, kind: kind, name: name, byUid: byUid, at: 0))
+    }
+    func notices(calendarId: String) async throws -> [CalendarNotice] { noticeLog }
+
     func setStatus(calendarId: String, uid: String, status: MemberStatus) async throws {
         if let i = membersByCalendar[calendarId]?.firstIndex(where: { $0.id == uid }) {
             membersByCalendar[calendarId]?[i].status = status
@@ -230,7 +236,7 @@ struct CalendarServiceTests {
         let backing = FakeCalendars()
         let owner = CalendarService(backing: backing)
         await owner.start(uid: "me")
-        let made = await owner.create(spec())
+        let made = await owner.create(spec(kind: .oneway))
         let old = made!.invite
         let renewed = await owner.reissueInvite(for: made!.calendar)
         #expect(renewed != nil)
@@ -246,7 +252,7 @@ struct CalendarServiceTests {
         let backing = FakeCalendars()
         let owner = CalendarService(backing: backing)
         await owner.start(uid: "me")
-        let made = await owner.create(spec())
+        let made = await owner.create(spec(kind: .oneway))
         let member = CalendarService(backing: backing)
         await member.start(uid: "you")
         let joined = await member.join(code: made!.invite, displayName: "あなた", sharedKeys: [])
@@ -308,7 +314,7 @@ struct CalendarServiceTests {
         let backing = FakeCalendars()
         let owner = CalendarService(backing: backing)
         await owner.start(uid: "owner")
-        let made = await owner.create(spec(approval: true))!
+        let made = await owner.create(spec(kind: .oneway, approval: true))!
         let guest = CalendarService(backing: backing)
         await guest.start(uid: "guest")
         let joined = await guest.join(code: made.invite, displayName: "ゲスト", sharedKeys: [])!
@@ -325,7 +331,7 @@ struct CalendarServiceTests {
         let backing = FakeCalendars()
         let owner = CalendarService(backing: backing)
         await owner.start(uid: "owner")
-        let made = await owner.create(spec())!
+        let made = await owner.create(spec(kind: .oneway))!
         let guest = CalendarService(backing: backing)
         await guest.start(uid: "guest")
         let joined = await guest.join(code: made.invite, displayName: "ゲスト", sharedKeys: [])!
@@ -372,7 +378,7 @@ struct CalendarServiceTests {
         let backing = FakeCalendars()
         let owner = CalendarService(backing: backing)
         await owner.start(uid: "owner")
-        let made = await owner.create(spec())!
+        let made = await owner.create(spec(kind: .oneway))!
         let guest = CalendarService(backing: backing)
         await guest.start(uid: "guest")
         let joined = await guest.join(code: made.invite, displayName: "ゲスト", sharedKeys: [])!
@@ -386,7 +392,7 @@ struct CalendarServiceTests {
         let backing = FakeCalendars()
         let owner = CalendarService(backing: backing)
         await owner.start(uid: "owner")
-        let made = await owner.create(spec())!
+        let made = await owner.create(spec(kind: .oneway))!
         let guest = CalendarService(backing: backing)
         await guest.start(uid: "guest")
         let joined = await guest.join(code: made.invite, displayName: "ゲスト", sharedKeys: [])!
@@ -395,6 +401,51 @@ struct CalendarServiceTests {
         #expect(await owner.delete(made.calendar))
         #expect(owner.calendars.isEmpty)
         #expect(backing.calendars[made.calendar.id] == nil)
+    }
+
+    @Test func mutualCalendarHasNoOwnerEveryoneCanManageIt() async {
+        let backing = FakeCalendars()
+        let a = CalendarService(backing: backing)
+        await a.start(uid: "a")
+        let made = await a.create(spec())!
+        let b = CalendarService(backing: backing)
+        await b.start(uid: "b")
+        let joined = await b.join(code: made.invite, displayName: "ビー", sharedKeys: [])!
+        #expect(await b.reissueInvite(for: joined) != nil)
+        #expect(await b.updateCalendar(joined, name: "新しい名前", icon: "star.fill", requireApproval: false))
+        let creator = await b.members(of: joined)!.first { $0.id == "a" }!
+        #expect(await b.remove(creator, from: joined))
+        #expect(await b.members(of: joined)!.map(\.id) == ["b"])
+    }
+
+    @Test func creatorOfAMutualCalendarCanLeaveAndLastPersonDeletesIt() async {
+        let backing = FakeCalendars()
+        let a = CalendarService(backing: backing)
+        await a.start(uid: "a")
+        let made = await a.create(spec())!
+        let b = CalendarService(backing: backing)
+        await b.start(uid: "b")
+        let joined = await b.join(code: made.invite, displayName: "ビー", sharedKeys: [])!
+        await a.leave(made.calendar)
+        #expect(a.calendars.isEmpty)
+        #expect(backing.calendars[made.calendar.id] != nil)
+        #expect(backing.noticeLog.map(\.kind) == ["left"])
+        await b.leave(joined)
+        #expect(b.calendars.isEmpty)
+        #expect(backing.calendars[made.calendar.id] == nil)
+    }
+
+    @Test func noticesShowOnlyWhatHappenedAfterTheFirstLook() async {
+        let backing = FakeCalendars()
+        let a = CalendarService(backing: backing)
+        await a.start(uid: "notice-a-\(UUID().uuidString)")
+        let made = await a.create(spec())!
+        backing.noticeLog = [CalendarNotice(id: "old", kind: "left", name: "むかし", byUid: "x", at: 1)]
+        #expect(await a.takeNotices(for: made.calendar.id).isEmpty)
+        let later = (Date().timeIntervalSince1970 * 1000).rounded() + 1000
+        backing.noticeLog.append(CalendarNotice(id: "new", kind: "removed", name: "つぎ", byUid: "x", at: later))
+        #expect(await a.takeNotices(for: made.calendar.id) == ["つぎさんが外されました"])
+        #expect(await a.takeNotices(for: made.calendar.id).isEmpty)
     }
 
     @Test func stopClearsTheList() async {

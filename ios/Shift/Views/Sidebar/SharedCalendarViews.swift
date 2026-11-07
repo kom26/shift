@@ -312,7 +312,12 @@ struct CalendarDetailSheet: View {
     @State private var showCalendarBackground = false
 
     private var uid: String? { auth.account?.uid }
-    private var isOwner: Bool { calendar.ownerUid == uid }
+    /// 見せるだけのカレンダーの持ち主か(相互に共有するカレンダーには、持ち主という立場はない)
+    private var isOwner: Bool { calendar.kind == .oneway && calendar.ownerUid == uid }
+    /// 設定・招待・承認・参加者の削除ができるか(見せるだけは持ち主、相互に共有は参加している全員)
+    private var canManage: Bool { calendar.kind == .mutual || isOwner }
+    /// 自分が、参加している最後の 1 人か(退出ではなく、カレンダーの削除になる)
+    private var isLastMember: Bool { calendar.kind == .mutual && members.filter { $0.status == .active }.count <= 1 && !members.isEmpty }
     private var canShareMine: Bool { calendar.kind == .mutual || isOwner }
 
     var body: some View {
@@ -331,7 +336,7 @@ struct CalendarDetailSheet: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("保存") { Task { await save() } }
                             .disabled(service.busy || displayName.trimmingCharacters(in: .whitespaces).isEmpty
-                                      || (isOwner && calName.trimmingCharacters(in: .whitespaces).isEmpty))
+                                      || (canManage && calName.trimmingCharacters(in: .whitespaces).isEmpty))
                     }
                 }
             }
@@ -352,8 +357,8 @@ struct CalendarDetailSheet: View {
     /// 持ち主は、作るときと同じ項目(名前・アイコン・許可制)をここから変えられる
     @ViewBuilder
     private var ownerSection: some View {
-                if isOwner && calendar.status == .active {
-                    // 作るときと同じ項目を、持ち主はここから変えられる
+                if canManage && calendar.status == .active {
+                    // 作るときと同じ項目を、管理できる人はここから変えられる
                     Section("カレンダー名") {
                         CalendarNameField(name: $calName, icon: $calIcon)
                         Button { showCalendarBackground = true } label: {
@@ -397,7 +402,7 @@ struct CalendarDetailSheet: View {
                 if calendar.status == .pending {
                     Section { Text("承認待ちです。持ち主が承認すると、予定が見られるようになります。") }
                 } else {
-                    if isOwner {
+                    if canManage {
                         if let invite {
                             InviteSection(code: invite, calendarName: calendar.name) {
                                 if let renewed = await service.reissueInvite(for: calendar) { self.invite = renewed }
@@ -434,15 +439,21 @@ struct CalendarDetailSheet: View {
 
     @ViewBuilder
     private var dangerSection: some View {
-                if !isOwner {
+                if !isOwner && !isLastMember {
                     Section {
                         Button("このカレンダーから退出", role: .destructive) { confirmLeave = true }
+                    } footer: {
+                        if calendar.kind == .mutual {
+                            Text("退出すると、残った人にお知らせが出ます。もう一度参加するには、招待が必要です。")
+                        }
                     }
                 } else {
                     Section {
                         Button("このカレンダーを削除", role: .destructive) { confirmDelete = true }
                     } footer: {
-                        Text("参加者の画面からも消えます。共有カレンダーの中で作った予定も消えます。それぞれの元の予定は消えません。")
+                        Text(isLastMember
+                             ? "あなたが最後の1人です。削除すると、共有カレンダーの中で作った予定も消えます。それぞれの元の予定は消えません。"
+                             : "参加者の画面からも消えます。共有カレンダーの中で作った予定も消えます。それぞれの元の予定は消えません。")
                     }
                 }
     }
@@ -504,7 +515,7 @@ struct CalendarDetailSheet: View {
                     removing = nil
                 }
             } message: {
-                Text("削除された人は、このカレンダーの予定が見られなくなります。")
+                Text("削除された人は、このカレンダーの予定が見られなくなります。残った人にお知らせが出ます。招待があれば、また参加できます。")
             }
     }
 
@@ -621,14 +632,14 @@ struct CalendarDetailSheet: View {
             UserAvatar(uid: m.id, name: m.displayName, avatar: m.avatar, size: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text(m.displayName.isEmpty ? "(名前なし)" : m.displayName)
-                if m.isOwner {
+                if m.isOwner, calendar.kind == .oneway {
                     Text("持ち主").font(.footnote).foregroundStyle(.secondary)
                 } else if m.status == .pending {
                     Text("承認待ち").font(.footnote).foregroundStyle(.orange)
                 }
             }
             Spacer()
-            if isOwner, !m.isOwner {
+            if canManage, m.id != uid {
                 if m.status == .pending {
                     Button("承認") {
                         Task {
@@ -683,7 +694,7 @@ struct CalendarDetailSheet: View {
 
     /// 保存する。許可制をやめるとき、申請中の人がいれば、全員許可されることを先に確かめる
     private func save() async {
-        if isOwner, calendar.requireApproval, !calApproval, pendingCount > 0, !approvalConfirmed {
+        if canManage, calendar.requireApproval, !calApproval, pendingCount > 0, !approvalConfirmed {
             confirmOpenApproval = true
             return
         }
@@ -697,7 +708,7 @@ struct CalendarDetailSheet: View {
 
     /// カレンダーの設定(持ち主だけ)と自分の設定を保存して、そのカレンダーを開く
     private func performSave() async {
-        if isOwner,
+        if canManage,
            calName != calendar.name || calIcon != calendar.icon || calApproval != calendar.requireApproval {
             guard await service.updateCalendar(calendar, name: calName, icon: calIcon, requireApproval: calApproval) else {
                 actionError = service.errorMessage ?? "保存できませんでした"
@@ -718,6 +729,7 @@ struct CalendarDetailSheet: View {
 
     private func deleteCalendar() async {
         if sharedView.calendar?.id == calendar.id { sharedView.close() }
+        await sharedView.removeMyLinkedBirthday(in: calendar.id)
         if await service.delete(calendar) {
             dismiss()
         } else {
@@ -732,7 +744,7 @@ struct CalendarDetailSheet: View {
         calIcon = calendar.icon
         calApproval = calendar.requireApproval
         guard calendar.status == .active else { return }
-        if isOwner { invite = await service.invite(for: calendar) }
+        if canManage { invite = await service.invite(for: calendar) }
         members = await service.members(of: calendar) ?? []
         if let me = members.first(where: { $0.id == uid }) {
             displayName = me.displayName

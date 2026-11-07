@@ -23,7 +23,10 @@ service cloud.firestore {
       }
       // 承認済み(許可制でなければ、参加した時点で承認済み)
       function isActive() { return isMember() && myMember().status == 'active'; }
-      function isOwner() { return signedIn() && cal().ownerUid == request.auth.uid; }
+      // 見せるだけのカレンダーの持ち主(相互に共有するカレンダーには、持ち主という特別な立場はない)
+      function isOwner() { return signedIn() && cal().kind == 'oneway' && cal().ownerUid == request.auth.uid; }
+      // カレンダーの設定・承認・参加者の削除・招待ができる人。見せるだけは持ち主、相互に共有は参加している全員
+      function isManager() { return isOwner() || (signedIn() && cal().kind == 'mutual' && isActive()); }
       // 期限内で、無効化されていない招待があるか
       function validInvite(token) {
         let inv = get(/databases/$(database)/documents/calendars/$(cid)/invites/$(token)).data;
@@ -34,7 +37,7 @@ service cloud.firestore {
 
       allow read: if isMember() || isOwner();
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update, delete: if isOwner();
+      allow update, delete: if isManager();
 
       match /members/{mid} {
         // 自分の分は、承認待ちでも読める。ほかの人の分は、承認済みの人だけ
@@ -47,14 +50,14 @@ service cloud.firestore {
           || (request.resource.data.role == 'member' && validInvite(request.resource.data.token)
             && request.resource.data.status == (cal().requireApproval ? 'pending' : 'active'))
         );
-        // 自分の名前と共有する項目は変えられる。承認と役割は、持ち主だけ
+        // 自分の名前と共有する項目は変えられる。承認と役割は、管理できる人だけ
         allow update: if signedIn() && (
-          isOwner()
+          isManager()
           || (request.auth.uid == mid
               && request.resource.data.status == resource.data.status
               && request.resource.data.role == resource.data.role)
         );
-        allow delete: if signedIn() && (request.auth.uid == mid || isOwner());
+        allow delete: if signedIn() && (request.auth.uid == mid || isManager());
       }
 
       match /invites/{token} {
@@ -63,8 +66,17 @@ service cloud.firestore {
         allow get: if true;
         allow list: if isActive() || isOwner();
         // 作成と同じ書き込みの中でカレンダーができるので、書き込み後の状態(getAfter)で持ち主を調べる
-        allow create, update, delete: if signedIn()
-          && getAfter(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == request.auth.uid;
+        allow create, update, delete: if signedIn() && (
+          getAfter(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == request.auth.uid
+          || isManager()
+        );
+      }
+
+      // 退会・削除のお知らせ。残った人が、次に開いたときに見る
+      match /notices/{nid} {
+        allow read: if isActive() || isOwner();
+        allow create: if isActive();
+        allow delete: if isManager();
       }
 
       // 共有する予定のコピー(公開できる項目だけ)と、共有カレンダーの中で作った予定
@@ -81,7 +93,7 @@ service cloud.firestore {
         );
         allow delete: if isActive() && canShare() && (
           resource.data.ownerUid == request.auth.uid || resource.data.sourceKey == 'calendar'
-        ) || isOwner();
+        ) || isManager();
       }
 
       // 共有カレンダーの誕生日・記念日。書ける人なら、だれが入れたものでも直せる・消せる(入れた人の記録は変えない)
@@ -91,7 +103,7 @@ service cloud.firestore {
         allow update: if isActive() && canShare() && request.resource.data.ownerUid == resource.data.ownerUid;
         // 連動した誕生日(linked)は、入れた本人だけが消せる
         allow delete: if (isActive() && canShare() && resource.data.linked != true)
-          || (isActive() && resource.data.ownerUid == request.auth.uid) || isOwner();
+          || (isActive() && resource.data.ownerUid == request.auth.uid) || isManager();
       }
     }
   }
