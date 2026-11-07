@@ -6,16 +6,30 @@ struct WidgetSource {
     let holidays: Holidays
     let startMonday: Bool
     let alarms: [AlarmEntry]
+    let prefs: WidgetPrefs
 
-    /// アプリが書き出したデータから組み立てる。まだ書き出されていなければ空のカレンダー
-    static func load() -> WidgetSource {
+    /// アプリが書き出したデータから組み立てる。まだ書き出されていなければ空のカレンダー。
+    /// prefs の calendarId が共有カレンダーなら、その中身を見る(アラームは自分のものなので出さない)
+    static func load(prefs: WidgetPrefs = WidgetPrefs()) -> WidgetSource {
         let name = "widget-" + UUID().uuidString
         let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: name + ".json"),
                           defaults: UserDefaults(suiteName: name) ?? .standard)
         let data = WidgetBridge.read()
-        if let data { store.applySnapshot(data.snapshot) }
+        var alarms = data?.snapshot.alarms ?? []
+        if let id = prefs.calendarId {
+            alarms = []
+            if let cal = data?.shared?.first(where: { $0.id == id }) {
+                store.applySnapshot(SyncSnapshot(events: cal.events, workplaces: [], favorites: [], customColors: [],
+                                                 hiddenSuggestions: []))
+                cal.anniversaries.forEach { store.saveAnniversary($0) }
+            }
+        } else {
+            if let data { store.applySnapshot(data.snapshot) }
+            prefs.workplaceIds.forEach { store.toggleWorkplaceFilter($0) }
+            prefs.labelIds.forEach { store.toggleLabelFilter($0) }
+        }
         return WidgetSource(store: store, holidays: Holidays(defaults: UserDefaults(suiteName: name) ?? .standard),
-                            startMonday: data?.startMonday ?? false, alarms: data?.snapshot.alarms ?? [])
+                            startMonday: data?.startMonday ?? false, alarms: alarms, prefs: prefs)
     }
 
     func isHoliday(_ ds: String) -> Bool { holidays.name(on: ds) != nil }
@@ -54,6 +68,8 @@ struct DayContent: Equatable {
     let alarm: DayAlarmBadge?
     let events: [DayEventLine]
     var annivs: [DayAnnivIcon] = []
+    /// 共有カレンダーを見ているときの ID(タップで、そのカレンダーで開く)
+    var calendarId: String?
 }
 
 struct WeekBar: Identifiable, Equatable {
@@ -73,8 +89,16 @@ struct WeekContent: Equatable {
     let dayTypes: [DayType]
     let todayCol: Int?
     let bars: [WeekBar]
-    let hours: String
-    let pay: String
+    /// nil なら出さない(設定で消した)
+    let hours: String?
+    let pay: String?
+    var calendarId: String?
+}
+
+/// ウィジェットのタップで開く、その日の予定一覧のリンク(共有カレンダーを見ているときは、そのカレンダーで開く)
+func widgetDayURL(_ date: String, calendarId: String?) -> URL {
+    let query = calendarId.map { "?cal=" + $0 } ?? ""
+    return URL(string: "shiftpalette://day/\(date)\(query)") ?? URL(fileURLWithPath: "/")
 }
 
 extension WidgetSource {
@@ -97,20 +121,24 @@ extension WidgetSource {
                                 isAllDay: row.isAllDay, showsTime: !row.isAllDay && !isCarried && ev.startTime != nil)
         }
         let paid = summary.paydays.reduce(0) { $0 + $1.amount }
-        let pay = summary.paydays.isEmpty ? nil : "給料日 " + Money.yen(paid)
-        let fires = alarms.filter { $0.date == ds }.map(\.fireTime).sorted()
+        let pay = (summary.paydays.isEmpty || !prefs.showPayday) ? nil : "給料日 " + Money.yen(paid)
+        let fires = prefs.showAlarms ? alarms.filter { $0.date == ds }.map(\.fireTime).sorted() : []
         let alarm = fires.first.map { first -> DayAlarmBadge in
             let f = DateFormatter()
             f.dateFormat = "H:mm"
             return DayAlarmBadge(first: f.string(from: Date(timeIntervalSince1970: first)), more: fires.count - 1)
         }
         let wd = Rules.weekday(ds)
-        return DayContent(date: ds, weekday: Self.weekdays[wd],
+        var content = DayContent(date: ds, weekday: Self.weekdays[wd],
                           weekdayType: Rules.dayType(ds, isHoliday: isHoliday(ds)),
                           pay: pay, alarm: alarm, events: lines,
-                          annivs: store.anniversaries(on: ds).prefix(DayContent.maxAnnivIcons).map {
+                          annivs: store.anniversaries(on: ds)
+                              .filter { $0.kind == .birthday ? prefs.showBirthdays : prefs.showAnniversaries }
+                              .prefix(DayContent.maxAnnivIcons).map {
                               DayAnnivIcon(id: $0.id, symbol: $0.icon.symbolName, color: $0.color)
                           })
+        content.calendarId = prefs.calendarId
+        return content
     }
 
     /// 前の日から続く予定の表記。その日に終わるなら「前日から6:00」、まだ続くなら「前日から」
@@ -148,6 +176,8 @@ extension WidgetSource {
         return WeekContent(title: title, days: days, dayNumbers: days.map { Rules.ymd($0).day },
                            dayTypes: days.map { Rules.dayType($0, isHoliday: isHoliday($0)) },
                            todayCol: days.firstIndex(of: today), bars: bars,
-                           hours: Rules.formatHours(hours), pay: Money.yen(pay))
+                           hours: prefs.showHours ? Rules.formatHours(hours) : nil,
+                           pay: prefs.showEstimatedPay ? Money.yen(pay) : nil,
+                           calendarId: prefs.calendarId)
     }
 }

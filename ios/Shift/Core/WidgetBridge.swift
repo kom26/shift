@@ -4,6 +4,19 @@ import Foundation
 struct WidgetData: Codable, Equatable {
     var snapshot: SyncSnapshot
     var startMonday: Bool
+    /// 小・中それぞれの設定(古いデータには無いので省略可)
+    var small: WidgetPrefs?
+    var medium: WidgetPrefs?
+    /// ウィジェットで見る共有カレンダーの中身(アプリを開いたときに取ってくる)
+    var shared: [WidgetSharedCalendar]?
+}
+
+/// ウィジェットに渡す、共有カレンダー 1 つぶんの予定と誕生日・記念日
+struct WidgetSharedCalendar: Codable, Equatable {
+    var id: String
+    var name: String
+    var events: [ShiftEvent]
+    var anniversaries: [Anniversary]
 }
 
 /// アプリとウィジェットが App Group の共有領域でやり取りする

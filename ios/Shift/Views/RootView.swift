@@ -216,10 +216,10 @@ struct RootView: View {
             // ウィジェットから: shiftpalette://day/2026-10-30 でその日の予定一覧を開く
             guard url.scheme == "shiftpalette", url.host == "day",
                   let date = url.pathComponents.last, Rules.parse(date) != nil else { return }
-            // 共有カレンダーを開いていても、ウィジェットからは自分のカレンダーで開く
-            sharedView.close()
-            anchor = date
-            dayTarget = DayTarget(date: date)
+            // ウィジェットで見ていたカレンダー(自分か、共有か)で、その日を選んだ状態にして、その日の予定一覧を開く
+            let shared = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+                .first { $0.name == "cal" }?.value
+            Task { await openDayFromWidget(date, sharedId: shared) }
         }
         .sheet(item: $editing, onDismiss: {
             if let n = unplacedCountOnCreate, store.unplacedEvents.count > n { revealToken += 1 }
@@ -289,6 +289,20 @@ struct RootView: View {
     }
 
     /// 待っている招待があり、ログインしていれば、先頭から参加画面を開く(ほかのシートが開いていれば閉じてから)
+    private func openDayFromWidget(_ date: String, sharedId: String?) async {
+        if let id = sharedId, let c = calendarService.calendars.first(where: { $0.id == id && $0.status == .active }) {
+            if sharedView.calendar?.id != id { await sharedView.open(c) }
+        } else {
+            sharedView.close()
+        }
+        selectTodayAfterMove = false
+        anchor = date
+        // 日付が動いたときの「選択を外す」処理のあとに、その日を選ぶ
+        try? await Task.sleep(for: .milliseconds(150))
+        selectedDate = date
+        dayTarget = DayTarget(date: date)
+    }
+
     private func presentPendingJoin() {
         guard auth.account != nil, !showJoinCalendar, !joinPresenting, let next = pendingInvites.first else { return }
         pendingInvites = Array(pendingInvites.dropFirst())

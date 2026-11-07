@@ -54,7 +54,7 @@ struct SmallDayView: View {
         .padding(.horizontal, 12)
         .padding(.top, 10)
         .padding(.bottom, 8)
-        .widgetURL(URL(string: "shiftpalette://day/\(content.date)"))
+        .widgetURL(widgetDayURL(content.date, calendarId: content.calendarId))
     }
 
     private var header: some View {

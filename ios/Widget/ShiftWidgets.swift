@@ -23,10 +23,13 @@ struct ShiftProvider: TimelineProvider {
         let today = Rules.today()
         let dayOffset = WidgetOffset(key: "day").current(today: today)
         let weekOffset = WidgetOffset(key: "week").current(today: today)
-        let source = WidgetSource.load()
+        // 小と中で、見るカレンダーや表示する項目を別々に決められる
+        let data = WidgetBridge.read()
+        let daySource = WidgetSource.load(prefs: data?.small ?? WidgetPrefs())
+        let weekSource = WidgetSource.load(prefs: data?.medium ?? WidgetPrefs())
         return ShiftEntry(date: now,
-                          day: source.dayContent(Rules.addDays(today, dayOffset)), dayOffset: dayOffset,
-                          week: source.weekContent(containing: Rules.addDays(today, 7 * weekOffset), today: today),
+                          day: daySource.dayContent(Rules.addDays(today, dayOffset)), dayOffset: dayOffset,
+                          week: weekSource.weekContent(containing: Rules.addDays(today, 7 * weekOffset), today: today),
                           weekOffset: weekOffset)
     }
 

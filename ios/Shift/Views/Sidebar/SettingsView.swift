@@ -44,6 +44,7 @@ struct SettingsView: View {
                 }
                 Section {
                     NavigationLink("記念日・誕生日") { AnniversaryListView() }
+                    NavigationLink("ウィジェット") { WidgetSettingsView() }
                 }
                 Section {
                     Picker("月の見込み給料", selection: $payBasis) {

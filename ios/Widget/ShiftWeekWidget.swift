@@ -71,16 +71,23 @@ struct MediumWeekView: View {
         .frame(height: 22)
     }
 
+    @ViewBuilder
     private var footer: some View {
-        HStack {
-            Text("労働 ").font(.app(10)).foregroundStyle(.secondary)
-                + Text(content.hours).font(.app(10, weight: .semibold))
-            Spacer()
-            Text("見込み給料 ").font(.app(10)).foregroundStyle(.secondary)
-                + Text(content.pay).font(.app(10, weight: .semibold))
+        if content.hours != nil || content.pay != nil {
+            HStack {
+                if let hours = content.hours {
+                    Text("労働 ").font(.app(10)).foregroundStyle(.secondary)
+                        + Text(hours).font(.app(10, weight: .semibold))
+                }
+                Spacer()
+                if let pay = content.pay {
+                    Text("見込み給料 ").font(.app(10)).foregroundStyle(.secondary)
+                        + Text(pay).font(.app(10, weight: .semibold))
+                }
+            }
+            .monospacedDigit()
+            .frame(height: 14)
         }
-        .monospacedDigit()
-        .frame(height: 14)
     }
 
     private func bars(colW: CGFloat) -> some View {
@@ -110,7 +117,7 @@ struct MediumWeekView: View {
     private func dayLinks(colW: CGFloat, height: CGFloat) -> some View {
         HStack(spacing: 0) {
             ForEach(0..<7, id: \.self) { i in
-                Link(destination: URL(string: "shiftpalette://day/\(content.days[i])") ?? URL(fileURLWithPath: "/")) {
+                Link(destination: widgetDayURL(content.days[i], calendarId: content.calendarId)) {
                     Color.clear.contentShape(Rectangle())
                 }
                 .frame(width: colW, height: height)

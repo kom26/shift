@@ -85,6 +85,7 @@ struct ShiftApp: App {
                         async let shared: Void = calendars.start(uid: uid)
                         await sync.start(uid: uid)
                         await shared
+                        await WidgetSharedFeed.refresh(store: store, calendars: calendars.calendars, sharedView: sharedView)
                     } else {
                         sync.stop()
                         sharedView.close()
@@ -97,7 +98,11 @@ struct ShiftApp: App {
                         Task { await updater.check() }
                         sync.retryIfNeeded()
                         // 承認や参加者の変更など、閉じている間に変わった参加の状態を取り直す
-                        Task { await calendars.refresh() }
+                        Task {
+                            await calendars.refresh()
+                            // ウィジェットで見ている共有カレンダーの中身を、新しくする
+                            await WidgetSharedFeed.refresh(store: store, calendars: calendars.calendars, sharedView: sharedView)
+                        }
                         publisher.schedule()
                         if sharedView.isOpen { Task { await sharedView.refresh() } }
                     }

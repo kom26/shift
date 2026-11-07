@@ -777,6 +777,14 @@ final class SharedViewState {
     }
 
     /// 退出するとき、アカウントと連動している自分の誕生日だけ消す(ほかの誕生日・記念日は残る)
+    /// ウィジェットに渡すために、共有カレンダーの予定と誕生日・記念日を取ってくる(取れなければ nil)
+    func widgetSnapshot(of calendar: SharedCalendar) async -> WidgetSharedCalendar? {
+        guard let list = try? await events.fetch(calendarId: calendar.id) else { return nil }
+        let annivs = (try? await anniversaryBacking?.fetchAnniversaries(calendarId: calendar.id)) ?? []
+        return WidgetSharedCalendar(id: calendar.id, name: calendar.name,
+                                    events: list.map { $0.shiftEvent() }, anniversaries: annivs.map(\.anniversary))
+    }
+
     func removeMyLinkedBirthday(in cid: String) async {
         guard let uid = calendars.myUid else { return }
         await removeAnniversary(id: SharedAnniversary.linkedId(uid: uid), in: cid)
