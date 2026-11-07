@@ -42,7 +42,8 @@ struct SharedAnniversarySection: View {
                 item: target.item,
                 onCommit: { a in
                     Task {
-                        if !(await sharedView.saveAnniversary(a, in: calendar.id)) { message = "保存できませんでした" }
+                        let owner = items.first(where: { $0.id == a.id })?.ownerUid
+                        if !(await sharedView.saveAnniversary(a, in: calendar.id, ownerUid: owner)) { message = "保存できませんでした" }
                         await reload()
                     }
                 },
@@ -94,7 +95,7 @@ struct SharedAnniversarySection: View {
         let a = item.anniversary
         let mine = item.ownerUid == myUid
         return Button {
-            if mine { editing = AnniversaryEditTarget(item: a) }
+            if canWrite { editing = AnniversaryEditTarget(item: a) }
         } label: {
             HStack(spacing: 10) {
                 AnniversaryIcon(icon: a.icon, color: a.color, size: 22)
@@ -111,7 +112,7 @@ struct SharedAnniversarySection: View {
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
-            if mine || calendar.ownerUid == myUid {
+            if canWrite {
                 Button("削除", role: .destructive) {
                     Task { await sharedView.removeAnniversary(id: item.id, in: calendar.id); await reload() }
                 }

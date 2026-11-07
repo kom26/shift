@@ -119,7 +119,7 @@ extension AnniversaryDetail {
         if shared.isOpen, let cid = shared.calendar?.id {
             AnniversaryEditor(
                 item: a,
-                onCommit: { x in Task { await shared.saveAnniversary(x, in: cid) } },
+                onCommit: { x in Task { await shared.saveAnniversary(x, in: cid, ownerUid: shared.anniversaryOwners[x.id]) } },
                 onRemove: { Task { await shared.removeAnniversary(id: a.id, in: cid) } })
         } else {
             AnniversaryEditor(item: a)

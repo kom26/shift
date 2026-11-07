@@ -669,10 +669,9 @@ final class SharedViewState {
 
     // MARK: 誕生日・記念日
 
-    /// 自分が入れた誕生日・記念日か(直せるのは、入れた人だけ)
+    /// 誕生日・記念日を直せるか。共有カレンダーに書ける人なら、だれが入れたものでも直せる・消せる
     func canEditAnniversary(_ id: String) -> Bool {
-        guard let owner = anniversaryOwners[id] else { return false }
-        return owner == calendars.myUid
+        anniversaryOwners[id] != nil && canCreate
     }
 
     func anniversaries(in cid: String) async -> [SharedAnniversary]? {
@@ -682,10 +681,11 @@ final class SharedViewState {
 
     /// 誕生日・記念日を共有カレンダーに保存する(自分のアカウントの誕生日と連動しているものは、連動したまま)
     @discardableResult
-    func saveAnniversary(_ a: Anniversary, in cid: String) async -> Bool {
+    func saveAnniversary(_ a: Anniversary, in cid: String, ownerUid: String? = nil) async -> Bool {
         guard let uid = calendars.myUid, let b = anniversaryBacking else { return false }
         do {
-            try await b.setAnniversary(calendarId: cid, SharedAnniversary(from: a, ownerUid: uid, linked: a.isAccountBirthday))
+            // 入れた人はそのまま(ほかの人が直しても変わらない)
+            try await b.setAnniversary(calendarId: cid, SharedAnniversary(from: a, ownerUid: ownerUid ?? uid, linked: a.isAccountBirthday))
             return true
         } catch {
             return false
@@ -741,10 +741,10 @@ final class SharedViewState {
         }
     }
 
-    /// 退出するとき、自分が入れた誕生日・記念日を消す
-    func removeMyAnniversaries(in cid: String) async {
-        guard let uid = calendars.myUid, let list = await anniversaries(in: cid) else { return }
-        for a in list where a.ownerUid == uid { await removeAnniversary(id: a.id, in: cid) }
+    /// 退出するとき、アカウントと連動している自分の誕生日だけ消す(ほかの誕生日・記念日は残る)
+    func removeMyLinkedBirthday(in cid: String) async {
+        guard let uid = calendars.myUid else { return }
+        await removeAnniversary(id: SharedAnniversary.linkedId(uid: uid), in: cid)
     }
 
     /// 参加者の予定から、表示用の入れ物を組み立てる。バーはタイトルだけ(誰の予定かは日の一覧のアバターで見せる)。

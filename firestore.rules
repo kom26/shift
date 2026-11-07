@@ -77,13 +77,12 @@ service cloud.firestore {
         ) || isOwner();
       }
 
-      // 共有カレンダーの誕生日・記念日。入れた人だけが直せる(持ち主は、消せる)
+      // 共有カレンダーの誕生日・記念日。書ける人なら、だれが入れたものでも直せる・消せる(入れた人の記録は変えない)
       match /anniversaries/{aid} {
         allow read: if isActive() || isOwner();
         allow create: if isActive() && canShare() && request.resource.data.ownerUid == request.auth.uid;
-        allow update: if isActive() && canShare()
-          && resource.data.ownerUid == request.auth.uid && request.resource.data.ownerUid == request.auth.uid;
-        allow delete: if (isActive() && resource.data.ownerUid == request.auth.uid) || isOwner();
+        allow update: if isActive() && canShare() && request.resource.data.ownerUid == resource.data.ownerUid;
+        allow delete: if (isActive() && canShare()) || isOwner();
       }
     }
   }

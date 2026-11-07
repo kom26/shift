@@ -436,7 +436,7 @@ struct CalendarDetailSheet: View {
                 Button("退出", role: .destructive) {
                     Task {
                         if sharedView.calendar?.id == calendar.id { sharedView.close() }
-                        await sharedView.removeMyAnniversaries(in: calendar.id)
+                        await sharedView.removeMyLinkedBirthday(in: calendar.id)
                         await service.leave(calendar)
                         dismiss()
                     }
