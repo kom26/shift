@@ -5,11 +5,13 @@ import SwiftUI
 struct DaySpanSheet: View {
     let groups: [OvernightGroup]
     @Binding var choices: OvernightChoices
+    /// 読み取った 1 行から、取り込んだときと同じ予定を作る(バーの見た目を、実際のカレンダーと同じにするため)
+    let makeEvent: (ShiftLine) -> ShiftEvent?
     @Environment(\.dismiss) private var dismiss
 
     private struct Option: Identifiable {
         let id: String
-        let style: SpanMini.Style
+        let event: ShiftEvent?
         let title: String
         let sub: String
     }
@@ -77,7 +79,7 @@ struct DaySpanSheet: View {
             }
         } label: {
             HStack(spacing: 12) {
-                SpanMini(style: o.style)
+                if let event = o.event { BarLookPreview(event: event) }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(o.title).font(.app(15, weight: .bold)).foregroundStyle(.primary)
                     Text(o.sub).font(.app(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -93,6 +95,19 @@ struct DaySpanSheet: View {
         .listRowBackground(on ? Theme.accent.opacity(0.07) : nil)
     }
 
+    /// その選び方で取り込んだときの予定(代表の時間と日付で作る)
+    private func event(for group: OvernightGroup, option id: String) -> ShiftEvent? {
+        guard let p = group.representative, let date = p.dates.first else { return nil }
+        var c = OvernightChoices()
+        if group.kind == .lateEnd {
+            c.lateEnd = LateEndChoice(rawValue: id) ?? .fit
+        } else {
+            c.afterMidnight = AfterMidnightChoice(rawValue: id) ?? .keep
+        }
+        let line = ShiftLine(date: date, start: p.start, end: p.end, off: false)
+        return makeEvent(ShiftLineImport.resolved(line, c))
+    }
+
     private func options(for group: OvernightGroup) -> [Option] {
         guard let p = group.representative, let s = Rules.minutes(p.start), let e = Rules.minutes(p.end) else { return [] }
         let range = p.start + "〜" + p.end
@@ -100,92 +115,21 @@ struct DaySpanSheet: View {
         switch group.kind {
         case .lateEnd:
             return [
-                Option(id: LateEndChoice.fit.rawValue, style: .oneDay(p.start + "-" + p.end),
+                Option(id: LateEndChoice.fit.rawValue, event: event(for: group, option: LateEndChoice.fit.rawValue),
                        title: "1日に収める", sub: range + " のまま、その日の予定にします"),
-                Option(id: LateEndChoice.cross.rawValue, style: .cross(p.start, "〜" + nextEnd),
+                Option(id: LateEndChoice.cross.rawValue, event: event(for: group, option: LateEndChoice.cross.rawValue),
                        title: "日またぎにする", sub: p.start + "〜翌日" + nextEnd + " の、2日にまたがる予定にします"),
             ]
         case .afterMidnight:
             let nextStart = ShiftLineImport.timeText(max(0, s - 1440))
             return [
-                Option(id: AfterMidnightChoice.keep.rawValue, style: .oneDay(p.start + "-" + p.end),
+                Option(id: AfterMidnightChoice.keep.rawValue, event: event(for: group, option: AfterMidnightChoice.keep.rawValue),
                        title: range + " のまま", sub: "その日の予定として、" + p.start + "から" + p.end + "までにします"),
-                Option(id: AfterMidnightChoice.cross.rawValue, style: .cross(p.start, "〜" + nextEnd),
+                Option(id: AfterMidnightChoice.cross.rawValue, event: event(for: group, option: AfterMidnightChoice.cross.rawValue),
                        title: p.start + "〜" + nextEnd + " の日またぎ", sub: "その日の" + p.start + "に始まり、翌日" + nextEnd + "に終わります"),
-                Option(id: AfterMidnightChoice.next.rawValue, style: .nextDay(nextStart + "-" + nextEnd),
+                Option(id: AfterMidnightChoice.next.rawValue, event: event(for: group, option: AfterMidnightChoice.next.rawValue),
                        title: nextStart + "〜" + nextEnd + "(翌日の予定)", sub: "日付が翌日になります。翌日の予定として入ります"),
             ]
         }
-    }
-}
-
-/// 2日分の小さなカレンダー。予定のバーが、1日の中か、日またぎか、翌日かを見せる
-struct SpanMini: View {
-    enum Style {
-        case oneDay(String)
-        case cross(String, String)
-        case nextDay(String)
-    }
-
-    let style: Style
-
-    private let barColor = Color(hex: "#bfd2f7")
-    private let barText = Color(hex: "#2c4a8a")
-
-    var body: some View {
-        HStack(spacing: 0) {
-            cell(0, label: "当日")
-            Divider()
-            cell(1, label: "翌日")
-        }
-        .frame(width: 132, height: 50)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(.separator), lineWidth: 1))
-    }
-
-    private func cell(_ i: Int, label: String) -> some View {
-        ZStack(alignment: .topLeading) {
-            Text(label).font(.system(size: 9)).foregroundStyle(.secondary).padding(.leading, 4).padding(.top, 3)
-            bar(i).padding(.top, 20)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    @ViewBuilder
-    private func bar(_ i: Int) -> some View {
-        switch style {
-        case .oneDay(let t):
-            if i == 0 { shape(t, left: true, right: true, leading: 3, trailing: 3) }
-        case .cross(let a, let b):
-            if i == 0 { shape(a, left: true, right: false, leading: 3, trailing: 0) } else { shape(b, left: false, right: true, leading: 0, trailing: 20) }
-        case .nextDay(let t):
-            if i == 0 {
-                Text("翌日へ")
-                    .font(.system(size: 8.5))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 16)
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(.systemGray3), lineWidth: 1))
-                    .padding(.horizontal, 3)
-            } else {
-                shape(t, left: true, right: true, leading: 3, trailing: 3)
-            }
-        }
-    }
-
-    private func shape(_ text: String, left: Bool, right: Bool, leading: CGFloat, trailing: CGFloat) -> some View {
-        Text(text)
-            .font(.system(size: 8.5, weight: .bold))
-            .foregroundStyle(barText)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .padding(.leading, 3)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 16)
-            .background(barColor, in: UnevenRoundedRectangle(topLeadingRadius: left ? 4 : 0, bottomLeadingRadius: left ? 4 : 0,
-                                                              bottomTrailingRadius: right ? 4 : 0, topTrailingRadius: right ? 4 : 0))
-            .padding(.leading, leading)
-            .padding(.trailing, trailing)
     }
 }

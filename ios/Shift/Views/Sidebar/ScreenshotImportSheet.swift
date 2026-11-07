@@ -298,7 +298,10 @@ struct ScreenshotImportSheet: View {
             .background(Color(.systemGroupedBackground))
         }
         .sheet(isPresented: $showSpanSheet) {
-            DaySpanSheet(groups: overnightGroups, choices: $spanChoices)
+            DaySpanSheet(groups: overnightGroups, choices: $spanChoices) { line in
+                ShiftLineImport.events(from: [line], title: title.isEmpty ? "予定" : title, workplace: workplace,
+                                       label: store.label(for: labelId), store: store).first
+            }
         }
         .sheet(item: $lineEdit) { target in
             EventEditor(original: target.event, isNew: false, onCommit: { edited[target.id] = $0 })
