@@ -8,11 +8,15 @@ struct EventDropDelegate: DropDelegate {
     let onDrop: (String, String) -> Void
     /// ドロップ先の名前(離した場所を、画面全体の座標にするのに使う)
     let originKey: String?
+    /// 離した場所のセルの枠(ドロップ先の部品の中の座標)。なければ、離した場所の 1 点
+    let cellRect: ((CGPoint) -> CGRect)?
 
-    init(resolve: @escaping (CGPoint) -> String?, target: Binding<String?>, originKey: String? = nil, onDrop: @escaping (String, String) -> Void) {
+    init(resolve: @escaping (CGPoint) -> String?, target: Binding<String?>, originKey: String? = nil,
+         cellRect: ((CGPoint) -> CGRect)? = nil, onDrop: @escaping (String, String) -> Void) {
         self.resolve = resolve
         self._target = target
         self.originKey = originKey
+        self.cellRect = cellRect
         self.onDrop = onDrop
     }
 
@@ -41,6 +45,8 @@ struct EventDropDelegate: DropDelegate {
         let date = resolve(info.location)
         let origin = originKey.flatMap { DragState.shared.dropOrigins[$0] } ?? .zero
         DragState.shared.dropPoint = CGPoint(x: origin.x + info.location.x, y: origin.y + info.location.y)
+        let local = cellRect?(info.location) ?? CGRect(origin: info.location, size: .zero)
+        DragState.shared.dropRect = local.offsetBy(dx: origin.x, dy: origin.y)
         DragState.shared.ended()
         guard let provider = info.itemProviders(for: [.plainText]).first, let date else {
             target = nil

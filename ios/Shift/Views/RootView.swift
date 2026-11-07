@@ -26,8 +26,10 @@ struct DropChoice: Identifiable {
     let eventId: String
     let date: String
     let title: String
-    /// 離した場所(画面全体の座標)
-    var point: CGPoint = .zero
+    /// 移動先のセルの枠(画面全体の座標)
+    var rect: CGRect = .zero
+    var color = "#bec1cc"
+    var label = ""
 }
 
 struct RootView: View {
@@ -137,6 +139,7 @@ struct RootView: View {
             if addMenuOpen { addMenu }
             if let c = dropChoice { dropChoiceMenu(c) }
         }
+        .onChange(of: dropChoice?.id) { _, _ in DragState.shared.pendingId = dropChoice?.eventId }
         .onChange(of: anchor) { _, _ in
             // 「今日」ボタンで動いたときだけ、今日を選んだ状態にする
             selectedDate = selectTodayAfterMove ? Rules.today() : nil
@@ -765,7 +768,9 @@ struct RootView: View {
                 Task { await sharedView.place(id: id, on: date) }
                 return
             }
-            dropChoice = DropChoice(eventId: id, date: date, title: sharedView.event(id)?.title ?? "", point: DragState.shared.dropPoint)
+            dropChoice = DropChoice(eventId: id, date: date, title: sharedView.event(id)?.title ?? "",
+                                     rect: DragState.shared.dropRect, color: sharedView.event(id)?.color ?? "#bec1cc",
+                                     label: sharedView.event(id)?.title ?? "")
             return
         }
         guard !store.isOverlay(id) else { return }
@@ -781,7 +786,8 @@ struct RootView: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             return
         }
-        dropChoice = DropChoice(eventId: id, date: date, title: event.title, point: DragState.shared.dropPoint)
+        dropChoice = DropChoice(eventId: id, date: date, title: event.title, rect: DragState.shared.dropRect,
+                                 color: event.color, label: event.barShowsTime ? Rules.timeLabel(event) : event.title)
     }
 
     /// 予定を日付に離したときの「移動 / コピー」。離した場所に、小さく出す(外をタップすると閉じる)
@@ -789,12 +795,27 @@ struct RootView: View {
         GeometryReader { geo in
             let o = geo.frame(in: .global).origin
             let w: CGFloat = 148, h: CGFloat = 40
-            let x = min(max(c.point.x - o.x, w / 2 + 8), geo.size.width - w / 2 - 8)
-            let y = min(max(c.point.y - o.y - h, h / 2 + 8), geo.size.height - h / 2 - 8)
+            // 移動先のセルの下に出す(下に入らなければ、セルの上に)
+            let cell = c.rect.offsetBy(dx: -o.x, dy: -o.y)
+            let x = min(max(cell.midX, w / 2 + 8), geo.size.width - w / 2 - 8)
+            let below = cell.maxY + 6 + h / 2
+            let y = below + h / 2 + 8 <= geo.size.height ? below : max(h / 2 + 8, cell.minY - 6 - h / 2)
+            let barH: CGFloat = 16
+            let barY = cell.height > 0 ? cell.minY + LayoutMath.numH : cell.minY
             ZStack {
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
                     .onTapGesture { dropChoice = nil }
+                // 移動したときの姿(点線の縁取りのバー)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(hex: c.color).opacity(0.22))
+                    .overlay(RoundedRectangle(cornerRadius: 4)
+                        .strokeBorder(Color(hex: c.color), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+                    .overlay(Text(c.label).font(.bar(9, weight: .bold)).lineLimit(1)
+                        .foregroundStyle(EventColor.text(c.color)).padding(.horizontal, 3), alignment: .leading)
+                    .frame(width: max(20, cell.width - 3), height: barH)
+                    .position(x: cell.midX, y: barY + barH / 2)
+                    .allowsHitTesting(false)
                 HStack(spacing: 0) {
                     Button("移動") { applyDrop(copy: false) }
                         .frame(maxWidth: .infinity, minHeight: h)

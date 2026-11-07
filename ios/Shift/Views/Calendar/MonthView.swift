@@ -128,6 +128,7 @@ struct MonthView: View {
     private func weekCells(_ cells: [String], rows: [[BarSpan]], barH: CGFloat, conflictDays: Set<String>, annivMap: [String: [Anniversary]]) -> some View {
         GeometryReader { geo in
             let w = geo.size.width / 7
+            let rowH = geo.size.height
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(0..<7, id: \.self) { i in
@@ -149,6 +150,10 @@ struct MonthView: View {
                 },
                 target: $dropTarget,
                 originKey: "week-" + cells[0],
+                cellRect: { p in
+                    guard w > 0 else { return .zero }
+                    return CGRect(x: CGFloat(min(6, max(0, Int(p.x / w)))) * w, y: 0, width: w, height: rowH)
+                },
                 onDrop: onDropEvent))
             .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: {
                 DragState.shared.dropOrigins["week-" + cells[0]] = $0

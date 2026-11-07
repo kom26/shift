@@ -136,6 +136,11 @@ struct WeekView: View {
                     },
                     target: $dropTarget,
                     originKey: "allday",
+                    cellRect: { p in
+                        guard colW > 0 else { return CGRect(origin: p, size: .zero) }
+                        let col = CGFloat(min(6, max(0, Int((p.x - timeW) / colW))))
+                        return CGRect(x: timeW + col * colW, y: p.y, width: colW, height: 0)
+                    },
                     onDrop: onDropEvent))
                 .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: {
                     DragState.shared.dropOrigins["allday"] = $0
@@ -178,6 +183,7 @@ struct WeekView: View {
                             resolve: { _ in storageDate(ds) },
                             target: $dropTarget,
                             originKey: "col-" + ds,
+                            cellRect: { p in CGRect(x: 0, y: p.y, width: colW, height: 0) },
                             onDrop: onDropEvent))
                         .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: {
                             DragState.shared.dropOrigins["col-" + ds] = $0

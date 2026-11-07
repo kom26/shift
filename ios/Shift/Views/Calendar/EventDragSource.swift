@@ -20,7 +20,7 @@ struct EventDragSource: ViewModifier {
         if allowed {
             content
                 .draggable(DragState.shared.begin(event.id, grabOffsetDays: grabOffsetDays))
-                .opacity(DragState.shared.isDragging && DragState.shared.draggingId == event.id ? 0.35 : 1)
+                .opacity((DragState.shared.isDragging && DragState.shared.draggingId == event.id) || DragState.shared.pendingId == event.id ? 0.35 : 1)
         } else {
             content.onLongPressGesture(minimumDuration: 0.4) {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()

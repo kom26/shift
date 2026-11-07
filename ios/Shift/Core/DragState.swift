@@ -18,6 +18,10 @@ final class DragState {
     var grabOffsetDays = 0
     /// 直近のドロップ位置(画面全体の座標)。移動/コピーの小さなメニューを、離した場所に出すのに使う
     @ObservationIgnored var dropPoint: CGPoint = .zero
+    /// 直近のドロップ先のセルの枠(画面全体の座標)。移動/コピーのメニューを、移動先のセルの下に出すのに使う
+    @ObservationIgnored var dropRect: CGRect = .zero
+    /// 離したあと、移動/コピーの選択を待っている予定の id(ドラッグ中と同じく、元の予定を薄く出す)
+    var pendingId: String?
     /// ドロップ先の部品ごとの、画面全体での左上の位置(キーはドロップ先の名前)
     @ObservationIgnored var dropOrigins: [String: CGPoint] = [:]
 

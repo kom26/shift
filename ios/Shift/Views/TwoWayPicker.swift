@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 2択の切り替え。見た目は分割ボタンだが、どこをタップしても、もう一方に切り替わる
+/// 2択の切り替え。見た目は、いつもの分割ボタン(セグメント)のままで、どこをタップしても、もう一方に切り替わる
 /// (3択以上は、これまでどおり押した選択肢を選ぶ)
 struct TwoWayPicker<V: Hashable>: View {
     let title: String
@@ -19,41 +19,28 @@ struct TwoWayPicker<V: Hashable>: View {
 
     private var onFirst: Bool { selection == first.value }
 
+    private func flip() {
+        guard isEnabled else { return }
+        selection = onFirst ? second.value : first.value
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
     var body: some View {
-        Button {
-            selection = onFirst ? second.value : first.value
-            UISelectionFeedbackGenerator().selectionChanged()
-        } label: {
-            HStack(spacing: 0) {
-                segment(first.label, selected: onFirst)
-                segment(second.label, selected: !onFirst)
-            }
-            .padding(2)
-            .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 9))
-            .contentShape(RoundedRectangle(cornerRadius: 9))
+        Picker(title, selection: $selection) {
+            Text(first.label).tag(first.value)
+            Text(second.label).tag(second.value)
         }
-        .buttonStyle(.borderless)
-        .animation(.snappy(duration: 0.18), value: onFirst)
+        .pickerStyle(.segmented)
+        // 押した側ではなく、タップで切り替える(分割ボタン自身のタップは受けない)
+        .allowsHitTesting(false)
+        .overlay {
+            Color.clear.contentShape(Rectangle()).onTapGesture { flip() }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
         .accessibilityValue(onFirst ? first.label : second.label)
         .accessibilityHint("タップで切り替え")
         .accessibilityAddTraits(.isButton)
-    }
-
-    private func segment(_ text: String, selected: Bool) -> some View {
-        Text(text)
-            .font(.system(size: 13, weight: .semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .foregroundStyle(isEnabled ? Color.primary : Color.secondary)
-            .frame(maxWidth: .infinity, minHeight: 28)
-            .background {
-                if selected {
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.12), radius: 1.5, y: 1)
-                }
-            }
+        .accessibilityAction { flip() }
     }
 }

@@ -524,7 +524,7 @@ struct UnplacedArea: View {
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .onTapGesture { onSelectEvent(ev) }
         .draggable(DragState.shared.begin(ev.id))
-        .opacity(DragState.shared.isDragging && DragState.shared.draggingId == ev.id ? 0.35 : 1)
+        .opacity((DragState.shared.isDragging && DragState.shared.draggingId == ev.id) || DragState.shared.pendingId == ev.id ? 0.35 : 1)
     }
 
     private func chipPreview(_ ev: ShiftEvent) -> some View {

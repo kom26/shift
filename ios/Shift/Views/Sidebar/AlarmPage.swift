@@ -33,15 +33,15 @@ struct AlarmPage: View {
     private var content: some View {
         // 下の余白が余らないよう、使える高さいっぱいに、ドラムロールと右の操作を広げる
         GeometryReader { geo in
-            let guideH: CGFloat = 18
-            let h = max(Self.minBodyHeight, geo.size.height - 10 - guideH)
+            // 上の余白 8 + 案内の行 16 + 間 4 + 下の余白 6 を除いた高さを、ロールと右の操作に使う
+            let h = max(Self.minBodyHeight, geo.size.height - 8 - 16 - 4 - 6)
             VStack(spacing: 4) {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     wheel(height: h)
                         .opacity(active ? 0.45 : 1)
                         .allowsHitTesting(!active)
                     controls(height: h)
-                        .frame(width: 176)
+                        .frame(width: 168)
                 }
                 .frame(height: h)
                 HStack(spacing: 12) {
@@ -55,20 +55,24 @@ struct AlarmPage: View {
                     Spacer(minLength: 0)
                 }
                 .font(.app(10))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .foregroundStyle(.secondary)
-                .frame(height: 14)
+                .frame(height: 16)
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 6)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+            .frame(maxHeight: .infinity, alignment: .top)
         }
         .keyboardDismissBar { typing = false; typed = "" }
     }
 
-    private static let minBodyHeight: CGFloat = 112
+    private static let minBodyHeight: CGFloat = 104
 
     /// 右の操作。上から、時刻・予定前の切り替え、スヌーズ、セットのボタン(高さに合わせて間を広げる)
     private func controls(height: CGFloat) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             TwoWayPicker("種類", selection: $kind, first: ("時刻", AlarmPreset.Kind.clock), second: ("予定前", AlarmPreset.Kind.beforeShift))
             .disabled(active)
             .onChange(of: kind) { _, new in
@@ -90,7 +94,7 @@ struct AlarmPage: View {
                 Text(active ? "セット中…" : "セット")
                     .font(.app(16, weight: .bold))
                     .foregroundStyle(active ? Color.secondary : Theme.onAccent)
-                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .frame(maxWidth: .infinity, minHeight: 36)
                     .background(active ? Color(.secondarySystemFill) : Theme.accent, in: Capsule())
             }
             .buttonStyle(.plain)
@@ -100,7 +104,7 @@ struct AlarmPage: View {
                     Text("完了")
                         .font(.app(16, weight: .bold))
                         .foregroundStyle(Theme.accent)
-                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .frame(maxWidth: .infinity, minHeight: 34)
                         .overlay(Capsule().strokeBorder(Theme.accent, lineWidth: 1.5))
                         .contentShape(Capsule())
                 }
@@ -122,10 +126,9 @@ struct AlarmPage: View {
             Spacer(minLength: 0)
             Toggle("スヌーズ", isOn: isOn)
                 .labelsHidden()
-                .scaleEffect(0.85, anchor: .trailing)
-                .frame(width: 44)
+                .fixedSize()
         }
-        .frame(minHeight: 30)
+        .frame(height: 28)
     }
 
     /// スタンプモードを終える
