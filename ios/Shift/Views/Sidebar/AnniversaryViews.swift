@@ -245,7 +245,7 @@ struct AnniversaryEditor: View {
                 }
                 .disabled(locked)
                 .opacity(locked ? 0.5 : 1)
-                if item != nil && !locked {
+                if item != nil && (!locked || onRemove != nil) {
                     Section {
                         Button("削除", role: .destructive) { confirmDelete = true }
                     }

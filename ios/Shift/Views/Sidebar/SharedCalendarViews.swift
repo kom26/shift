@@ -375,7 +375,7 @@ struct CalendarDetailSheet: View {
                     SharedAnniversarySection(
                         calendar: calendar, canWrite: canShareMine,
                         names: Dictionary(members.map { ($0.id, $0.displayName) }, uniquingKeysWith: { a, _ in a }),
-                        myUid: uid)
+                        myUid: uid, displayName: displayName)
                     if canShareMine {
                         shareModeSection
                         ShareItemsSection(selection: $shared)

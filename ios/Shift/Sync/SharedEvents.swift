@@ -705,10 +705,13 @@ final class SharedViewState {
 
     /// アカウントの誕生日を、共有カレンダーに追加する(1 人 1 件。アイコンと色は、アカウントのものから始める)
     @discardableResult
-    func addMyBirthday(_ mine: Anniversary, in cid: String) async -> Bool {
+    func addMyBirthday(_ mine: Anniversary, name: String, in cid: String) async -> Bool {
         guard let uid = calendars.myUid else { return false }
         var a = mine
         a.id = SharedAnniversary.linkedId(uid: uid)
+        // 名前は、この共有カレンダーで相手に見える名前を使う
+        let shown = name.trimmingCharacters(in: .whitespaces)
+        if !shown.isEmpty { a.name = shown + "の誕生日" }
         a.isMine = true
         return await saveAnniversary(a, in: cid)
     }
@@ -720,9 +723,13 @@ final class SharedViewState {
         for cal in calendars.calendars where cal.status == .active {
             guard let list = await anniversaries(in: cal.id), let old = list.first(where: { $0.id == id }) else { continue }
             if var a = mine {
-                // 日付と名前だけ合わせる。共有カレンダーで選んだアイコンと色は、そのまま
+                // 日付だけ合わせる(名前は、この共有カレンダーで相手に見える名前)。選んだアイコンと色は、そのまま
                 a.id = id
                 a.isMine = true
+                if let shown = await calendars.members(of: cal)?.first(where: { $0.id == uid })?.displayName,
+                   !shown.trimmingCharacters(in: .whitespaces).isEmpty {
+                    a.name = shown + "の誕生日"
+                }
                 var next = SharedAnniversary(from: a, ownerUid: uid, linked: true)
                 next.icon = old.icon
                 next.color = old.color

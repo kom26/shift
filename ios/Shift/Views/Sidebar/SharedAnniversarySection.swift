@@ -10,6 +10,8 @@ struct SharedAnniversarySection: View {
     /// 参加者の名前(uid から引ける)
     let names: [String: String]
     let myUid: String?
+    /// 相手に見える自分の名前(自分の誕生日の名前に使う)
+    let displayName: String
 
     @State private var items: [SharedAnniversary] = []
     @State private var menuOpen = false
@@ -18,14 +20,10 @@ struct SharedAnniversarySection: View {
 
     var body: some View {
         Section {
-            if menuOpen {
-                Button { newOne() } label: { Label("新規作成", systemImage: "plus.circle") }
-                Button { addMine() } label: { Label("自分の誕生日を追加", systemImage: "gift") }
-            }
             ForEach(items.sorted { ($0.month, $0.day) < ($1.month, $1.day) }) { item in
                 row(item)
             }
-            if items.isEmpty && !menuOpen {
+            if items.isEmpty {
                 Text("まだありません").foregroundStyle(.secondary)
             }
         } header: {
@@ -61,7 +59,10 @@ struct SharedAnniversarySection: View {
 
     /// 開いている間は 45° 傾いて × になる丸いボタン
     private var plusButton: some View {
-        Button { menuOpen.toggle() } label: {
+        Button {
+            // アカウントに誕生日がなければ、選ばずに新規作成へ
+            if store.myBirthday == nil { newOne() } else { menuOpen.toggle() }
+        } label: {
             Image(systemName: "plus")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(Theme.onAccent)
@@ -71,6 +72,21 @@ struct SharedAnniversarySection: View {
         }
         .buttonStyle(.borderless)
         .textCase(nil)
+        .popover(isPresented: $menuOpen, attachmentAnchor: .point(.bottom), arrowEdge: .top) {
+            VStack(alignment: .leading, spacing: 0) {
+                Button { newOne() } label: {
+                    Label("新規作成", systemImage: "plus.circle").frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                }
+                Divider()
+                Button { addMine() } label: {
+                    Label("自分の誕生日を追加", systemImage: "gift").frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.app(16))
+            .frame(width: 230)
+            .presentationCompactAdaptation(.popover)
+        }
         .accessibilityLabel(menuOpen ? "閉じる" : "誕生日・記念日を追加")
     }
 
@@ -119,7 +135,7 @@ struct SharedAnniversarySection: View {
             return
         }
         Task {
-            if !(await sharedView.addMyBirthday(mine, in: calendar.id)) { message = "追加できませんでした" }
+            if !(await sharedView.addMyBirthday(mine, name: displayName, in: calendar.id)) { message = "追加できませんでした" }
             await reload()
         }
     }

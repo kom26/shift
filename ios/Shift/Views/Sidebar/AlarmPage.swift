@@ -12,8 +12,6 @@ struct AlarmPage: View {
     @FocusState private var typing: Bool
     /// スヌーズの分数(0 はスヌーズなし)。これからセットするアラームに使う
     @AppStorage(AlarmService.snoozeKey) private var snoozeMinutes = 9
-    /// スヌーズをオフにする前の分数(またオンにしたとき、この分数に戻す)
-    @AppStorage("alarmSnoozeLast") private var snoozeLast = 9
 
     private var active: Bool { stamp != nil }
     private var maxHour: Int { kind == .clock ? 23 : 12 }
@@ -117,40 +115,17 @@ struct AlarmPage: View {
         let isOn = Binding<Bool>(
             get: { snoozeMinutes > 0 },
             set: { on in
-                if on { snoozeMinutes = AlarmService.snoozeOptions.contains(snoozeLast) ? snoozeLast : 9 } else { snoozeMinutes = 0 }
+                snoozeMinutes = on ? 9 : 0
             })
         return HStack(spacing: 6) {
             Text("スヌーズ").font(.app(13, weight: .semibold)).lineLimit(1).fixedSize()
             Spacer(minLength: 0)
-            if snoozeMinutes > 0 {
-                Menu {
-                    ForEach(AlarmService.snoozeOptions, id: \.self) { m in
-                        Button {
-                            snoozeMinutes = m
-                            snoozeLast = m
-                        } label: {
-                            if m == snoozeMinutes { Label("\(m)分", systemImage: "checkmark") } else { Text("\(m)分") }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 2) {
-                        Text("\(snoozeMinutes)分").font(.app(13, weight: .semibold)).lineLimit(1).fixedSize()
-                        Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .bold))
-                    }
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Theme.accentSoft, in: Capsule())
-                }
-                .accessibilityLabel("スヌーズの長さ \(snoozeMinutes)分")
-            }
             Toggle("スヌーズ", isOn: isOn)
                 .labelsHidden()
                 .scaleEffect(0.85, anchor: .trailing)
                 .frame(width: 44)
         }
         .frame(minHeight: 30)
-        .animation(.snappy, value: snoozeMinutes > 0)
     }
 
     /// スタンプモードを終える
