@@ -165,6 +165,9 @@ final class FirestoreCalendarBacking: CalendarBacking {
             try await step("一覧") { try await self.index(uid).document(calendarId).delete() }
             return
         }
+        // 参加していた人に「削除されました」と知らせるための印を、先に残す(本体が消えたあとでは書けない)
+        let calName = (try? await cal.getDocument())?.data()?["name"] as? String ?? ""
+        try? await db.collection("deletedCalendars").document(calendarId).setData(["name": calName, "at": Self.nowMillis()])
         // 予定 → 招待 → 参加者 → カレンダー本体の順。持ち主の参加者情報は、予定を消し終えるまで残す必要がある
         for (sub, label) in [("events", "予定"), ("anniversaries", "誕生日・記念日"), ("notices", "お知らせ"), ("invites", "招待"), ("members", "参加者")] {
             try await step(label) {
@@ -202,6 +205,19 @@ final class FirestoreCalendarBacking: CalendarBacking {
                                   shareManual: x["shareMode"] as? String == "manual")
         }
         .sorted { ($0.isOwner ? 0 : 1, $0.displayName) < ($1.isOwner ? 0 : 1, $1.displayName) }
+    }
+
+    func goneCalendars(uid: String) async -> [GoneCalendar] {
+        guard let snap = try? await index(uid).getDocuments() else { return [] }
+        var out: [GoneCalendar] = []
+        for d in snap.documents {
+            // 自分の参加の記録が無くなっていたら、削除されたか、外された。印があれば削除
+            guard let m = try? await member(d.documentID, uid).getDocument(), !m.exists else { continue }
+            let tomb = try? await db.collection("deletedCalendars").document(d.documentID).getDocument()
+            out.append(GoneCalendar(name: d.data()["name"] as? String ?? "", deleted: tomb?.exists == true))
+            try? await d.reference.delete()
+        }
+        return out
     }
 
     func addNotice(calendarId: String, kind: String, name: String, byUid: String) async throws {

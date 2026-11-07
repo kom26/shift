@@ -8,7 +8,6 @@ struct AccountManageSection: View {
     @Environment(SharedViewState.self) private var sharedView
     @Environment(\.dismiss) private var dismiss
     @State private var confirmDelete = false
-    @State private var ownerBlocked = false
     @State private var working = false
     @State private var failed = false
 
@@ -23,44 +22,53 @@ struct AccountManageSection: View {
                 auth.signOut()
                 dismiss()
             }
-            Button("アカウントを削除", role: .destructive) {
-                if owned.isEmpty { confirmDelete = true } else { ownerBlocked = true }
-            }
+            Button("アカウントを削除", role: .destructive) { confirmDelete = true }
             .disabled(working)
             .alert("アカウントを削除しますか?", isPresented: $confirmDelete) {
                 Button("削除", role: .destructive) { Task { await deleteAccount() } }
                 Button("キャンセル", role: .cancel) {}
             } message: {
-                Text(joined.isEmpty
-                     ? "この操作は取り消せません。"
-                     : "参加している共有カレンダー(\(joined.count)件)から退会して、アカウントを削除します。この操作は取り消せません。")
+                Text(confirmMessage)
             }
             if working { HStack(spacing: 8) { ProgressView(); Text("削除しています…").foregroundStyle(.secondary) } }
             if failed {
-                Text("共有カレンダーから退会できませんでした。通信を確認して、もう一度お試しください。")
+                Text("共有カレンダーの削除・退会ができませんでした。通信を確認して、もう一度お試しください。")
                     .font(.footnote).foregroundStyle(.red)
             }
         } footer: {
-            Text("アカウントを削除すると、アカウントのデータとログイン情報が消えます。端末の中の予定は残ります。参加している共有カレンダーからは、自動で退会します。")
+            Text("アカウントを削除すると、アカウントのデータとログイン情報が消えます。端末の中の予定は残ります。参加している共有カレンダーからは自動で退会し、自分が持ち主の見せるだけのカレンダーは削除されます。")
         }
-        .alert("持ち主の共有カレンダーがあります", isPresented: $ownerBlocked) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("見せるだけの共有カレンダー「\(owned.map(\.name).joined(separator: "」「"))」の持ち主のままでは、アカウントを削除できません。先に、そのカレンダーを削除してください。")
+    }
+
+    private var confirmMessage: String {
+        var lines: [String] = []
+        if !owned.isEmpty {
+            lines.append("見せるだけの共有カレンダー「" + owned.map(\.name).joined(separator: "」「") + "」は、一緒に削除されます。参加者には、削除されたことが知らされます。")
         }
+        if !joined.isEmpty { lines.append("参加している共有カレンダー(\(joined.count)件)からは、退会します。") }
+        lines.append("この操作は取り消せません。")
+        return lines.joined(separator: "\n")
     }
 
     private func deleteAccount() async {
         working = true
         failed = false
         defer { working = false }
+        // 見せるだけの共有カレンダーは、削除する(参加者には、削除されたことが知らされる)
+        for cal in owned {
+            if sharedView.calendar?.id == cal.id { sharedView.close() }
+            if await !service.delete(cal) {
+                failed = true
+                return
+            }
+        }
         // 参加している共有カレンダーから、先に退会する(連動した誕生日も消える)
         for cal in joined {
             if sharedView.calendar?.id == cal.id { sharedView.close() }
             await sharedView.removeMyLinkedBirthday(in: cal.id)
             await service.leave(cal)
         }
-        guard service.calendars.allSatisfy({ $0.kind == .oneway && $0.ownerUid == uid }) else {
+        guard service.calendars.isEmpty else {
             failed = true
             return
         }

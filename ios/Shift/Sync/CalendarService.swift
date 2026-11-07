@@ -147,6 +147,8 @@ protocol CalendarBacking: AnyObject {
     /// 持ち主が、カレンダーを予定・招待・参加者ごと消す
     func deleteCalendar(calendarId: String, uid: String) async throws
     func members(calendarId: String) async throws -> [CalendarMember]
+    /// 参加していたのに、削除された・外された共有カレンダー(一覧の記録も片づける)
+    func goneCalendars(uid: String) async -> [GoneCalendar]
     /// 退会・削除のお知らせを残す(残った人が、次に開いたときに見る)
     func addNotice(calendarId: String, kind: String, name: String, byUid: String) async throws
     func notices(calendarId: String) async throws -> [CalendarNotice]
@@ -160,7 +162,17 @@ protocol CalendarBacking: AnyObject {
     func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws
 }
 
+/// 一覧にだけ残っていて、中ではもう参加者でなくなっていた共有カレンダー
+struct GoneCalendar: Equatable {
+    let name: String
+    /// true なら、カレンダーが削除された。false なら、参加者から外された
+    let deleted: Bool
+
+    var text: String { "「" + name + "」" + (deleted ? "は削除されました" : "から外されました") }
+}
+
 extension CalendarBacking {
+    func goneCalendars(uid: String) async -> [GoneCalendar] { [] }
     func addNotice(calendarId: String, kind: String, name: String, byUid: String) async throws {}
     func notices(calendarId: String) async throws -> [CalendarNotice] { [] }
 }
@@ -191,6 +203,8 @@ final class CalendarService {
     @ObservationIgnored var onChange: (() -> Void)?
     /// 承認待ちだった共有カレンダーが、承認されたとき(すぐ見られるようになった合図)
     @ObservationIgnored var onApproved: ((SharedCalendar) -> Void)?
+    /// 参加していた共有カレンダーが削除された・外されたと分かったとき
+    @ObservationIgnored var onGone: ((GoneCalendar) -> Void)?
     /// ログイン中の自分
     var myUid: String? { uid }
     var errorMessage: String?
@@ -213,6 +227,7 @@ final class CalendarService {
             calendars = list
             syncStatusListeners()
             onChange?()
+            for g in await backing.goneCalendars(uid: uid) { onGone?(g) }
         } catch {
             // 取れなかったときは一覧が空のまま。ドロワーを開き直したときに取り直す
         }
@@ -268,6 +283,7 @@ final class CalendarService {
         syncStatusListeners()
         onChange?()
         for c in list where before[c.id] == .pending && c.status == .active { onApproved?(c) }
+        for g in await backing.goneCalendars(uid: uid) { onGone?(g) }
     }
 
     @discardableResult

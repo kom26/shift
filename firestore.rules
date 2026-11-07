@@ -12,6 +12,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 削除された共有カレンダーの印。参加していた人に「削除されました」と知らせるのに使う(名前と日時だけ)。
+    // 削除する人(見せるだけは持ち主、相互に共有は参加している人)だけが書ける
+    match /deletedCalendars/{cid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && exists(/databases/$(database)/documents/calendars/$(cid))
+        && (get(/databases/$(database)/documents/calendars/$(cid)).data.ownerUid == request.auth.uid
+            || (get(/databases/$(database)/documents/calendars/$(cid)).data.kind == 'mutual'
+                && exists(/databases/$(database)/documents/calendars/$(cid)/members/$(request.auth.uid))
+                && get(/databases/$(database)/documents/calendars/$(cid)/members/$(request.auth.uid)).data.status == 'active'));
+      allow update, delete: if false;
+    }
+
     // 共有カレンダー。参加している人だけが読める。許可制のカレンダーでは、承認されるまで中身は読めない
     match /calendars/{cid} {
       function signedIn() { return request.auth != null; }

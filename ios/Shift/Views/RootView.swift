@@ -189,6 +189,7 @@ struct RootView: View {
         .onAppear {
             // 承認待ちだった共有カレンダーが承認されたら、すぐ見られることを知らせる
             calendarService.onApproved = { cal in showToast("「" + cal.name + "」に参加できました") }
+            calendarService.onGone = { g in showToast(g.text) }
             presentPendingJoin()
             fillInviteNames()
         }
