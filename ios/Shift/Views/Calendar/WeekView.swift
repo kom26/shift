@@ -204,8 +204,10 @@ struct WeekView: View {
 
     /// ドラッグ中の予定を dropTarget に置いたときの姿
     private var dropMoved: ShiftEvent? {
-        guard let t = dropTarget, let id = DragState.shared.draggingId else { return nil }
-        return store.dropPreview(id: id, on: t)
+        // ドラッグ中は指のある列、離したあと(移動/コピーの選択中)は移動先の列に出す
+        if let t = dropTarget, let id = DragState.shared.draggingId { return store.dropPreview(id: id, on: t) }
+        if let id = DragState.shared.pendingId, let t = DragState.shared.pendingDate { return store.dropPreview(id: id, on: t) }
+        return nil
     }
 
     /// 予定がハマる時間帯だけを点線と塗りで示す(他の予定と重なるなら赤)
@@ -231,15 +233,21 @@ struct WeekView: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     onLongPressDay(ds)
                 }
+            // 時間が重なる予定は、横に分けて、どちらも見えるようにする
+            let slots = TimedLanes.assign(events.compactMap { ev in
+                Rules.timedSegment(ev, on: ds).map { TimedLanes.Item(id: ev.id, top: $0.top, bottom: $0.top + $0.height) }
+            })
             ForEach(events) { ev in
                 if let seg = Rules.timedSegment(ev, on: ds) {
                     let h = max(14, H * CGFloat(seg.height))
+                    let slot = slots[ev.id] ?? TimedLanes.Slot(lane: 0, count: 1)
+                    let laneW = max(0, colW - 2) / CGFloat(slot.count)
                     block(ev, h: h)
-                        .frame(width: max(0, colW - 2), height: h)
+                        .frame(width: laneW, height: h)
                         .onTapGesture { onTapEvent(ev, ds) }
                         .eventDragSource(ev, grabOffsetDays: Rules.daysBetween(ev.startDate ?? ds, ds), onOpen: onSelectEvent)
                         .allowsHitTesting(!isStamping)
-                        .offset(x: 1, y: H * CGFloat(seg.top))
+                        .offset(x: 1 + laneW * CGFloat(slot.lane), y: H * CGFloat(seg.top))
                 }
             }
             ForEach(store.alarmFireMinutes(on: ds), id: \.self) { m in

@@ -139,7 +139,10 @@ struct RootView: View {
             if addMenuOpen { addMenu }
             if let c = dropChoice { dropChoiceMenu(c) }
         }
-        .onChange(of: dropChoice?.id) { _, _ in DragState.shared.pendingId = dropChoice?.eventId }
+        .onChange(of: dropChoice?.id) { _, _ in
+            DragState.shared.pendingId = dropChoice?.eventId
+            DragState.shared.pendingDate = dropChoice?.date
+        }
         .onChange(of: anchor) { _, _ in
             // 「今日」ボタンで動いたときだけ、今日を選んだ状態にする
             selectedDate = selectTodayAfterMove ? Rules.today() : nil
@@ -800,22 +803,10 @@ struct RootView: View {
             let x = min(max(cell.midX, w / 2 + 8), geo.size.width - w / 2 - 8)
             let below = cell.maxY + 6 + h / 2
             let y = below + h / 2 + 8 <= geo.size.height ? below : max(h / 2 + 8, cell.minY - 6 - h / 2)
-            let barH: CGFloat = 16
-            let barY = cell.height > 0 ? cell.minY + LayoutMath.numH : cell.minY
             ZStack {
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
                     .onTapGesture { dropChoice = nil }
-                // 移動したときの姿(点線の縁取りのバー)
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(hex: c.color).opacity(0.22))
-                    .overlay(RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(Color(hex: c.color), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
-                    .overlay(Text(c.label).font(.bar(9, weight: .bold)).lineLimit(1)
-                        .foregroundStyle(EventColor.text(c.color)).padding(.horizontal, 3), alignment: .leading)
-                    .frame(width: max(20, cell.width - 3), height: barH)
-                    .position(x: cell.midX, y: barY + barH / 2)
-                    .allowsHitTesting(false)
                 HStack(spacing: 0) {
                     Button("移動") { applyDrop(copy: false) }
                         .frame(maxWidth: .infinity, minHeight: h)

@@ -142,6 +142,7 @@ struct MonthView: View {
                 SpanBars(rows: rows, colW: w, barH: barH, compactFont: true, leading: 0, gap: barGap,
                          onTap: { ev, col in onTapEvent(ev, cells[min(6, max(0, col))]) }, onEdit: onSelectEvent)
                     .offset(y: numH)
+                movePreview(cells: cells, rows: rows, colW: w, barH: barH)
             }
             .onDrop(of: [.plainText], delegate: EventDropDelegate(
                 resolve: { p in
@@ -158,6 +159,27 @@ struct MonthView: View {
             .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: {
                 DragState.shared.dropOrigins["week-" + cells[0]] = $0
             }
+        }
+    }
+
+    /// 移動/コピーの選択中、移動先の日の、いま見えている予定の下に、移動後の予定を点線の縁取りのバーで出す
+    @ViewBuilder
+    private func movePreview(cells: [String], rows: [[BarSpan]], colW: CGFloat, barH: CGFloat) -> some View {
+        if let id = DragState.shared.pendingId, let date = DragState.shared.pendingDate,
+           let col = cells.firstIndex(of: date), let m = store.dropPreview(id: id, on: date) {
+            let used = rows.indices.filter { r in rows[r].contains { $0.col <= col && col < $0.col + $0.span } }
+                .map { $0 + 1 }.max() ?? 0
+            let hex = m.color
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color(hex: hex).opacity(0.22))
+                .overlay(RoundedRectangle(cornerRadius: 4)
+                    .strokeBorder(Color(hex: hex), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+                .overlay(Text(m.barShowsTime ? Rules.timeLabel(m) : m.title)
+                    .font(.bar(9, weight: .bold)).lineLimit(1)
+                    .foregroundStyle(EventColor.text(hex)).padding(.horizontal, 3), alignment: .leading)
+                .frame(width: max(8, colW - 2), height: barH)
+                .offset(x: CGFloat(col) * colW + 1, y: numH + CGFloat(used) * (barH + barGap))
+                .allowsHitTesting(false)
         }
     }
 

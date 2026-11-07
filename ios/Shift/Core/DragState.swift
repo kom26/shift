@@ -22,6 +22,8 @@ final class DragState {
     @ObservationIgnored var dropRect: CGRect = .zero
     /// 離したあと、移動/コピーの選択を待っている予定の id(ドラッグ中と同じく、元の予定を薄く出す)
     var pendingId: String?
+    /// その予定の移動先(保存上の開始日)。移動後の姿のプレビューに使う
+    var pendingDate: String?
     /// ドロップ先の部品ごとの、画面全体での左上の位置(キーはドロップ先の名前)
     @ObservationIgnored var dropOrigins: [String: CGPoint] = [:]
 
