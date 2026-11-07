@@ -806,7 +806,7 @@ struct RootView: View {
             ZStack {
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
-                    .onTapGesture { dropChoice = nil }
+                    .onTapGesture { dropChoice = nil; DragState.shared.pendingId = nil; DragState.shared.pendingDate = nil }
                 HStack(spacing: 0) {
                     Button("移動") { applyDrop(copy: false) }
                         .frame(maxWidth: .infinity, minHeight: h)
@@ -830,6 +830,10 @@ struct RootView: View {
     private func applyDrop(copy: Bool) {
         guard let c = dropChoice else { return }
         dropChoice = nil
+        // 選んだ時点で、薄い表示をすぐ解く(次のタッチまで残らないように)
+        DragState.shared.pendingId = nil
+        DragState.shared.pendingDate = nil
+        DragState.shared.ended()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         if sharedView.isOpen {
             Task {
