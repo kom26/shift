@@ -39,6 +39,7 @@ struct RootView: View {
     @Environment(SharedPublisher.self) private var publisher
     @AppStorage("mode") private var mode: CalendarMode = .month
     @AppStorage("startMonday") private var startMonday = false
+    @AppStorage(CalendarBackground.personalKey) private var calendarBackgroundKey = ""
     @AppStorage("summaryOn") private var summaryOn = false
     @AppStorage("unplacedCollapsed") private var unplacedCollapsed = false
 
@@ -80,6 +81,11 @@ struct RootView: View {
     @State private var revealToken = 0
     @Environment(\.scenePhase) private var scenePhase
 
+    /// カレンダーの背景(ヘッダーも含む)。共有カレンダーを開いている間は、その共有カレンダーの背景
+    private var calendarBackgroundColor: Color {
+        CalendarBackground.color(sharedView.isOpen ? sharedView.background : calendarBackgroundKey)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -111,6 +117,8 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, new in
             if new == .active { Task { await AlarmService.shared.refresh(store: store) } }
         }
+        .background(calendarBackgroundColor.ignoresSafeArea())
+        .environment(\.calendarBackground, calendarBackgroundColor)
         .overlay(alignment: .top) {
             if let toast {
                 Text(toast)

@@ -75,6 +75,10 @@ protocol SharedAnniversariesBacking: AnyObject {
     func listenAnniversaries(calendarId: String, onChange: @escaping ([SharedAnniversary]) -> Void) -> () -> Void
     func setAnniversary(calendarId: String, _ a: SharedAnniversary) async throws
     func deleteAnniversary(calendarId: String, id: String) async throws
+    /// 共有カレンダーの背景(共有者で共通。空は標準)
+    func listenBackground(calendarId: String, onChange: @escaping (String) -> Void) -> () -> Void
+    func fetchBackground(calendarId: String) async throws -> String
+    func setBackground(calendarId: String, key: String) async throws
 }
 
 /// Firestore の `calendars/{id}/anniversaries/{aid}`
@@ -118,5 +122,23 @@ final class FirestoreSharedAnniversaries: SharedAnniversariesBacking {
 
     func deleteAnniversary(calendarId: String, id: String) async throws {
         try await col(calendarId).document(id).delete()
+    }
+
+    private func doc(_ id: String) -> DocumentReference { db.collection("calendars").document(id) }
+
+    func listenBackground(calendarId: String, onChange: @escaping (String) -> Void) -> () -> Void {
+        let registration = doc(calendarId).addSnapshotListener { snap, _ in
+            guard let snap, snap.exists else { return }
+            onChange(snap.data()?["background"] as? String ?? "")
+        }
+        return { registration.remove() }
+    }
+
+    func fetchBackground(calendarId: String) async throws -> String {
+        try await doc(calendarId).getDocument().data()?["background"] as? String ?? ""
+    }
+
+    func setBackground(calendarId: String, key: String) async throws {
+        try await doc(calendarId).updateData(["background": key])
     }
 }

@@ -12,6 +12,8 @@ struct SettingsView: View {
     @AppStorage(Appearance.key) private var appearance = Appearance.light
     @FocusState private var gapFocused: Bool
     @State private var showBarFont = false
+    @State private var showCalendarBackground = false
+    @AppStorage(CalendarBackground.personalKey) private var calendarBackgroundKey = ""
 
     var body: some View {
         NavigationStack {
@@ -24,6 +26,14 @@ struct SettingsView: View {
                 }
                 Section("カレンダー") {
                     Toggle("週の始まりを月曜にする", isOn: $startMonday)
+                    Button { showCalendarBackground = true } label: {
+                        HStack {
+                            Text("カレンダー背景").foregroundStyle(.primary)
+                            Spacer()
+                            Text(CalendarBackground.name(calendarBackgroundKey)).font(.app(14)).foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right").font(.app(13)).foregroundStyle(.tertiary)
+                        }
+                    }
                     Button { showBarFont = true } label: {
                         HStack {
                             Text("予定バーの文字サイズ").foregroundStyle(.primary)
@@ -82,6 +92,9 @@ struct SettingsView: View {
             .preferredColorScheme(appearance.colorScheme)
             .keyboardDismissBar { gapFocused = false }
             .sheet(isPresented: $showBarFont) { BarFontSheet() }
+            .sheet(isPresented: $showCalendarBackground) {
+                CalendarBackgroundSheet(title: "カレンダー背景", selection: $calendarBackgroundKey)
+            }
         }
     }
 }

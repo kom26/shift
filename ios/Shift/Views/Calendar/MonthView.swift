@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct MonthView: View {
     @Environment(Store.self) private var store
+    @Environment(\.calendarBackground) private var calBg
     @Environment(Holidays.self) private var holidays
     let anchor: String
     let startMonday: Bool
@@ -98,7 +99,7 @@ struct MonthView: View {
         }
         .background {
             ZStack {
-                Color(.systemBackground)
+                calBg
                 MonthWatermark(number: ym.month)
             }
         }
@@ -114,7 +115,7 @@ struct MonthView: View {
                 SummaryStrip(label: "週計",
                              totals: store.totals(from: cells[0], to: cells[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthOrder),
                              emptyText: "-",
-                             fill: Color(.systemBackground), labelColor: Color.secondary, fontSize: 9.5)
+                             fill: calBg, labelColor: Color.secondary, fontSize: 9.5)
                     .frame(height: stripH)
                     .frame(maxWidth: .infinity)
                     .overlay(alignment: .top) {

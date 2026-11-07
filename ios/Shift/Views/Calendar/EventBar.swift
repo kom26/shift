@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EventBar: View {
+    @Environment(\.calendarBackground) private var calBg
     let span: BarSpan
     let height: CGFloat
     var fontSize: CGFloat = 10
@@ -31,7 +32,7 @@ struct EventBar: View {
                     bottomTrailingRadius: span.isEnd ? r : 0,
                     topTrailingRadius: span.isEnd ? r : 0))
             .background(
-                Color(.systemBackground),
+                calBg,
                 in: UnevenRoundedRectangle(
                     topLeadingRadius: span.isStart ? r : 0,
                     bottomLeadingRadius: span.isStart ? r : 0,
@@ -56,6 +57,7 @@ extension EventBar {
 
 /// 長押しプレビュー用: 省略なしの全文ラベル (必要な幅ちょうど)
 struct EventBarPreview: View {
+    @Environment(\.calendarBackground) private var calBg
     let event: ShiftEvent
     let height: CGFloat
     var fontSize: CGFloat = 10
@@ -76,7 +78,7 @@ struct EventBarPreview: View {
             .frame(height: height)
             .foregroundStyle(EventColor.text(event.color))
             .background(EventColor.fill(event.color), in: shape)
-            .background(Color(.systemBackground), in: shape)
+            .background(calBg, in: shape)
             .clipShape(shape)
     }
 }

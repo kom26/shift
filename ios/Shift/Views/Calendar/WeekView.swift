@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct WeekView: View {
     @Environment(Store.self) private var store
+    @Environment(\.calendarBackground) private var calBg
     @Environment(Holidays.self) private var holidays
     let anchor: String
     let startMonday: Bool
@@ -45,7 +46,7 @@ struct WeekView: View {
             if summaryOn && !isSharedView {
                 Divider()
                 SummaryStrip(label: "週計", totals: store.totals(from: days[0], to: days[6], isHoliday: { holidays.name(on: $0) != nil }, orderBy: monthTotals.map(\.key)), emptyText: "データなし",
-                             fill: Color(.systemBackground), labelColor: Color.secondary)
+                             fill: calBg, labelColor: Color.secondary)
                     .frame(height: 18)
             } else {
                 Divider()
@@ -242,7 +243,7 @@ struct WeekView: View {
                         .font(.app(8))
                         .foregroundStyle(Theme.alarm)
                         .padding(2)
-                        .background(Color(.systemBackground), in: Circle())
+                        .background(calBg, in: Circle())
                         .offset(x: 1, y: -7)
                 }
                 .offset(y: H * CGFloat(m) / 1440 - 1)
@@ -283,7 +284,7 @@ struct WeekView: View {
         .padding(.vertical, 4)
         .frame(minWidth: w, minHeight: h, alignment: .topLeading)
         .background(EventColor.fill(ev.color), in: shape)
-        .background(Color(.systemBackground), in: shape)
+        .background(calBg, in: shape)
         .clipShape(shape)
     }
 
@@ -302,7 +303,7 @@ struct WeekView: View {
         .padding(2)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(EventColor.fill(ev.color), in: RoundedRectangle(cornerRadius: 3))
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 3))
+        .background(calBg, in: RoundedRectangle(cornerRadius: 3))
         .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color(hex: ev.color).opacity(0.55), lineWidth: 1))
     }
 }

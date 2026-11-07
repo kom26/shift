@@ -309,6 +309,9 @@ final class SharedViewState {
     @ObservationIgnored private var latestAnniversaries: [SharedAnniversary] = []
     /// 開いている共有カレンダーの誕生日・記念日を入れた人(ID から引ける)
     private(set) var anniversaryOwners: [String: String] = [:]
+    /// 開いている共有カレンダーの背景(共有者で共通)
+    private(set) var background = ""
+    @ObservationIgnored private var unlistenBackground: (() -> Void)?
 
     /// 参加者のアバター(uid から引ける。空は頭文字)
     private(set) var avatars: [String: String] = [:]
@@ -426,6 +429,11 @@ final class SharedViewState {
         unlistenAnniversaries = anniversaryBacking?.listenAnniversaries(calendarId: cal.id) { [weak self] list in
             Task { @MainActor in self?.applyAnniversaries(list, for: cal.id) }
         }
+        unlistenBackground = anniversaryBacking?.listenBackground(calendarId: cal.id) { [weak self] key in
+            Task { @MainActor in
+                if self?.calendar?.id == cal.id { self?.background = key }
+            }
+        }
         await refresh()
     }
 
@@ -434,6 +442,9 @@ final class SharedViewState {
         unlisten = nil
         unlistenAnniversaries?()
         unlistenAnniversaries = nil
+        unlistenBackground?()
+        unlistenBackground = nil
+        background = ""
         latestAnniversaries = []
         anniversaryOwners = [:]
         calendar = nil
@@ -674,6 +685,28 @@ final class SharedViewState {
 
     func canEditAnniversary(_ id: String) -> Bool {
         anniversaryOwners[id] != nil && canCreate
+    }
+
+    // MARK: 背景
+
+    /// その共有カレンダーの背景(開いていれば、いま見えているもの)
+    func backgroundKey(of cid: String) async -> String {
+        if calendar?.id == cid { return background }
+        return (try? await anniversaryBacking?.fetchBackground(calendarId: cid)) ?? ""
+    }
+
+    /// 背景を変える(変えられるのは持ち主だけ)
+    @discardableResult
+    func setBackground(_ key: String, in cid: String) async -> Bool {
+        guard let b = anniversaryBacking,
+              calendars.calendars.first(where: { $0.id == cid })?.ownerUid == calendars.myUid else { return false }
+        do {
+            try await b.setBackground(calendarId: cid, key: key)
+            if calendar?.id == cid { background = key }
+            return true
+        } catch {
+            return false
+        }
     }
 
     func anniversaries(in cid: String) async -> [SharedAnniversary]? {

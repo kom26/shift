@@ -280,6 +280,9 @@ struct CalendarDetailSheet: View {
     @State private var confirmAuto = false
     @State private var approvalConfirmed = false
     @State private var autoConfirmed = false
+    /// 共有カレンダーの背景(持ち主だけが変えられる。共有者で共通)
+    @State private var calendarBackgroundKey = ""
+    @State private var showCalendarBackground = false
 
     private var uid: String? { auth.account?.uid }
     private var isOwner: Bool { calendar.ownerUid == uid }
@@ -306,6 +309,7 @@ struct CalendarDetailSheet: View {
                 }
             }
             .task { await load() }
+            .task { calendarBackgroundKey = await sharedView.backgroundKey(of: calendar.id) }
             .onChange(of: service.calendars) { _, list in
                 // 承認待ちの画面を開いている間に承認されたら、そのまま共有カレンダーを開く
                 if calendar.status == .pending, let c = list.first(where: { $0.id == calendar.id }), c.status == .active {
@@ -325,6 +329,24 @@ struct CalendarDetailSheet: View {
                     // 作るときと同じ項目を、持ち主はここから変えられる
                     Section("カレンダー名") {
                         CalendarNameField(name: $calName, icon: $calIcon)
+                        Button { showCalendarBackground = true } label: {
+                            HStack {
+                                Text("カレンダー背景").foregroundStyle(.primary)
+                                Spacer()
+                                Text(CalendarBackground.name(calendarBackgroundKey)).font(.app(14)).foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right").font(.app(13)).foregroundStyle(.tertiary)
+                            }
+                        }
+                        .sheet(isPresented: $showCalendarBackground) {
+                            CalendarBackgroundSheet(
+                                title: "カレンダー背景",
+                                selection: Binding(
+                                    get: { calendarBackgroundKey },
+                                    set: { key in
+                                        calendarBackgroundKey = key
+                                        Task { await sharedView.setBackground(key, in: calendar.id) }
+                                    }))
+                        }
                     }
                     Section {
                         LabeledContent("種類", value: calendar.kind.title)
