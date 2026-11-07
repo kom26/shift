@@ -177,9 +177,9 @@ struct UnplacedArea: View {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
         }
-        .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置に戻しますか?",
+        .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置予定に入れますか?",
                             isPresented: $confirmRecall, titleVisibility: .visible) {
-            Button("未配置に戻す", role: .destructive) {
+            Button("未配置予定に入れる", role: .destructive) {
                 withAnimation(.snappy) { _ = store.recallMonth(of: anchor) }
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
@@ -406,7 +406,7 @@ struct UnplacedArea: View {
         .buttonStyle(.plain)
     }
 
-    /// ドラッグ中に出す受け皿。左3/4が「未配置に戻す」、右1/4が「削除」
+    /// ドラッグ中に出す受け皿。左3/4が「未配置予定に入れる」、右1/4が「削除」
     private func dropPrompt(over: Bool, overTrash: Bool) -> some View {
         GeometryReader { geo in
             HStack(spacing: 0) {
@@ -415,7 +415,7 @@ struct UnplacedArea: View {
                     if over { Theme.accentSoft }
                     VStack(spacing: 4) {
                         Image(systemName: "tray.and.arrow.down").font(.app(22))
-                        Text("未配置に戻す").font(.app(15))
+                        Text("未配置予定に入れる").font(.app(15))
                     }
                     .foregroundStyle(.secondary)
                     if over {
