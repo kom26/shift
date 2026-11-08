@@ -17,7 +17,10 @@ final class SyncStatus {
     var restoring = false
     /// 端末とアカウントのどちらを残すか、ユーザーの選択待ち
     var choice: SyncChoiceInfo?
-    var lastSync: Date?
+    /// 最後に同期した時刻。アプリを閉じても覚えておく
+    var lastSync: Date? = UserDefaults.standard.object(forKey: "last-sync-time") as? Date {
+        didSet { UserDefaults.standard.set(lastSync, forKey: "last-sync-time") }
+    }
 }
 
 /// アカウント(Firestore)との同期。予定・職場などを 1 件ずつ送り、新しい変更が勝つ。

@@ -37,12 +37,12 @@ struct AccountSection: View {
                 } message: {
                     Text(auth.errorMessage ?? "")
                 }
-                if let t = sync.status.lastSync {
-                    HStack {
-                        Text("最後の同期")
-                        Spacer()
-                        Text(t.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(.secondary)
-                    }
+                // ログインしているあいだは、いつも出す(まだ同期していなければ、その旨)
+                HStack {
+                    Text("最後の同期")
+                    Spacer()
+                    Text(sync.status.lastSync.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "まだ同期していません")
+                        .foregroundStyle(.secondary)
                 }
             } else {
                 SignInWithAppleButton(.signIn) { request in
