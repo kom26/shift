@@ -20,6 +20,8 @@ extension Store {
 struct WorkLabelSheet: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
+    /// 最初は上まで広げて開く(あとから、半分に下げられる)
+    @State private var detent: PresentationDetent = .large
 
     let workplaceId: String?
     let labelId: String?
@@ -92,7 +94,7 @@ struct WorkLabelSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
         .presentationBackground(Color(.systemGroupedBackground))
         .sheet(item: $adding, onDismiss: selectAdded) { kind in
             switch kind {
