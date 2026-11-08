@@ -58,8 +58,10 @@ struct ScreenshotImportSheet: View {
         // バーの開始日が同じ予定だけが対象(前の日から続く予定は数えない)
         return store.events.filter { e in
             guard e.placed, e.startDate == date else { return false }
-            if let w = ev.workplaceId { return e.workplaceId == w }
-            if let l = ev.labelId { return e.workplaceId == nil && e.labelId == l }
+            // 職場は、予定の職場 ID のほか、職場 ID が無くてもタイトルが職場名と同じ予定も、その職場として数える(予定の職場の決め方と同じ)
+            let w = store.workplace(for: e)
+            if let id = ev.workplaceId { return w?.id == id }
+            if let l = ev.labelId { return w == nil && e.labelId == l }
             return false
         }
     }
