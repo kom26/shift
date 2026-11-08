@@ -64,10 +64,10 @@ struct WidgetPreview: View {
     private func sampleDay(_ today: String) -> DayContent {
         let shared = prefs.calendarId != nil
         let lines = [
-            DayEventLine(id: "a", title: "早番", color: "#7a62d9", label: "9:00-17:00", hours: "8:00",
+            DayEventLine(id: "a", title: "早番", color: "#7a62d9", label: "9:00-17:00",
                          isAllDay: false, showsTime: true,
                          owner: shared && prefs.showOwnerIcons ? DayOwner(uid: "sample", name: "あ", avatar: "") : nil),
-            DayEventLine(id: "b", title: "ごはん", color: "#2c8a73", label: "19:00-21:00", hours: "",
+            DayEventLine(id: "b", title: "ごはん", color: "#2c8a73", label: "19:00-21:00",
                          isAllDay: false, showsTime: true,
                          icon: shared && prefs.showOwnerIcons ? calendarIcon : nil),
         ]

@@ -73,4 +73,16 @@ struct StorePayTests {
         store.addWorkplace(Workplace(id: "n1", name: "B", color: "#222222", hourlyWage: 1200))
         #expect(store.workplaces.last?.hourlyWage == 1200)
     }
+
+    @Test func hoursWithoutSavedWorkHoursUseTheWorkplaceBreakRules() {
+        let store = make()
+        var w = store.workplaces[0]
+        w.breakRules = [BreakRule(id: "r1", hours: 6, comparison: .over, minutes: 30)]
+        store.updateWorkplaceDetails(w)
+        var e = ev("e1", "2026-10-20", allDay: false, st: "22:00", et: "06:30")
+        e.title = "A"
+        e.endDate = "2026-10-21"
+        // 拘束 8.5 時間。職場の休憩ルール(6 時間超で 30 分)なら 8 時間。法定の 60 分なら 7.5 時間
+        #expect(store.effectiveHours(of: e) == 8)
+    }
 }

@@ -68,7 +68,6 @@ struct DayEventLine: Identifiable, Equatable {
     let title: String
     let color: String
     let label: String
-    let hours: String
     let isAllDay: Bool
     let showsTime: Bool
     /// 共有に出した予定の、共有した人のアイコン
@@ -146,12 +145,11 @@ extension WidgetSource {
         let timed = summary.events.filter { !$0.isAllDay && !$0.isContinuation }
         let lines = (carried + allDay + timed).map { row -> DayEventLine in
             let ev = row.event
-            let hours = ev.effectiveHours.flatMap { $0 > 0 && !ev.allDay ? Rules.formatHours($0) : nil } ?? ""
             let isCarried = !row.isAllDay && row.isContinuation
             let label = row.isAllDay ? "終日"
                 : isCarried ? carriedLabel(ev, on: ds)
                 : (ev.startTime == nil ? "" : Rules.timeLabel(ev))
-            return DayEventLine(id: ev.id, title: ev.title, color: ev.color, label: label, hours: hours,
+            return DayEventLine(id: ev.id, title: ev.title, color: ev.color, label: label,
                                 isAllDay: row.isAllDay, showsTime: !row.isAllDay && !isCarried && ev.startTime != nil,
                                 owner: owner(of: ev.id), icon: calendarIcon(of: ev.id))
         }

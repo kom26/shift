@@ -137,6 +137,17 @@ final class Store {
 
     var isFiltering: Bool { !checkedWorkplaces.isEmpty || !checkedLabels.isEmpty }
 
+    /// 実労働時間。保存されていなければ、その職場の休憩ルール(なければ法定)で出す。給与計算・編集画面と同じ休憩になる
+    func effectiveHours(of ev: ShiftEvent) -> Double? {
+        if let wh = ev.workHours { return wh }
+        guard !ev.allDay,
+              let span = Rules.spanMinutes(startDate: ev.startDate, startTime: ev.startTime,
+                                           endDate: ev.endDate, endTime: ev.endTime) else { return ev.effectiveHours }
+        let w = workplace(for: ev)
+        let brk = (w?.isDaily ?? false) ? 0 : BreakRules.minutes(span: span, rules: w?.breakRules ?? [])
+        return (Double(span - brk) / 60 * 100).rounded() / 100
+    }
+
     /// 開始日が from...to に入る予定を職場ごとに合計する(職場なしは色ごと)
     func totals(from: String, to: String, isHoliday: (String) -> Bool = { _ in false }, orderBy: [String]? = nil) -> [ColorTotal] {
         var order: [String] = []
@@ -144,7 +155,7 @@ final class Store {
         // 重ねた共有カレンダーの予定は、ラベルと同じ見せるだけの扱いで、集計に入れない
         for ev in ownVisibleEvents {
             guard let sd = ev.startDate, sd >= from, sd <= to,
-                  let h = ev.effectiveHours, h > 0,
+                  let h = effectiveHours(of: ev), h > 0,
                   let w = workplace(for: ev) else { continue }   // 通常予定(職場なし)は集計しない
             let key = w.id
             if map[key] == nil {

@@ -130,8 +130,10 @@ struct SharedAnniversaryListView: View {
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
             if canWrite && !(item.linked && !mine) {
-                Button("削除", role: .destructive) {
+                Button(role: .destructive) {
                     Task { await sharedView.removeAnniversary(id: item.id, in: calendar.id); await reload() }
+                } label: {
+                    Label("削除", systemImage: "trash").labelStyle(SwipeDeleteLabelStyle())
                 }
             }
         }

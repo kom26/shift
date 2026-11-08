@@ -180,7 +180,7 @@ struct EventLineView: View {
                         .font(.app(11.5, weight: .semibold))
                         .lineLimit(1)
                     Spacer(minLength: 0)
-                    sub(size: 9.5, withHours: false)
+                    sub(size: 9.5)
                 }
                 .padding(.vertical, 2)
             } else {
@@ -189,7 +189,7 @@ struct EventLineView: View {
                         .font(.app(12, weight: .semibold))
                         .lineLimit(1)
                     HStack(spacing: 4) {
-                        sub(size: 10, withHours: true)
+                        sub(size: 10)
                     }
                 }
                 .padding(.vertical, 4)
@@ -205,12 +205,9 @@ struct EventLineView: View {
     }
 
     @ViewBuilder
-    private func sub(size: CGFloat, withHours: Bool) -> some View {
+    private func sub(size: CGFloat) -> some View {
         if line.showsTime {
             FixedWidthTimeText(text: line.label, size: size, weight: .medium)
-            if withHours && !line.hours.isEmpty {
-                Text("· \(line.hours)").font(.app(size)).lineLimit(1)
-            }
         } else if !line.label.isEmpty {
             Text(line.label).font(.app(size)).lineLimit(1)
         }
