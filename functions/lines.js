@@ -26,9 +26,19 @@ function normalizeTime(s) {
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
-/** 1 日 1 件にそろえる。同じ日が複数枚に重なって出たときは、あとのものを使う */
+/** 名前(表に書かれた名前)。空や長すぎるものは、無いことにする */
+function normalizeName(s) {
+  if (typeof s !== "string") return null;
+  const t = s.trim();
+  return t.length > 0 && t.length <= 40 ? t : null;
+}
+
+/**
+ * 同じ日・同じ時間・同じ名前は 1 件にそろえる(同じ日が複数枚に重なって出たとき)。
+ * 同じ日でも、時間や名前が違うものは、どちらも残す。日付、開始、名前の順に並べる
+ */
 export function normalizeLines(raw) {
-  const byDate = new Map();
+  const byKey = new Map();
   for (const item of Array.isArray(raw) ? raw : []) {
     if (!item || !validDate(item.date)) continue;
     const off = item.off === true;
@@ -36,7 +46,25 @@ export function normalizeLines(raw) {
     const end = off ? null : normalizeTime(item.end);
     // 時間が片方しか読めなかった行は、読み違いなので捨てる(時間なしの行は、終日として残す)
     if (!off && (start === null) !== (end === null)) continue;
-    byDate.set(item.date, { date: item.date, start, end, off });
+    const name = normalizeName(item.name);
+    const line = { date: item.date, start, end, off };
+    if (name !== null) line.name = name;
+    byKey.set([item.date, start, end, off, name].join("|"), line);
   }
-  return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+  const key = (l) => [l.date, l.start ?? "", l.name ?? ""].join("|");
+  return [...byKey.values()].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+}
+
+/** アプリから受け取る名前の指定。改行や引用符は取り除く(AI への文章に入れるため) */
+export function cleanNameHint(s) {
+  if (typeof s !== "string") return null;
+  const t = s.replace(/[\r\n"「」\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
+  return t.length > 0 ? t : null;
+}
+
+/** アプリから受け取る年月の指定("YYYY-MM")。形が正しくなければ、無いことにする */
+export function cleanYearMonth(s) {
+  if (typeof s !== "string" || !/^\d{4}-\d{2}$/.test(s)) return null;
+  const m = Number(s.slice(5));
+  return m >= 1 && m <= 12 ? s : null;
 }

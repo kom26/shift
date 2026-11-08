@@ -6,7 +6,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { extractJson, normalizeLines } from "./lines.js";
+import { cleanNameHint, cleanYearMonth, extractJson, normalizeLines } from "./lines.js";
 
 initializeApp();
 
@@ -29,8 +29,30 @@ const PROMPT = `これは勤務シフト表のスクリーンショットです(
 - 「休」のマスは off を true にして、start と end は null にしてください。
 - 時間の欄が空のときは、start と end を null、off を false にしてください。
 
-出力の形(1 日 1 要素):
+出力の形(1 日 1 要素。同じ日に別の時間の予定があれば、別の要素にしてください):
 [{"date": "YYYY-MM-DD", "start": "HH:MM" または null, "end": "HH:MM" または null, "off": true/false}]`;
+
+/** アプリからの指定(年月・名前)を、AI への文章に足す */
+function buildPrompt({ yearMonth, name }) {
+  let prompt = PROMPT;
+  if (yearMonth) {
+    const [y, m] = yearMonth.split("-").map(Number);
+    prompt += `
+
+年月の指定: この表には年月の表示がありません。表の最初の日は ${y}年${m}月 としてください。月をまたぐときは、日付が小さくなったところで翌月にしてください(上の「年と月は、画面上の期間の表示から決めてください」より、こちらを優先してください)。`;
+  }
+  if (name) {
+    prompt += `
+
+読み取る人の指定: この表には複数の人の名前があります。「${name}」の行だけを読み取ってください。
+- 名前は部分一致で探してください(例: 「山田」なら「山田太郎」も「山田花子」も当てはまります)。
+- 表の中に、指定の名前と完全に一致する人がいるときは、その人だけを読み取ってください。
+- 完全に一致する人がいなくて、部分一致する人が複数いるときは、全員分を読み取ってください。
+- 読み取った要素には、表に書かれている名前を "name" に入れてください。
+- ほかの人の行は、読み取らないでください。`;
+  }
+  return prompt;
+}
 
 function today() {
   // 日本時間の日付(1 日の回数は、日本時間の日付で数える)
@@ -72,7 +94,8 @@ export const readShiftScreenshots = onCall(
       if (images.length > 1) content.push({ type: "text", text: `画像${i + 1}:` });
       content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data } });
     });
-    content.push({ type: "text", text: PROMPT });
+    const prompt = buildPrompt({ yearMonth: cleanYearMonth(request.data?.yearMonth), name: cleanNameHint(request.data?.name) });
+    content.push({ type: "text", text: prompt });
 
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
     let response;
