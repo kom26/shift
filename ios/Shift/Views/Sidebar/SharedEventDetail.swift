@@ -13,27 +13,20 @@ struct UserAvatar: View {
     var avatar: String = ""
     var size: CGFloat = 28
 
-    private static let palette = ["#6a8cf0", "#e0707a", "#4fae8a", "#d9993d", "#a36ad9", "#4aa3c7", "#c9688f", "#7d8a3a"]
+    private static let palette = AvatarStyle.palette
 
     /// 頭文字の背景を自分で選んだとき、avatar は「bg:#rrggbb」になる
-    static let backgroundPrefix = "bg:"
+    static let backgroundPrefix = AvatarStyle.backgroundPrefix
 
     /// 頭文字の背景に選べる色(最初の自動は、持ち主ごとに決まる色)
     static let backgroundChoices = palette + ["#8e8e93", "#3a3a3c"]
 
-    static func customBackground(_ avatar: String) -> String? {
-        avatar.hasPrefix(backgroundPrefix) ? String(avatar.dropFirst(backgroundPrefix.count)) : nil
-    }
+    static func customBackground(_ avatar: String) -> String? { AvatarStyle.customBackground(avatar) }
 
     /// uid から色を決める(同じ人はいつも同じ色)。端末や起動ごとに変わらない計算にする
-    static func color(for uid: String) -> String {
-        let sum = uid.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFF }
-        return palette[sum % palette.count]
-    }
+    static func color(for uid: String) -> String { AvatarStyle.color(for: uid) }
 
-    static func initial(of name: String) -> String {
-        name.trimmingCharacters(in: .whitespaces).first.map { String($0) } ?? "?"
-    }
+    static func initial(of name: String) -> String { AvatarStyle.initial(of: name) }
 
     var body: some View {
         Group {

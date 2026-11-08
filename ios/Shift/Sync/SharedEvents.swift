@@ -781,9 +781,13 @@ final class SharedViewState {
     func widgetSnapshot(of calendar: SharedCalendar) async -> WidgetSharedCalendar? {
         guard let list = try? await events.fetch(calendarId: calendar.id) else { return nil }
         let annivs = (try? await anniversaryBacking?.fetchAnniversaries(calendarId: calendar.id)) ?? []
+        let members = await calendars.members(of: calendar) ?? []
         return WidgetSharedCalendar(id: calendar.id, name: calendar.name,
                                     events: list.map { $0.shiftEvent() }, anniversaries: annivs.map(\.anniversary),
-                                    sharedWorkplaceIds: calendar.mySharedKeys.filter { $0.hasPrefix("w:") }.map { String($0.dropFirst(2)) })
+                                    sharedWorkplaceIds: calendar.mySharedKeys.filter { $0.hasPrefix("w:") }.map { String($0.dropFirst(2)) },
+                                    eventOwners: Dictionary(list.map { ($0.id, $0.ownerUid) }, uniquingKeysWith: { a, _ in a }),
+                                    members: Dictionary(members.map { ($0.id, WidgetMember(name: $0.displayName, avatar: $0.avatar)) },
+                                                        uniquingKeysWith: { a, _ in a }))
     }
 
     func removeMyLinkedBirthday(in cid: String) async {

@@ -7,6 +7,8 @@ struct WidgetSource {
     let startMonday: Bool
     let alarms: [AlarmEntry]
     let prefs: WidgetPrefs
+    /// 共有カレンダーを見ているときの、その中身(予定者のアイコンに使う)
+    var sharedCal: WidgetSharedCalendar?
 
     /// 労働時間・見込み給料の集計に使う入れ物。共有カレンダーを見ているときだけ、自分の職場(共有している分)で作る
     let workStore: Store?
@@ -24,9 +26,11 @@ struct WidgetSource {
         let data = WidgetBridge.read()
         var alarms = data?.snapshot.alarms ?? []
         var workStore: Store?
+        var sharedCal: WidgetSharedCalendar?
         if let id = prefs.calendarId {
             alarms = []
             if let cal = data?.shared?.first(where: { $0.id == id }) {
+                sharedCal = cal
                 store.applySnapshot(SyncSnapshot(events: cal.events, workplaces: [], favorites: [], customColors: [],
                                                  hiddenSuggestions: []))
                 cal.anniversaries.forEach { store.saveAnniversary($0) }
@@ -45,7 +49,7 @@ struct WidgetSource {
             prefs.labelIds.forEach { store.toggleLabelFilter($0) }
         }
         return WidgetSource(store: store, holidays: Holidays(defaults: defaults),
-                            startMonday: data?.startMonday ?? false, alarms: alarms, prefs: prefs, workStore: workStore)
+                            startMonday: data?.startMonday ?? false, alarms: alarms, prefs: prefs, sharedCal: sharedCal, workStore: workStore)
     }
 
     /// 労働時間・見込み給料を出せるか。自分のカレンダーなら職場が登録されているとき、共有カレンダーなら職場を共有しているとき
@@ -67,6 +71,14 @@ struct DayEventLine: Identifiable, Equatable {
     let hours: String
     let isAllDay: Bool
     let showsTime: Bool
+    /// 共有カレンダーで、予定者のアイコンを出すとき
+    var owner: DayOwner?
+}
+
+struct DayOwner: Equatable {
+    let uid: String
+    let name: String
+    let avatar: String
 }
 
 /// 日付の横に出す、その日の記念日・誕生日のアイコン
@@ -137,7 +149,8 @@ extension WidgetSource {
                 : isCarried ? carriedLabel(ev, on: ds)
                 : (ev.startTime == nil ? "" : Rules.timeLabel(ev))
             return DayEventLine(id: ev.id, title: ev.title, color: ev.color, label: label, hours: hours,
-                                isAllDay: row.isAllDay, showsTime: !row.isAllDay && !isCarried && ev.startTime != nil)
+                                isAllDay: row.isAllDay, showsTime: !row.isAllDay && !isCarried && ev.startTime != nil,
+                                owner: owner(of: ev.id))
         }
         let paid = summary.paydays.reduce(0) { $0 + $1.amount }
         let pay = (summary.paydays.isEmpty || !prefs.showPayday) ? nil : "給料日 " + Money.yen(paid)
@@ -158,6 +171,13 @@ extension WidgetSource {
                           })
         content.calendarId = prefs.calendarId
         return content
+    }
+
+    /// 予定者のアイコン(共有カレンダーを見ていて、設定でオンのとき)
+    private func owner(of eventId: String) -> DayOwner? {
+        guard prefs.showOwnerIcons, let cal = sharedCal,
+              let uid = cal.eventOwners?[eventId], let m = cal.members?[uid] else { return nil }
+        return DayOwner(uid: uid, name: m.name, avatar: m.avatar)
     }
 
     /// 前の日から続く予定の表記。その日に終わるなら「前日から6:00」、まだ続くなら「前日から」

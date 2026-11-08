@@ -112,6 +112,30 @@ struct SmallDayView: View {
     }
 }
 
+/// 予定者のアイコン(丸)。写真・絵文字・頭文字を、アプリと同じ見た目で出す
+struct WidgetAvatar: View {
+    let owner: DayOwner
+    let size: CGFloat
+
+    var body: some View {
+        if let photo = AvatarStyle.photo(from: owner.avatar) {
+            Image(uiImage: photo)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else {
+            let custom = AvatarStyle.customBackground(owner.avatar)
+            let showsInitial = owner.avatar.isEmpty || custom != nil
+            Text(showsInitial ? AvatarStyle.initial(of: owner.name) : owner.avatar)
+                .font(.system(size: size * (showsInitial ? 0.5 : 0.6), weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: size, height: size)
+                .background(Circle().fill(Color(hex: custom ?? AvatarStyle.color(for: owner.uid))))
+        }
+    }
+}
+
 /// 予定1件。予定の色で名前と時間を囲む。1〜2件は2行、3件以上は1行に詰める
 struct EventLineView: View {
     let line: DayEventLine
@@ -119,7 +143,10 @@ struct EventLineView: View {
 
     var body: some View {
         let color = EventColor.text(line.color)
-        Group {
+        HStack(spacing: 6) {
+            // 予定者のアイコンは、バーの一番左に、バーに収まる大きさで出す
+            if let owner = line.owner { WidgetAvatar(owner: owner, size: compact ? 14 : 22) }
+            Group {
             if compact {
                 HStack(spacing: 6) {
                     Text(line.title)
@@ -140,6 +167,8 @@ struct EventLineView: View {
                 }
                 .padding(.vertical, 4)
             }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .foregroundStyle(color)
         .padding(.horizontal, 8)

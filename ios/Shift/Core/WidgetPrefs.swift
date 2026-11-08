@@ -15,10 +15,13 @@ struct WidgetPrefs: Codable, Equatable {
     /// 中(週間)だけ
     var showHours: Bool
     var showEstimatedPay: Bool
+    /// 小で共有カレンダーを見るとき、予定者のアイコンをバーの左に出す
+    var showOwnerIcons: Bool
 
     init(calendarId: String? = nil, workplaceIds: [String] = [], labelIds: [String] = [],
          showBirthdays: Bool = true, showAnniversaries: Bool = true, showAlarms: Bool = true,
-         showPayday: Bool = true, showHours: Bool = true, showEstimatedPay: Bool = true) {
+         showPayday: Bool = true, showHours: Bool = true, showEstimatedPay: Bool = true,
+         showOwnerIcons: Bool = true) {
         self.calendarId = calendarId
         self.workplaceIds = workplaceIds
         self.labelIds = labelIds
@@ -28,6 +31,7 @@ struct WidgetPrefs: Codable, Equatable {
         self.showPayday = showPayday
         self.showHours = showHours
         self.showEstimatedPay = showEstimatedPay
+        self.showOwnerIcons = showOwnerIcons
     }
 
     /// 項目が増えても、古い保存データを読めるようにする(無い項目は初期値)
@@ -41,7 +45,8 @@ struct WidgetPrefs: Codable, Equatable {
                   showAlarms: try c.decodeIfPresent(Bool.self, forKey: .showAlarms) ?? true,
                   showPayday: try c.decodeIfPresent(Bool.self, forKey: .showPayday) ?? true,
                   showHours: try c.decodeIfPresent(Bool.self, forKey: .showHours) ?? true,
-                  showEstimatedPay: try c.decodeIfPresent(Bool.self, forKey: .showEstimatedPay) ?? true)
+                  showEstimatedPay: try c.decodeIfPresent(Bool.self, forKey: .showEstimatedPay) ?? true,
+                  showOwnerIcons: try c.decodeIfPresent(Bool.self, forKey: .showOwnerIcons) ?? true)
     }
 }
 

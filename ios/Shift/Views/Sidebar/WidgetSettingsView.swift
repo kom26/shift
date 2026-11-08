@@ -127,6 +127,7 @@ struct WidgetSettingsView: View {
                 toggleRow("記念日", \.showAnniversaries)
                 if prefs.wrappedValue.calendarId == nil { toggleRow("アラーム", \.showAlarms) }
                 toggleRow("給料日", \.showPayday)
+                if prefs.wrappedValue.calendarId != nil { toggleRow("予定者のアイコン", \.showOwnerIcons) }
             } else {
                 toggleRow("労働時間", \.showHours, unavailable: workUnavailableReason != nil)
                 toggleRow("見込み給料", \.showEstimatedPay, unavailable: workUnavailableReason != nil)
@@ -134,6 +135,9 @@ struct WidgetSettingsView: View {
         } header: {
             Text("表示する項目")
         } footer: {
+            if size == 0, prefs.wrappedValue.calendarId != nil {
+                Text("オンにすると、共有カレンダーの予定のバーの左に、予定を入れた人のアイコンを表示します。")
+            }
             if size == 1 {
                 if let reason = workUnavailableReason {
                     Text(reason + "。労働時間と見込み給料は表示できません。")
