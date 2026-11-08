@@ -204,33 +204,74 @@ struct ShareReviewSheet: View {
                     Text(l).font(.app(10)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 }
             }
-            ForEach(weeks, id: \.self) { week in
-                HStack(spacing: 1) {
-                    ForEach(week, id: \.self) { ds in cell(ds, inMonth: Rules.isSameMonth(ds, as: month)) }
-                }
-            }
+            ForEach(weeks, id: \.self) { week in weekRow(week) }
         }
         .padding(1)
         .background(Color(.separator).opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    private func cell(_ ds: String, inMonth: Bool) -> some View {
-        let day = changes.filter { Rules.dateInRange(ds, $0.event.startDate, $0.event.endDate) }
-        let shown = Array(day.prefix(2))
-        return VStack(alignment: .leading, spacing: 2) {
-            Text("\(Rules.ymd(ds).day)")
-                .font(.system(size: 9))
-                .foregroundStyle(inMonth ? Color.secondary : Color.secondary.opacity(0.4))
-            ForEach(shown) { bar($0) }
-            if day.count > shown.count {
-                Text("+\(day.count - shown.count)").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
+    private static let barH: CGFloat = 15
+    private static let barGap: CGFloat = 2
+    private static let maxLanes = 3
+
+    /// 1 週間ぶん。日をまたぐ予定は、本物のカレンダーと同じ 1 本のバーでつなげる。
+    /// 色・文字・角は本物のバーのまま、追加・変更・消えるは、枠線の色と点線で区別する
+    private func weekRow(_ week: [String]) -> some View {
+        let byId = Dictionary(changes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let rows = SpanLayout.rows(events: changes.map { $0.event.shiftEvent() }, weekCells: week.map { Optional($0) })
+        let lanes = min(rows.count, Self.maxLanes)
+        let hidden = rows.dropFirst(Self.maxLanes).flatMap { $0 }
+        let height = max(58, 16 + CGFloat(lanes) * (Self.barH + Self.barGap) + (hidden.isEmpty ? 0 : 12))
+        return GeometryReader { geo in
+            let colW = geo.size.width / 7
+            let font = max(5, FixedWidthTime.fitSize(width: colW - 2 - BarFontSize.sidePadding))
+            ZStack(alignment: .topLeading) {
+                HStack(spacing: 0) {
+                    ForEach(week, id: \.self) { ds in
+                        let inMonth = Rules.isSameMonth(ds, as: month)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("\(Rules.ymd(ds).day)")
+                                .font(.system(size: 9))
+                                .foregroundStyle(inMonth ? Color.secondary : Color.secondary.opacity(0.4))
+                            Spacer(minLength: 0)
+                            let more = hidden.filter { Rules.dateInRange(ds, $0.event.startDate ?? "", $0.event.endDate) }.count
+                            if more > 0 {
+                                Text("+\(more)").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(2)
+                        .frame(width: colW, height: geo.size.height, alignment: .topLeading)
+                        .overlay(alignment: .leading) {
+                            Rectangle().fill(Color(.separator).opacity(0.5)).frame(width: 0.5)
+                        }
+                    }
+                }
+                ForEach(0..<lanes, id: \.self) { r in
+                    ForEach(rows[r]) { s in
+                        if let change = byId[s.event.id] {
+                            changeBar(s, change: change, font: font)
+                                .frame(width: max(0, colW * CGFloat(s.span) - 2), height: Self.barH)
+                                .offset(x: colW * CGFloat(s.col) + 1, y: 14 + CGFloat(r) * (Self.barH + Self.barGap))
+                        }
+                    }
+                }
             }
         }
-        .padding(2)
-        .frame(maxWidth: .infinity, minHeight: 58, maxHeight: 58, alignment: .topLeading)
+        .frame(height: height)
         .background(Color(.systemBackground))
         .clipped()
+    }
+
+    /// 本物のバーに、変更の種類の枠線をかぶせる
+    private func changeBar(_ s: BarSpan, change: ShareChange, font: CGFloat) -> some View {
+        let color = tint(change.kind)
+        let r: CGFloat = 4
+        let shape = UnevenRoundedRectangle(topLeadingRadius: s.isStart ? r : 0, bottomLeadingRadius: s.isStart ? r : 0,
+                                           bottomTrailingRadius: s.isEnd ? r : 0, topTrailingRadius: s.isEnd ? r : 0)
+        return EventBar(span: s, height: Self.barH, fontSize: font)
+            .overlay(shape.strokeBorder(color, style: StrokeStyle(lineWidth: 1.2, dash: change.kind == .changed ? [] : [3, 2])))
+            .opacity(excluded.contains(change.id) ? 0.35 : (change.kind == .removed ? 0.7 : 1))
     }
 
     private var legend: some View {
