@@ -387,10 +387,13 @@ struct ScreenshotImportSheet: View {
 
     private var reviewView: some View {
         List {
+            // 枠(白い背景)なしで、文字だけ出す
             Section {
-                Text("\(rangeText) ・ \(Set(lines.map(\.date)).count)日分を読み取りました")
+                Text("\(rangeText)の\(Set(lines.map(\.date)).count)日分を読み取りました。")
                     .font(.app(13, weight: .semibold))
                     .foregroundStyle(Theme.deltaUp)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 0, trailing: 0))
             }
             // ラベルを選んだときは、読み取ったあとに、タイトルを入力してから取り込む(職場のときは、職場の名前が入っている)
             if workplace == nil, store.label(for: labelId) != nil {
@@ -408,7 +411,7 @@ struct ScreenshotImportSheet: View {
                     Button { showSpanSheet = true } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "moon.stars.fill").foregroundStyle(.orange)
-                            Text("日またぎ・24時以降の予定が\(overnightGroups.count)パターンあります。確認する")
+                            Text(overnightBannerText)
                                 .font(.app(14, weight: .semibold))
                                 .foregroundStyle(Color.primary)
                             Spacer()
@@ -422,9 +425,8 @@ struct ScreenshotImportSheet: View {
             Section {
                 ForEach(lines) { line in lineRow(line) }
             } header: {
-                Text("追加する予定(タップで、追加する・しないを切り替え)")
-            } footer: {
                 Text("予定をタップすると1 件ずつ修正できます。\nチェックを外した予定は取り込まれません。")
+                    .textCase(nil)
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -466,9 +468,16 @@ struct ScreenshotImportSheet: View {
         }
     }
 
+    /// 確認が要る予定の案内(日をまたぐ予定、24時以降に開始する予定、その両方)
+    private var overnightBannerText: String {
+        let kinds = Set(overnightGroups.map(\.kind))
+        if kinds.count == 2 { return "日をまたぐ予定・24時以降の予定があります。" }
+        return kinds.contains(.afterMidnight) ? "24時以降に開始する予定があります。" : "日をまたぐ予定があります。"
+    }
+
     private var rangeText: String {
         guard let first = lines.first?.date, let last = lines.last?.date else { return "" }
-        func md(_ ds: String) -> String { "\(Rules.ymd(ds).month)/\(Rules.ymd(ds).day)" }
+        func md(_ ds: String) -> String { "\(Rules.ymd(ds).month)月\(Rules.ymd(ds).day)日" }
         return "\(md(first))〜\(md(last))"
     }
 
