@@ -29,7 +29,7 @@ struct SharedCalendar: Equatable, Identifiable {
     var status: MemberStatus = .active
     /// 自分が共有に出している職場・ラベル(ShareKey の文字列)
     var mySharedKeys: [String] = []
-    /// ドロワーなどに出すアイコン(SF Symbols の名前。CalendarIcon.choices から選ぶ)
+    /// ドロワーなどに出すアイコン(SF Symbols の名前。CalendarIcon.choices から選ぶ。写真のときは "img:" + base64)
     var icon: String = CalendarIcon.defaultName
     /// 自分の予定を、確認してから共有する(手動)か。false は、予定を変えるとすぐ共有する(自動)
     var myShareManual = false
@@ -125,9 +125,13 @@ enum CalendarIcon {
         ("graduationcap.fill", "学校"), ("music.note", "趣味"), ("gamecontroller.fill", "ゲーム"),
     ]
 
-    /// 保存してある名前が選択肢にないとき(古い版や別の版で作ったもの)は、標準のアイコンにする
+    /// 写真のアイコンか(プロフィールのアバターと同じ "img:" + base64)
+    static func isPhoto(_ icon: String) -> Bool { icon.hasPrefix(AvatarStyle.photoPrefix) && icon.count > AvatarStyle.photoPrefix.count }
+
+    /// 保存してある名前が選択肢にないとき(古い版や別の版で作ったもの)は、標準のアイコンにする。写真はそのまま使う
     static func resolved(_ name: String) -> String {
-        choices.contains { $0.name == name } ? name : defaultName
+        if isPhoto(name) { return name }
+        return choices.contains { $0.name == name } ? name : defaultName
     }
 }
 

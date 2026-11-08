@@ -469,7 +469,7 @@ struct RootView: View {
     /// 共有カレンダーを開いている間の帯。ほかの人の予定は見るだけで、自分の予定には触れないことを示す
     private var sharedBanner: some View {
         HStack(spacing: 8) {
-            Image(systemName: sharedView.calendar?.icon ?? CalendarIcon.defaultName)
+            CalendarIconView(icon: sharedView.calendar?.icon ?? CalendarIcon.defaultName, size: 20)
             Text("\(sharedView.calendar?.name ?? "")" + (sharedView.canCreate ? "" : " (見るだけ)"))
                 .font(.app(13, weight: .semibold))
                 .lineLimit(1)
@@ -494,7 +494,7 @@ struct RootView: View {
     private func drawerRow(title: String, icon: String, caption: String? = nil, selected: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: icon).frame(width: 24)
+                CalendarIconView(icon: icon, size: 24)
                 // 状態(参加待ち・承認待ち)は、名前の下の小さな文字で出す。名前が長くても、切れない
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.app(16, weight: selected ? .semibold : .regular)).lineLimit(2)

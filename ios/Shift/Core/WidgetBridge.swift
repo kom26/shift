@@ -15,6 +15,8 @@ struct WidgetData: Codable, Equatable {
 struct WidgetSharedCalendar: Codable, Equatable {
     var id: String
     var name: String
+    /// 共有カレンダーのアイコン(記号の名前、または "img:" + base64 の写真)。古いデータには無いので省略可
+    var icon: String?
     var events: [ShiftEvent]
     var anniversaries: [Anniversary]
     /// この共有カレンダーに、自分が共有している職場(労働時間・見込み給料の集計に使う)。古いデータには無いので省略可

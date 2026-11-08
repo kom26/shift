@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// 共有カレンダーのアイコンを選ぶ(6 つずつ 2 段)
@@ -166,29 +167,113 @@ private struct CircleHole: Shape {
     }
 }
 
-/// カレンダー名の入力。左のアイコンをタップすると、アイコンを選び直せる
+/// 共有カレンダーのアイコン。写真なら丸く切り取って、記号なら、そのまま出す(ドロワー・帯の小さい表示用)
+struct CalendarIconView: View {
+    let icon: String
+    var size: CGFloat = 24
+
+    var body: some View {
+        if let photo = AvatarPhoto.image(from: icon) {
+            Image(uiImage: photo)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else {
+            Image(systemName: icon).frame(width: size)
+        }
+    }
+}
+
+/// 予定の行につける、共有カレンダーのアイコン(丸)。写真ならそのまま、記号なら色つきの丸の中に出す
+struct CalendarBadge: View {
+    let icon: String
+    var size: CGFloat = 28
+
+    var body: some View {
+        if let photo = AvatarPhoto.image(from: icon) {
+            Image(uiImage: photo)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else {
+            Image(systemName: icon)
+                .font(.system(size: size * 0.5, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: size, height: size)
+                .background(Circle().fill(Theme.accentSoft))
+        }
+    }
+}
+
+/// カレンダー名の入力。左のアイコンをタップすると、アイコンを選び直せる(記号、または写真)
 struct CalendarNameField: View {
     @Binding var name: String
     @Binding var icon: String
     @State private var picking = false
+    @State private var showPhotoPicker = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var cropTarget: AvatarCropTarget?
+    @State private var loadFailed = false
 
     var body: some View {
         HStack(spacing: 12) {
             Button { picking = true } label: {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 44, height: 44)
-                    .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 12))
+                Group {
+                    if CalendarIcon.isPhoto(icon) {
+                        CalendarBadge(icon: icon, size: 44)
+                    } else {
+                        Image(systemName: icon)
+                            .font(.system(size: 20))
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 44, height: 44)
+                            .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("アイコンを変える")
             .popover(isPresented: $picking) {
-                CalendarIconPicker(selection: $icon) { picking = false }
-                    .padding(16)
-                    .frame(width: 320)
-                    .presentationCompactAdaptation(.popover)
+                VStack(alignment: .leading, spacing: 12) {
+                    CalendarIconPicker(selection: $icon) { picking = false }
+                    Button {
+                        picking = false
+                        // ポップオーバーが閉じてから、写真の選択を開く
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(350))
+                            showPhotoPicker = true
+                        }
+                    } label: {
+                        Label("写真から選ぶ", systemImage: "photo")
+                            .font(.app(15, weight: .semibold))
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(16)
+                .frame(width: 320)
+                .presentationCompactAdaptation(.popover)
             }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
+            .onChange(of: photoItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                        cropTarget = AvatarCropTarget(image: image)
+                    } else {
+                        loadFailed = true
+                    }
+                    photoItem = nil
+                }
+            }
+            .sheet(item: $cropTarget) { target in
+                AvatarCropSheet(image: target.image) { square in
+                    if let encoded = AvatarPhoto.encode(square: square) { icon = encoded }
+                }
+            }
+            .alert("写真を読み込めませんでした", isPresented: $loadFailed) { Button("OK") {} }
             TextField("カレンダー名", text: $name)
         }
     }

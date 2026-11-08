@@ -166,6 +166,10 @@ struct CalendarServiceTests {
         #expect(CalendarIcon.resolved("heart.fill") == "heart.fill")
         #expect(CalendarIcon.resolved("") == CalendarIcon.defaultName)
         #expect(CalendarIcon.resolved("no.such.symbol") == CalendarIcon.defaultName)
+        // 写真のアイコンは、そのまま使う("img:" だけで中身が空のものは、標準に戻す)
+        #expect(CalendarIcon.resolved("img:AAAA") == "img:AAAA")
+        #expect(CalendarIcon.isPhoto("img:AAAA"))
+        #expect(CalendarIcon.resolved("img:") == CalendarIcon.defaultName)
     }
 
     @Test func ownerCanChangeNameIconAndApprovalAndOpeningApprovalAdmitsEveryoneWaiting() async {

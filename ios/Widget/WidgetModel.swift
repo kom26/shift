@@ -71,14 +71,8 @@ struct DayEventLine: Identifiable, Equatable {
     let hours: String
     let isAllDay: Bool
     let showsTime: Bool
-    /// 共有カレンダーで、予定者のアイコンを出すとき
-    var owner: DayOwner?
-}
-
-struct DayOwner: Equatable {
-    let uid: String
-    let name: String
-    let avatar: String
+    /// 共有カレンダーのアイコンを出すとき(記号の名前、または "img:" + base64 の写真)
+    var icon: String?
 }
 
 /// 日付の横に出す、その日の記念日・誕生日のアイコン
@@ -150,7 +144,7 @@ extension WidgetSource {
                 : (ev.startTime == nil ? "" : Rules.timeLabel(ev))
             return DayEventLine(id: ev.id, title: ev.title, color: ev.color, label: label, hours: hours,
                                 isAllDay: row.isAllDay, showsTime: !row.isAllDay && !isCarried && ev.startTime != nil,
-                                owner: owner(of: ev.id))
+                                icon: calendarIcon)
         }
         let paid = summary.paydays.reduce(0) { $0 + $1.amount }
         let pay = (summary.paydays.isEmpty || !prefs.showPayday) ? nil : "給料日 " + Money.yen(paid)
@@ -173,11 +167,10 @@ extension WidgetSource {
         return content
     }
 
-    /// 予定者のアイコン(共有カレンダーを見ていて、設定でオンのとき)
-    private func owner(of eventId: String) -> DayOwner? {
-        guard prefs.showOwnerIcons, let cal = sharedCal,
-              let uid = cal.eventOwners?[eventId], let m = cal.members?[uid] else { return nil }
-        return DayOwner(uid: uid, name: m.name, avatar: m.avatar)
+    /// 共有カレンダーのアイコン(共有カレンダーを見ていて、設定でオンのとき)。作った人ではなく、カレンダーのもの
+    private var calendarIcon: String? {
+        guard prefs.showOwnerIcons, let cal = sharedCal else { return nil }
+        return cal.icon ?? "person.2.fill"
     }
 
     /// 前の日から続く予定の表記。その日に終わるなら「前日から6:00」、まだ続くなら「前日から」
