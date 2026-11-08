@@ -3,7 +3,6 @@ import SwiftUI
 /// 読み取りが終わったことを、チェックマークのアニメーションで知らせる。ボタンを押すと、確認・変更の画面へ進む
 struct ReadDoneView: View {
     let workCount: Int
-    let offCount: Int
     let onNext: () -> Void
 
     @State private var ring: CGFloat = 0
@@ -27,11 +26,6 @@ struct ReadDoneView: View {
             .frame(width: 110, height: 110)
             Text("\(workCount)件の読み込みが完了しました")
                 .font(.app(18, weight: .bold))
-            if offCount > 0 {
-                Text("休みの\(offCount)日は、追加しません。")
-                    .font(.app(13))
-                    .foregroundStyle(.secondary)
-            }
             Spacer()
             Button(action: onNext) {
                 Text("確認・変更する")
