@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// ウィジェットの設定。小(1日)と中(1週間)で、見るカレンダーと表示する項目を別々に決める
+/// ウィジェットの設定。小(1日)と中(1週間)で、表示するカレンダーと表示する項目を別々に決める
 struct WidgetSettingsView: View {
     @Environment(Store.self) private var store
     @Environment(CalendarService.self) private var calendarService
@@ -8,6 +8,8 @@ struct WidgetSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     /// 0: 小 / 1: 中
     @State private var size = 0
+    /// プレビュー。false は仮の予定でのイメージ、true はいま設定している内容での本当の表示
+    @State private var previewReal = false
     /// 画面の中で直している設定。「保存」を押すまで、ウィジェットには渡さない
     @State private var small = WidgetPrefs.load(WidgetPrefsKey.small)
     @State private var medium = WidgetPrefs.load(WidgetPrefsKey.medium)
@@ -21,16 +23,11 @@ struct WidgetSettingsView: View {
 
     var body: some View {
         Form {
+            previewSection
             Section {
-                TwoWayPicker("大きさ", selection: $size, first: ("小(1日)", 0), second: ("中(1週間)", 1))
-            } footer: {
-                Text("ウィジェットは、小と中で別々に設定できます。")
-            }
-            Section {
-                calendarRow(title: "自分のカレンダー", id: nil)
-                ForEach(activeCalendars) { cal in calendarRow(title: cal.name, id: cal.id) }
+                calendarPicker
             } header: {
-                Text("見るカレンダー")
+                Text("表示するカレンダー")
             } footer: {
                 Text("共有カレンダーの内容は、アプリを開いたときに新しくなります。")
             }
@@ -56,17 +53,63 @@ struct WidgetSettingsView: View {
         dismiss()
     }
 
-    private func calendarRow(title: String, id: String?) -> some View {
-        Button {
-            prefs.wrappedValue.calendarId = id
-        } label: {
-            HStack {
-                Text(title).foregroundStyle(.primary)
-                Spacer()
-                if prefs.wrappedValue.calendarId == id { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
+    /// 大きさの切り替え(記号つき)と、その大きさのプレビュー
+    private var previewSection: some View {
+        Section {
+            VStack(spacing: 14) {
+                HStack(spacing: 10) {
+                    sizeButton("小", sub: "1日", wide: false, value: 0)
+                    sizeButton("中", sub: "1週間", wide: true, value: 1)
+                }
+                WidgetPreview(size: size, prefs: prefs.wrappedValue, real: previewReal,
+                              workAvailable: workUnavailableReason == nil)
+                Picker("プレビュー", selection: $previewReal) {
+                    Text("イメージ").tag(false)
+                    Text("いまの設定で表示").tag(true)
+                }
+                .pickerStyle(.segmented)
+                Text(previewReal ? "保存されているデータで表示します。誕生日・記念日・アラームは、登録がないと出ません。"
+                     : "仮の予定での見た目です。表示する項目のオン・オフが反映されます。")
+                    .font(.app(11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .listRowBackground(Color.clear)
+        } footer: {
+            Text("ウィジェットは、小と中で別々に設定できます。")
+        }
+    }
+
+    private func sizeButton(_ title: String, sub: String, wide: Bool, value: Int) -> some View {
+        let on = size == value
+        return Button { size = value } label: {
+            VStack(spacing: 5) {
+                WidgetSizeGlyph(wide: wide)
+                HStack(spacing: 3) {
+                    Text(title).font(.app(13, weight: .bold))
+                    Text(sub).font(.app(11))
+                }
+            }
+            .foregroundStyle(on ? Theme.accent : Color.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(on ? Theme.accent.opacity(0.12) : Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(on ? Theme.accent : Color.clear, lineWidth: 1.5))
             .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+    }
+
+    /// 選ぶと一覧が開く(共有カレンダーが増えても、画面が縦に伸びない)
+    private var calendarPicker: some View {
+        Picker("カレンダー", selection: Binding(get: { prefs.wrappedValue.calendarId ?? "" },
+                                               set: { prefs.wrappedValue.calendarId = $0.isEmpty ? nil : $0 })) {
+            Text("自分のカレンダー").tag("")
+            ForEach(activeCalendars) { cal in Text(cal.name).tag(cal.id) }
+        }
+        .pickerStyle(.menu)
     }
 
     @ViewBuilder

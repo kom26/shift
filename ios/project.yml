@@ -23,6 +23,14 @@ targets:
     platform: iOS
     sources:
       - Shift
+      # 設定画面のウィジェットプレビューに、ウィジェットと同じ見た目を使う
+      - path: Widget
+        includes:
+          - ShiftDayWidget.swift
+          - ShiftWeekWidget.swift
+          - WidgetModel.swift
+          - WidgetIntents.swift
+          - WidgetParts.swift
     info:
       path: ShiftInfo.plist
       properties:
