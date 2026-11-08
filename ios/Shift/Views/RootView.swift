@@ -300,6 +300,14 @@ struct RootView: View {
 
     /// 待っている招待があり、ログインしていれば、先頭から参加画面を開く(ほかのシートが開いていれば閉じてから)
     private func openDayFromWidget(_ date: String, sharedId: String?) async {
+        // アプリが閉じていたときは、共有カレンダーの一覧がまだ読めていない。読めるまで少し待つ(待たないと、自分のカレンダーが開いてしまう)
+        if let id = sharedId {
+            var waited = 0
+            while waited < 50, !calendarService.calendars.contains(where: { $0.id == id && $0.status == .active }) {
+                try? await Task.sleep(for: .milliseconds(200))
+                waited += 1
+            }
+        }
         if let id = sharedId, let c = calendarService.calendars.first(where: { $0.id == id && $0.status == .active }) {
             if sharedView.calendar?.id != id { await sharedView.open(c) }
         } else {
