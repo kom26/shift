@@ -1,13 +1,15 @@
 import SwiftUI
 
 /// 読み取った時間が24時をこえるとき、取り込み方をまとめて確認する。
-/// 種類(終了が24時をこえる / 開始が24時以降)ごとに 1 回選ぶ。時間が違っても、同じ種類なら同じ選び方になる
+/// 種類(日付をまたぐ / 開始が24時以降)ごとに 1 回選ぶ。種類が2つあるときは、1つずつ順に選んで決める。時間が違っても、同じ種類なら同じ選び方になる
 struct DaySpanSheet: View {
     let groups: [OvernightGroup]
     @Binding var choices: OvernightChoices
     /// 読み取った 1 行から、取り込んだときと同じ予定を作る(バーの見た目を、実際のカレンダーと同じにするため)
     let makeEvent: (ShiftLine) -> ShiftEvent?
     @Environment(\.dismiss) private var dismiss
+    /// いま選んでいる種類(groups の何番目か)
+    @State private var page = 0
 
     private struct Option: Identifiable {
         let id: String
@@ -24,19 +26,29 @@ struct DaySpanSheet: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                ForEach(groups) { group in
+                ForEach(groups.indices.contains(page) ? [groups[page]] : []) { group in
                     Section {
                         exampleRow(group)
                         ForEach(options(for: group)) { o in optionRow(o, group: group) }
                     } header: {
-                        Text((group.kind == .lateEnd ? "終了が24時を超える予定" : "開始が24時以降の予定") + "　\(group.dayCount)件")
+                        Text((group.kind == .lateEnd ? "日付をまたぐ予定" : "開始が24時以降の予定") + "　\(group.dayCount)件"
+                             + (groups.count > 1 ? "　(\(page + 1)/\(groups.count))" : ""))
                     }
                 }
             }
             .navigationTitle("日またぎの確認")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("決定") { dismiss() } }
+                if page > 0 {
+                    ToolbarItem(placement: .cancellationAction) { Button("戻る") { page -= 1 } }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if page < groups.count - 1 {
+                        Button("決定") { page += 1 }
+                    } else {
+                        Button("決定") { dismiss() }
+                    }
+                }
             }
         }
         .presentationDetents([.large])
