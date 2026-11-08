@@ -33,6 +33,14 @@ struct ScreenshotImportSheet: View {
     /// 重複する予定の扱い(読み取った日の id から引ける。選んでいなければ、どちらも残す)
     @State private var dupChoices: [String: DupChoice] = [:]
     @State private var dupTarget: DupTarget?
+    /// 年月の指定(写真に年月の表記がないとき)
+    @State private var yearMonthOn = false
+    @State private var year = Calendar.current.component(.year, from: Date())
+    @State private var month = Calendar.current.component(.month, from: Date())
+    /// 名前の指定(表に複数の名前があるとき)
+    @State private var nameOn = false
+    @State private var nameText = ""
+    @FocusState private var nameFocused: Bool
 
     private struct DupTarget: Identifiable { let id: String }
 
@@ -109,13 +117,13 @@ struct ScreenshotImportSheet: View {
         .presentationBackground(Color(.systemGroupedBackground))
         .interactiveDismissDisabled(step == .reading)
         // 文字を打ったあとに、キーボードを閉じるボタンを出す(ほかの画面と同じ)
-        .keyboardDismissBar { titleFocused = false }
+        .keyboardDismissBar { titleFocused = false; nameFocused = false }
         .sheet(isPresented: $choosing) {
             WorkLabelSheet(workplaceId: workplaceId, labelId: labelId) { newWorkplace, newLabel in
                 workplaceId = newWorkplace
                 labelId = newWorkplace == nil ? newLabel : nil
-                // タイトルが空なら、選んだ職場の名前にする
-                if title.trimmingCharacters(in: .whitespaces).isEmpty, let w = workplace { title = w.name }
+                // 職場を選んだら、その名前をタイトルにする(ラベルのときは、読み取り後に入力する)
+                title = workplace?.name ?? ""
             }
         }
     }
@@ -134,20 +142,12 @@ struct ScreenshotImportSheet: View {
     private var pickView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("シフト表のスクリーンショットから、日付と時間を読み取って、予定をまとめて追加します。")
+                Text("シフト表などのスクリーンショットから\n予定を一括で取り込みます。")
                     .font(.app(14))
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("まとめて設定").font(.app(13, weight: .bold)).padding(.bottom, 8)
-                    HStack {
-                        Text("タイトル")
-                        TextField("任意", text: $title)
-                            .multilineTextAlignment(.trailing)
-                            .focused($titleFocused)
-                    }
-                    .frame(minHeight: 40)
-                    Divider()
+                    Text("まとめて設定").font(.app(13, weight: .bold)).padding(.bottom, 4)
                     Button { choosing = true } label: {
                         HStack(spacing: 8) {
                             Text("職場・ラベル").foregroundStyle(Color.primary)
@@ -159,7 +159,7 @@ struct ScreenshotImportSheet: View {
                         .frame(minHeight: 40)
                         .contentShape(Rectangle())
                     }
-                    Text("選ばなくても大丈夫です。選ばないときは、日付と時間だけを取り込みます。タイトルや職場・ラベルは、読み取り結果の画面で、1件ずつ入力してから追加できます。")
+                    Text("職場・ラベルを選択すると取り込んだ予定に一括で付与できます。取り込み後に1つずつ選択することも可能です。")
                         .font(.app(12))
                         .foregroundStyle(.secondary)
                         .padding(.top, 8)
@@ -176,16 +176,18 @@ struct ScreenshotImportSheet: View {
                     HStack(spacing: 8) {
                         ForEach(0..<Self.maxImages, id: \.self) { i in slot(i) }
                     }
-                    Text("表の続きが何枚かに分かれているときは、まとめて選べます。画面の端が重なって、同じ日が 2 枚に写っても、同じ日は 1 回だけになります。")
+                    Text("表が何枚かに分かれる場合でもまとめて取り込みできます。同じ予定が複数枚に写っていても重複せず取り込まれます。")
                         .font(.app(12))
                         .foregroundStyle(.secondary)
                 }
                 .padding(14)
                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
 
+                optionsCard
+
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "lock.fill").foregroundStyle(Theme.payText)
-                    Text("選んだ画像は、読み取りのためにだけ、AI(Claude)に送られます。名前や店名など、見せたくない部分は、先に隠してから選んでください。")
+                    Text("選んだ画像は読み取りのためにだけAI(Claude)に送られます。名前や店名など見せたくない部分があれば隠してから選択してください。")
                         .font(.app(12))
                         .foregroundStyle(Theme.payText)
                 }
@@ -216,6 +218,73 @@ struct ScreenshotImportSheet: View {
             .background(Color(.systemGroupedBackground))
         }
         .onChange(of: picked) { _, items in Task { await loadImages(items) } }
+    }
+
+    /// 年月と名前の指定(どちらも、必要なときだけ、スイッチをオンにする)
+    private var optionsCard: some View {
+        VStack(spacing: 14) {
+            VStack(spacing: 0) {
+                Toggle("写真に年月の表記がない", isOn: $yearMonthOn)
+                    .frame(minHeight: 40)
+                if yearMonthOn {
+                    Divider()
+                    HStack {
+                        Text("年")
+                        Spacer()
+                        Picker("年", selection: $year) {
+                            ForEach((Calendar.current.component(.year, from: Date()) - 1)...(Calendar.current.component(.year, from: Date()) + 1), id: \.self) {
+                                Text("\($0)年").tag($0)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+                    .frame(minHeight: 40)
+                    Divider()
+                    HStack {
+                        Text("月")
+                        Spacer()
+                        Picker("月", selection: $month) {
+                            ForEach(1...12, id: \.self) { Text("\($0)月").tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+                    .frame(minHeight: 40)
+                    Text("選んだ年月に合わせて、日付を読み取ります。")
+                        .font(.app(12))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, yearMonthOn ? 6 : 0)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+
+            VStack(spacing: 0) {
+                Toggle("シフト表に複数の名前がある", isOn: $nameOn)
+                    .frame(minHeight: 40)
+                if nameOn {
+                    Divider()
+                    HStack {
+                        Text("読み取る名前")
+                        TextField("名前を入力", text: $nameText)
+                            .multilineTextAlignment(.trailing)
+                            .focused($nameFocused)
+                    }
+                    .frame(minHeight: 40)
+                    Text("この名前のシフトだけを読み取ります。")
+                        .font(.app(12))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, nameOn ? 6 : 0)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        }
     }
 
     /// 選んだ画像のサムネイル(×で外せる)。次の空き枠は、画像を選ぶボタン
@@ -289,7 +358,12 @@ struct ScreenshotImportSheet: View {
             return
         }
         do {
-            let result = try await reader.read(images: datas)
+            let name = nameOn ? nameText.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            let options = ScreenshotReadOptions(name: name.isEmpty ? nil : name,
+                                                yearMonth: yearMonthOn ? String(format: "%04d-%02d", year, month) : nil)
+            var result = try await reader.read(images: datas, options: options)
+            // 年月の表記がない写真は、選んだ年月に合わせる
+            if yearMonthOn { result = ShiftLineImport.alignYearMonth(result, year: year, month: month) }
             guard !result.isEmpty else {
                 errorMessage = "日付と時間を読み取れませんでした。別の画像で試してください"
                 step = .pick
@@ -314,9 +388,20 @@ struct ScreenshotImportSheet: View {
     private var reviewView: some View {
         List {
             Section {
-                Text("\(rangeText) ・ \(lines.count)日分を読み取りました")
+                Text("\(rangeText) ・ \(Set(lines.map(\.date)).count)日分を読み取りました")
                     .font(.app(13, weight: .semibold))
                     .foregroundStyle(Theme.deltaUp)
+            }
+            // ラベルを選んだときは、読み取ったあとに、タイトルを入力してから取り込む(職場のときは、職場の名前が入っている)
+            if workplace == nil, store.label(for: labelId) != nil {
+                Section {
+                    HStack {
+                        Text("タイトル")
+                        TextField("必須", text: $title)
+                            .multilineTextAlignment(.trailing)
+                            .focused($titleFocused)
+                    }
+                }
             }
             if !overnightGroups.isEmpty {
                 Section {
@@ -427,6 +512,9 @@ struct ScreenshotImportSheet: View {
                     HStack(spacing: 8) {
                         Text(dateText(resolved(line).date)).fontWeight(.semibold).frame(width: 84, alignment: .leading)
                         Text(timeText(line)).strikethrough(!on || choice(line) == .keep)
+                        if let n = line.name {
+                            Text(n).font(.app(11)).foregroundStyle(.secondary).lineLimit(1)
+                        }
                         Spacer(minLength: 4)
                         if needsTitle(line) {
                             Text("タイトル未入力")

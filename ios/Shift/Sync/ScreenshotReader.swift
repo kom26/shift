@@ -1,7 +1,7 @@
 import FirebaseFunctions
 import Foundation
 
-/// シフト表のスクリーンショットから AI が読み取った、1 日分
+/// シフト表のスクリーンショットから AI が読み取った、1 件分(1 日の 1 人ぶん)
 struct ShiftLine: Identifiable, Equatable {
     /// yyyy-MM-dd
     var date: String
@@ -10,12 +10,15 @@ struct ShiftLine: Identifiable, Equatable {
     var end: String?
     /// 「休」の日
     var off: Bool
+    /// 表に書かれた名前(読み取る名前を指定したときだけ。何人か当てはまるときに、見分けるため)
+    var name: String? = nil
 
-    var id: String { date }
+    /// 同じ日でも、時間や名前が違えば、別の行
+    var id: String { [date, start ?? "", end ?? "", off ? "off" : "", name ?? ""].joined(separator: "|") }
 
-    /// サーバーの返事(辞書の配列)から作る。形のおかしい行は捨てて、同じ日は 1 件にして、日付順に並べる
+    /// サーバーの返事(辞書の配列)から作る。形のおかしい行は捨てて、同じ日・同じ時間・同じ名前は 1 件にして、日付順に並べる
     static func parse(_ raw: Any?) -> [ShiftLine] {
-        var byDate: [String: ShiftLine] = [:]
+        var byId: [String: ShiftLine] = [:]
         for item in (raw as? [[String: Any]]) ?? [] {
             guard let date = item["date"] as? String, Rules.parse(date) != nil, date.count == 10 else { continue }
             let off = item["off"] as? Bool ?? false
@@ -23,9 +26,11 @@ struct ShiftLine: Identifiable, Equatable {
             let end = off ? nil : (item["end"] as? String).flatMap(Self.cleanTime)
             // 時間が片方しか読めなかった行は、読み違いなので捨てる
             if !off, (start == nil) != (end == nil) { continue }
-            byDate[date] = ShiftLine(date: date, start: start, end: end, off: off)
+            let name = (item["name"] as? String).map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty || $0.count > 40 ? nil : $0 }
+            let line = ShiftLine(date: date, start: start, end: end, off: off, name: name)
+            byId[line.id] = line
         }
-        return byDate.values.sorted { $0.date < $1.date }
+        return byId.values.sorted { ($0.date, $0.start ?? "", $0.name ?? "") < ($1.date, $1.start ?? "", $1.name ?? "") }
     }
 
     private static func cleanTime(_ s: String) -> String? {
@@ -34,10 +39,26 @@ struct ShiftLine: Identifiable, Equatable {
     }
 }
 
+/// 読み取りに添える指定
+struct ScreenshotReadOptions: Equatable {
+    /// 複数の名前がある表で、読み取る名前(部分一致でよい)
+    var name: String? = nil
+    /// 写真に年月の表記がないときの、年月("YYYY-MM")
+    var yearMonth: String? = nil
+}
+
 /// スクリーンショットを読み取る(テストでは差し替える)
 protocol ScreenshotReading {
     /// 画像(JPEG)を 1〜5 枚まとめて送り、日付ごとの時間を返す
     func read(images: [Data]) async throws -> [ShiftLine]
+    /// 名前や年月の指定つき
+    func read(images: [Data], options: ScreenshotReadOptions) async throws -> [ShiftLine]
+}
+
+extension ScreenshotReading {
+    func read(images: [Data], options: ScreenshotReadOptions) async throws -> [ShiftLine] {
+        try await read(images: images)
+    }
 }
 
 struct ScreenshotReadError: LocalizedError {
@@ -48,10 +69,17 @@ struct ScreenshotReadError: LocalizedError {
 /// Firebase の Cloud Functions(readShiftScreenshots)を呼ぶ。API キーはサーバーにだけあり、アプリには入っていない
 struct FirebaseScreenshotReader: ScreenshotReading {
     func read(images: [Data]) async throws -> [ShiftLine] {
+        try await read(images: images, options: ScreenshotReadOptions())
+    }
+
+    func read(images: [Data], options: ScreenshotReadOptions) async throws -> [ShiftLine] {
         let callable = Functions.functions(region: "asia-northeast1").httpsCallable("readShiftScreenshots")
         callable.timeoutInterval = 120
+        var payload: [String: Any] = ["images": images.map { $0.base64EncodedString() }]
+        if let name = options.name { payload["name"] = name }
+        if let yearMonth = options.yearMonth { payload["yearMonth"] = yearMonth }
         do {
-            let result = try await callable.call(["images": images.map { $0.base64EncodedString() }])
+            let result = try await callable.call(payload)
             guard let body = result.data as? [String: Any] else {
                 throw ScreenshotReadError(message: "読み取り結果を受け取れませんでした")
             }

@@ -21,18 +21,44 @@ struct ScreenshotImportTests {
         let raw: [[String: Any]] = [
             ["date": "2026-11-11", "start": "16:00", "end": "24:00", "off": false],
             ["date": "2026-11-08", "start": "17:00", "end": "21:00", "off": false],
-            ["date": "2026-11-08", "start": "18:00", "end": "22:00", "off": false],
+            ["date": "2026-11-08", "start": "17:00", "end": "21:00", "off": false],
             ["date": "2026-11-10", "start": "09:00", "end": "10:00", "off": true],
             ["date": "2026-11-12", "start": "9:00", "end": NSNull(), "off": false],
             ["date": "いつか", "start": "09:00", "end": "10:00", "off": false],
         ]
         let lines = ShiftLine.parse(raw)
         #expect(lines.map(\.date) == ["2026-11-08", "2026-11-10", "2026-11-11"])
-        #expect(lines[0].start == "18:00")
+        #expect(lines[0].start == "17:00")
         #expect(lines[1].off && lines[1].start == nil && lines[1].end == nil)
         #expect(lines[2].end == "24:00")
         #expect(ShiftLine.parse(nil).isEmpty)
         #expect(ShiftLine.parse("x").isEmpty)
+    }
+
+    @Test func sameDayWithDifferentTimesOrNamesKeepsEveryLine() {
+        let raw: [[String: Any]] = [
+            ["date": "2026-11-08", "start": "18:00", "end": "22:00", "off": false],
+            ["date": "2026-11-08", "start": "09:00", "end": "12:00", "off": false],
+            ["date": "2026-11-09", "start": "17:00", "end": "21:00", "off": false, "name": "山田花子"],
+            ["date": "2026-11-09", "start": "17:00", "end": "21:00", "off": false, "name": "山田太郎"],
+            ["date": "2026-11-09", "start": "17:00", "end": "21:00", "off": false, "name": "山田太郎"],
+        ]
+        let lines = ShiftLine.parse(raw)
+        #expect(lines.count == 4)
+        #expect(lines.map(\.start) == ["09:00", "18:00", "17:00", "17:00"])
+        #expect(lines.suffix(2).compactMap(\.name) == ["山田太郎", "山田花子"])
+        #expect(Set(lines.map(\.id)).count == 4)
+    }
+
+    @Test func alignYearMonthMovesTheTableToTheChosenMonthKeepingTheMonthGaps() {
+        let lines = [line("2026-11-28", "17:00", "21:00"), line("2026-11-30", "17:00", "21:00"),
+                     line("2026-12-02", "17:00", "21:00")]
+        let moved = ShiftLineImport.alignYearMonth(lines, year: 2027, month: 1)
+        #expect(moved.map(\.date) == ["2027-01-28", "2027-01-30", "2027-02-02"])
+        // その月に無い日は捨てる(2/30)
+        let odd = ShiftLineImport.alignYearMonth([line("2026-03-30", "17:00", "21:00")], year: 2027, month: 2)
+        #expect(odd.isEmpty)
+        #expect(ShiftLineImport.alignYearMonth([], year: 2027, month: 1).isEmpty)
     }
 
     // MARK: 予定にする

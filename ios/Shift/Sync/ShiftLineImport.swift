@@ -80,6 +80,24 @@ enum ShiftLineImport {
         return out
     }
 
+    /// 年月の表記がない写真のために、読み取った日付の年月を、選んだ年月に合わせる。
+    /// 月をまたぐ表は、いちばん早い日からの月の差を保つ(選んだ月から数える)。その月に無い日(2/30 など)は捨てる
+    static func alignYearMonth(_ lines: [ShiftLine], year: Int, month: Int) -> [ShiftLine] {
+        guard let first = lines.min(by: { $0.date < $1.date }) else { return lines }
+        let f = Rules.ymd(first.date)
+        let base = f.year * 12 + (f.month - 1)
+        let target = year * 12 + (month - 1)
+        return lines.compactMap { line in
+            let p = Rules.ymd(line.date)
+            let index = p.year * 12 + (p.month - 1) - base + target
+            let date = String(format: "%04d-%02d-%02d", index / 12, index % 12 + 1, p.day)
+            guard Rules.parse(date) != nil else { return nil }
+            var out = line
+            out.date = date
+            return out
+        }
+    }
+
     /// 選んだ取り込み方を当てはめた行。24時をこえない行は、そのまま
     static func resolved(_ line: ShiftLine, _ choices: OvernightChoices) -> ShiftLine {
         guard let kind = line.overnightKind, let s = Rules.minutes(line.start), let e = Rules.minutes(line.end) else { return line }
