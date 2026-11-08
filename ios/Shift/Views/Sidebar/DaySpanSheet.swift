@@ -26,10 +26,10 @@ struct DaySpanSheet: View {
                 }
                 ForEach(groups) { group in
                     Section {
-                        ForEach(group.patterns) { p in patternRow(p) }
+                        exampleRow(group)
                         ForEach(options(for: group)) { o in optionRow(o, group: group) }
                     } header: {
-                        Text(group.kind == .lateEnd ? "終了が24時をこえる予定(\(group.dayCount)日分)" : "開始が24時以降の予定(\(group.dayCount)日分)")
+                        Text((group.kind == .lateEnd ? "終了が24時を超える予定" : "開始が24時以降の予定") + "　\(group.dayCount)件")
                     }
                 }
                 Section {
@@ -47,15 +47,12 @@ struct DaySpanSheet: View {
         .presentationDetents([.large])
     }
 
-    private func patternRow(_ p: OvernightPattern) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Text(p.start + "〜" + p.end).font(.app(15, weight: .semibold))
-                Text("×\(p.dates.count)").font(.app(13)).foregroundStyle(.secondary)
-            }
-            Text(p.dates.map(shortDate).joined(separator: "・"))
-                .font(.app(11))
-                .foregroundStyle(.secondary)
+    /// 最初の 1 件を、例として見せる(全部の日付は出さない)
+    @ViewBuilder
+    private func exampleRow(_ group: OvernightGroup) -> some View {
+        if let p = group.patterns.first, let date = p.dates.first {
+            Text("例:" + shortDate(date) + p.start + "〜" + p.end)
+                .font(.app(15, weight: .semibold))
         }
     }
 

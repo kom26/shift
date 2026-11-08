@@ -10,7 +10,7 @@ struct ScreenshotImportSheet: View {
     /// 予定を追加したあとに、追加した件数を知らせる(トースト用)
     var onAdded: (Int) -> Void = { _ in }
 
-    private enum Step { case pick, reading, review }
+    private enum Step { case pick, reading, done, review }
     private static let maxImages = 5
 
     @State private var step = Step.pick
@@ -50,7 +50,17 @@ struct ScreenshotImportSheet: View {
                                       label: store.label(for: labelId), store: store).first
     }
     private var addCount: Int { lines.filter { !$0.off && included.contains($0.id) }.count }
-    private var canAdd: Bool { addCount > 0 && !title.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var hasBulkTitle: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    /// タイトルがまだ無い予定か(まとめて設定のタイトルも、1件ずつの入力も無い)
+    private func needsTitle(_ line: ShiftLine) -> Bool {
+        guard !line.off, included.contains(line.id) else { return false }
+        if let e = edited[line.id] { return e.title.trimmingCharacters(in: .whitespaces).isEmpty }
+        return !hasBulkTitle
+    }
+
+    private var missingTitleCount: Int { lines.filter(needsTitle).count }
+    private var canAdd: Bool { addCount > 0 && missingTitleCount == 0 }
 
     var body: some View {
         NavigationStack {
@@ -58,15 +68,16 @@ struct ScreenshotImportSheet: View {
                 switch step {
                 case .pick: pickView
                 case .reading: readingView
+                case .done: doneView
                 case .review: reviewView
                 }
             }
-            .navigationTitle(step == .review ? "読み取り結果" : "スクショから予定を追加")
+            .navigationTitle(step == .review ? "読み取り結果" : (step == .done ? "読み取り完了" : "スクショから予定を追加"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(step == .review ? "やり直す" : "キャンセル") {
-                        if step == .review { step = .pick } else { dismiss() }
+                    Button(step == .review || step == .done ? "やり直す" : "キャンセル") {
+                        if step == .review || step == .done { step = .pick } else { dismiss() }
                     }
                 }
             }
@@ -76,6 +87,23 @@ struct ScreenshotImportSheet: View {
         .interactiveDismissDisabled(step == .reading)
         // 文字を打ったあとに、キーボードを閉じるボタンを出す(ほかの画面と同じ)
         .keyboardDismissBar { titleFocused = false }
+        .sheet(isPresented: $choosing) {
+            WorkLabelSheet(workplaceId: workplaceId, labelId: labelId) { newWorkplace, newLabel in
+                workplaceId = newWorkplace
+                labelId = newWorkplace == nil ? newLabel : nil
+                // タイトルが空なら、選んだ職場の名前にする
+                if title.trimmingCharacters(in: .whitespaces).isEmpty, let w = workplace { title = w.name }
+            }
+        }
+    }
+
+    /// 読み取り完了。チェックマークを見せてから、ボタンで確認・変更の画面へ
+    private var doneView: some View {
+        ReadDoneView(workCount: lines.filter { !$0.off }.count, offCount: lines.filter(\.off).count) {
+            step = .review
+            // 24時をこえる時間があれば、取り込む前に、取り込み方を確認する
+            showSpanSheet = !overnightGroups.isEmpty
+        }
     }
 
     // MARK: 画像を選ぶ
@@ -83,9 +111,38 @@ struct ScreenshotImportSheet: View {
     private var pickView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("シフト表のスクリーンショットから、日付と時間を読み取って、予定をまとめて追加します。タイトルと職場・ラベルは、読み取ったあとに、まとめて付けられます。")
+                Text("シフト表のスクリーンショットから、日付と時間を読み取って、予定をまとめて追加します。")
                     .font(.app(14))
                     .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("まとめて設定").font(.app(13, weight: .bold)).padding(.bottom, 8)
+                    HStack {
+                        Text("タイトル")
+                        TextField("任意", text: $title)
+                            .multilineTextAlignment(.trailing)
+                            .focused($titleFocused)
+                    }
+                    .frame(minHeight: 40)
+                    Divider()
+                    Button { choosing = true } label: {
+                        HStack(spacing: 8) {
+                            Text("職場・ラベル").foregroundStyle(Color.primary)
+                            Spacer()
+                            ColorDot(hex: store.groupColor(workplaceId: workplaceId, labelId: labelId), size: 14)
+                            Text(workplace?.name ?? store.label(for: labelId)?.name ?? "指定なし").foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        }
+                        .frame(minHeight: 40)
+                        .contentShape(Rectangle())
+                    }
+                    Text("選ばなくても大丈夫です。選ばないときは、日付と時間だけを取り込みます。タイトルや職場・ラベルは、読み取り結果の画面で、1件ずつ入力してから追加できます。")
+                        .font(.app(12))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 8)
+                }
+                .padding(14)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
@@ -219,9 +276,9 @@ struct ScreenshotImportSheet: View {
             included = Set(result.filter { !$0.off }.map(\.id))
             edited = [:]
             spanChoices = OvernightChoices()
-            step = .review
-            // 24時をこえる時間があれば、取り込む前に、取り込み方を確認する
-            showSpanSheet = !ShiftLineImport.overnightGroups(of: result).isEmpty
+            // すぐには進まず、読み取りが終わったことを見せてから、ボタンで確認・変更の画面へ
+            step = .done
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
         } catch {
             errorMessage = error.localizedDescription
             step = .pick
@@ -254,38 +311,30 @@ struct ScreenshotImportSheet: View {
                 .listRowBackground(Color.orange.opacity(0.14))
             }
             Section {
-                HStack {
-                    Text("タイトル")
-                    TextField("必須", text: $title)
-                        .multilineTextAlignment(.trailing)
-                        .focused($titleFocused)
-                }
-                Button { choosing = true } label: {
-                    HStack(spacing: 8) {
-                        Text("職場・ラベル").foregroundStyle(Color.primary)
-                        Spacer()
+                LabeledContent("タイトル", value: hasBulkTitle ? title : "指定なし")
+                LabeledContent("職場・ラベル") {
+                    HStack(spacing: 6) {
                         ColorDot(hex: store.groupColor(workplaceId: workplaceId, labelId: labelId), size: 14)
-                        Text(workplace?.name ?? store.label(for: labelId)?.name ?? "指定なし").foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        Text(workplace?.name ?? store.label(for: labelId)?.name ?? "指定なし")
                     }
-                    .contentShape(Rectangle())
                 }
             } header: {
-                Text("まとめて設定")
+                Text("読み取り前に決めた設定")
             } footer: {
-                Text("下の予定すべてに付きます。あとから、1 件ずつも直せます。")
+                Text("下の予定に付いています。変えるときは、予定をタップして、1 件ずつ直してください。タイトルが未入力の予定は、入力すると追加できます。")
             }
             Section {
                 ForEach(lines) { line in lineRow(line) }
             } header: {
                 Text("追加する予定(タップで、追加する・しないを切り替え)")
             } footer: {
-                Text("予定をタップすると、予定追加と同じ画面で直せます(終了の書き方を、06:00 と 30:00 で切り替えることもできます)。直した予定には「修正済み」が付いて、まとめて設定を変えても、直した内容のまま残ります。「休」の日は、追加しません。")
+                Text("予定をタップすると、予定追加と同じ画面で直せます(終了の書き方を、06:00 と 30:00 で切り替えることもできます)。直した予定には「修正済み」が付きます。「休」の日は、追加しません。")
             }
         }
         .safeAreaInset(edge: .bottom) {
             Button { add() } label: {
-                Text(addCount == 0 ? "追加する予定がありません" : "\(addCount)件を追加")
+                Text(addCount == 0 ? "追加する予定がありません"
+                     : (missingTitleCount > 0 ? "タイトル未入力が\(missingTitleCount)件あります" : "\(addCount)件を追加"))
                     .font(.app(16, weight: .bold))
                     .foregroundStyle(Theme.onAccent)
                     .frame(maxWidth: .infinity, minHeight: 52)
@@ -299,20 +348,18 @@ struct ScreenshotImportSheet: View {
         }
         .sheet(isPresented: $showSpanSheet) {
             DaySpanSheet(groups: overnightGroups, choices: $spanChoices) { line in
-                ShiftLineImport.events(from: [line], title: title.isEmpty ? "予定" : title, workplace: workplace,
-                                       label: store.label(for: labelId), store: store).first
+                var e = ShiftLineImport.events(from: [line], title: title.isEmpty ? "予定" : title, workplace: workplace,
+                                               label: store.label(for: labelId), store: store).first
+                // 職場・ラベルを選んでいなければ、見やすい赤系の時間表示にする(選んでいれば、その職場・ラベルの表示ルール)
+                if workplace == nil, store.label(for: labelId) == nil {
+                    e?.color = "#f28d8d"
+                    e?.barShowsTitle = nil
+                }
+                return e
             }
         }
         .sheet(item: $lineEdit) { target in
             EventEditor(original: target.event, isNew: false, onCommit: { edited[target.id] = $0 })
-        }
-        .sheet(isPresented: $choosing) {
-            WorkLabelSheet(workplaceId: workplaceId, labelId: labelId) { newWorkplace, newLabel in
-                workplaceId = newWorkplace
-                labelId = newWorkplace == nil ? newLabel : nil
-                // タイトルが空なら、選んだ職場の名前にする
-                if title.trimmingCharacters(in: .whitespaces).isEmpty, let w = workplace { title = w.name }
-            }
         }
     }
 
@@ -362,6 +409,14 @@ struct ScreenshotImportSheet: View {
                         Text(dateText(resolved(line).date)).fontWeight(.semibold).frame(width: 84, alignment: .leading)
                         Text(timeText(line)).strikethrough(!on)
                         Spacer(minLength: 4)
+                        if needsTitle(line) {
+                            Text("タイトル未入力")
+                                .font(.app(11, weight: .bold))
+                                .foregroundStyle(.red)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.red.opacity(0.12), in: Capsule())
+                        }
                         if edited[line.id] != nil {
                             Text("修正済み")
                                 .font(.app(11, weight: .bold))
