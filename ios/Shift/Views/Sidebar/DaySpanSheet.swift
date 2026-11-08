@@ -20,7 +20,7 @@ struct DaySpanSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Text("取り込み方を選んでください。")
+                    Text("日付をまたぐ予定の表記方法を選んでください。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -40,6 +40,7 @@ struct DaySpanSheet: View {
             }
         }
         .presentationDetents([.large])
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 
     /// 最初の 1 件を、例として見せる(全部の日付は出さない)

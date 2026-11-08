@@ -6,10 +6,8 @@ struct DaySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SharedViewState.self) private var shared
 
-    /// 表示中の日。横にスワイプすると前日・翌日に移る
-    @State private var date: String
-    /// スワイプで、新しい日が右から(翌日)・左から(前日)入ってくる向き
-    @State private var forward = true
+    /// 表示中の日
+    let date: String
     /// 詳細を開いている記念日・誕生日
     @State private var annivId: String?
     /// 変更・削除を開いているアラーム
@@ -22,7 +20,7 @@ struct DaySheet: View {
 
     init(date: String, canAdd: Bool = true, onSelectEvent: @escaping (ShiftEvent) -> Void,
          onSelectPayday: @escaping (String) -> Void = { _ in }, onAddEvent: @escaping (String) -> Void = { _ in }) {
-        _date = State(initialValue: date)
+        self.date = date
         self.canAdd = canAdd
         self.onSelectEvent = onSelectEvent
         self.onSelectPayday = onSelectPayday
@@ -41,13 +39,12 @@ struct DaySheet: View {
         NavigationStack {
             VStack(spacing: 0) {
                 dayContent(summary: summary, annivs: annivs)
-                    .id(date)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: forward ? .trailing : .leading),
-                        removal: .move(edge: forward ? .leading : .trailing)))
             }
             .clipped()
-            .simultaneousGesture(daySwipe)
+            // 予定をつかんでシートの外(カレンダー)へ出したら、シートを閉じて、いつものドラッグの流れに続ける
+            .onChange(of: DragState.shared.isDragging) { _, dragging in
+                if dragging { dismiss() }
+            }
             .navigationDestination(item: $annivId) { AnniversaryDetail(id: $0, asOf: date) }
             .sheet(item: $editingAlarm) { AlarmEditSheet(entry: $0) }
             .navigationBarTitleDisplayMode(.inline)
@@ -66,22 +63,22 @@ struct DaySheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationBackground(Color(.systemBackground))
+        // 半分の高さのあいだは、後ろのカレンダーにも触れる(予定をつかんで、カレンダーへ運べるように)
+        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         .presentationDragIndicator(.visible)
     }
 
-    /// 横にはっきり動かしたときだけ、前日・翌日へ(縦のスクロールとは分ける)
-    private var daySwipe: some Gesture {
-        DragGesture(minimumDistance: 30)
-            .onEnded { v in
-                guard abs(v.translation.width) > 60, abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
-                move(by: v.translation.width < 0 ? 1 : -1)
-            }
+    /// 左へスワイプして出す「削除」を出せる予定か(動かせる予定と同じ。ほかの人の予定は、出さない)
+    private func canDelete(_ ev: ShiftEvent) -> Bool {
+        shared.isOpen ? shared.canDrag(ev.id) : !store.isOverlay(ev.id)
     }
 
-    private func move(by days: Int) {
-        forward = days > 0
-        withAnimation(.snappy) { date = Rules.addDays(date, days) }
-        UISelectionFeedbackGenerator().selectionChanged()
+    private func delete(_ ev: ShiftEvent) {
+        if shared.isOpen {
+            Task { _ = await shared.delete(id: ev.id) }
+        } else {
+            store.delete(id: ev.id)
+        }
     }
 
     @ViewBuilder
@@ -133,6 +130,18 @@ struct DaySheet: View {
                                     onSelectEvent(row.event)
                                 }
                                 .accessibilityAddTraits(.isButton)
+                                // 長押ししてつかむと、カレンダー上のバーと同じに動かせる(動かせない予定は、詳細が開くだけ)
+                                .eventDragSource(row.event) { ev in
+                                    dismiss()
+                                    onSelectEvent(ev)
+                                }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    if canDelete(row.event) {
+                                        Button(role: .destructive) { delete(row.event) } label: {
+                                            Label("削除", systemImage: "trash")
+                                        }
+                                    }
+                                }
                         }
                     }
                     .listStyle(.plain)

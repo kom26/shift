@@ -51,11 +51,13 @@ struct ScreenshotImportSheet: View {
         included.contains(line.id) && !line.off && choice(line) != .keep
     }
 
-    /// この行と重なる、いまの予定(同じ日に、同じ職場。職場がなければ、同じラベル)
+    /// この行と重なる、いまの予定(同じ日に、同じ職場。職場がなければ、同じラベル)。
+    /// 前の日から続く予定も、その日のセルに出るので含める(時間が違っても、同じ日なら出す)
     private func duplicates(of line: ShiftLine) -> [ShiftEvent] {
         guard !line.off, let ev = draft(line), let date = ev.startDate else { return [] }
+        let lastDate = ev.endDate ?? date
         return store.events.filter { e in
-            guard e.placed, e.startDate == date else { return false }
+            guard e.placed, let sd = e.startDate, sd <= lastDate, (e.endDate ?? sd) >= date else { return false }
             if let w = ev.workplaceId { return e.workplaceId == w }
             if let l = ev.labelId { return e.workplaceId == nil && e.labelId == l }
             return false
@@ -550,13 +552,19 @@ struct ScreenshotImportSheet: View {
             let c = choice(line)
             Button { dupTarget = DupTarget(id: line.id) } label: {
                 // まだ選んでいないときは案内、選んだあとは、選んだ内容
-                Text(dupChoices[line.id] == nil ? "既に同日に予定があります"
-                     : "同日予定・" + (c == .keep ? "取り込まない" : c == .replace ? "置き換え" : "どちらも残す"))
-                    .font(.app(11, weight: .bold))
-                    .foregroundStyle(Color.orange)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 3)
-                    .background(Color.orange.opacity(0.15), in: Capsule())
+                HStack(spacing: 4) {
+                    Text(dupChoices[line.id] == nil ? "既に同日に予定があります"
+                         : "同日予定・" + (c == .keep ? "取り込まない" : c == .replace ? "置き換え" : "どちらも残す"))
+                    // ボタンだと分かるように、矢印と枠を付ける
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
+                }
+                .font(.app(11, weight: .bold))
+                .foregroundStyle(Color.orange)
+                .padding(.leading, 9)
+                .padding(.trailing, 7)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.15), in: Capsule())
+                .overlay(Capsule().stroke(Color.orange.opacity(0.6), lineWidth: 1))
             }
             .buttonStyle(.borderless)
             .padding(.leading, 44)
@@ -578,7 +586,9 @@ struct ScreenshotImportSheet: View {
         let chosen = lines.filter { isImported($0) }
         // 「置き換える」を選んだ日は、先に、いまの予定を消す
         for line in chosen where choice(line) == .replace {
-            duplicates(of: line).forEach { store.delete(id: $0.id) }
+            // 消すのは、同じ日に始まる予定だけ(前の日から続く予定は、残す)
+            let start = draft(line)?.startDate
+            duplicates(of: line).filter { $0.startDate == start }.forEach { store.delete(id: $0.id) }
         }
         // 直した予定は、直した内容のまま。それ以外は、まとめて設定から作る
         let events = chosen.flatMap { line -> [ShiftEvent] in

@@ -55,6 +55,7 @@ struct DupChoiceSheet: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } } }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemGroupedBackground))
     }
 
     private func barRow(_ label: String, _ event: ShiftEvent) -> some View {
