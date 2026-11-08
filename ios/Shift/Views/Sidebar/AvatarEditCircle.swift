@@ -98,8 +98,6 @@ struct ProfileEditSheet: View {
                     .padding(.vertical, 4)
                 } header: {
                     Text("名前とアバター")
-                } footer: {
-                    Text("アプリの中での表示です。共有カレンダーを作る・参加するときの、相手に見える名前とアバターの初期値になります。アバターは、最初は名前の頭文字で、丸をタップして写真にできます。")
                 }
                 if !name.trimmingCharacters(in: .whitespaces).isEmpty, !providerName.isEmpty {
                     Section {
@@ -124,8 +122,6 @@ struct ProfileEditSheet: View {
                     }
                 } header: {
                     Text("誕生日")
-                } footer: {
-                    Text("登録すると、設定の「記念日・誕生日」に、自分の誕生日として自動で入ります。変えられるのは、ここだけです(記念日・誕生日の画面では、アイコンと色だけ変えられます)。共有カレンダーにも、自分の誕生日として追加できます。")
                 }
                 AccountManageSection()
             }

@@ -55,7 +55,7 @@ struct AlarmEditSheet: View {
                 } header: {
                     Text(isClock ? "時刻" : "予定の何時間何分前")
                 } footer: {
-                    if !isClock { Text("予定の時間を直すと、鳴る時刻も自動で合わせます。") }
+                    if !isClock { Text("予定の時間に合わせてアラーム時刻も自動で変更されます。") }
                 }
                 Section {
                     Toggle("スヌーズ", isOn: $snoozeOn)

@@ -178,7 +178,7 @@ struct AnniversaryEditor: View {
             Form {
                 if locked {
                     Section {
-                        Text("自分の誕生日は、アカウント設定からのみ変更できます。ここでは、アイコンと色だけ変えられます。")
+                        Text("自分の誕生日はアカウント設定からのみ変更できます。")
                             .font(.app(13))
                             .foregroundStyle(.secondary)
                     }
@@ -204,12 +204,6 @@ struct AnniversaryEditor: View {
                     }
                     Picker("日", selection: $a.day) {
                         ForEach(1...31, id: \.self) { Text("\($0)日").tag($0) }
-                    }
-                } footer: {
-                    if a.isMonthly {
-                        Text("毎月\(a.day)日に表示します。年を入れると「◯年◯ヶ月」を出します。")
-                    } else if !knowsYear {
-                        Text("年が分からないときは入れなくても登録できます(年齢は出ません)。")
                     }
                 }
                 .disabled(locked)

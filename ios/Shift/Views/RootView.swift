@@ -241,7 +241,7 @@ struct RootView: View {
             Button("アカウント登録") { showSettings = true }
             Button("あとで", role: .cancel) {}
         } message: {
-            Text("共有カレンダーに参加するには、アカウント登録(ログイン)が必要です。登録が済むと、参加の確認が開きます。")
+            Text(inviteAlertMessage)
         }
         .sheet(isPresented: $showFilter) { FilterSheet() }
         .sheet(isPresented: $showLabels) { LabelManageView() }
@@ -259,9 +259,19 @@ struct RootView: View {
         .sheet(item: $reviewCalendar) { ShareReviewSheet(calendar: $0) }
     }
 
+    private var inviteAlertName: String {
+        pendingInvites.first { $0.code == alertInvite?.code }?.name ?? ""
+    }
+
     private var inviteAlertTitle: String {
-        let name = pendingInvites.first { $0.code == alertInvite?.code }?.name ?? ""
-        return name.isEmpty ? "共有カレンダーに招待されました" : "「(name)」に招待されました"
+        let name = inviteAlertName
+        return name.isEmpty ? "共有カレンダーに招待されました" : "「\(name)」に招待されました"
+    }
+
+    private var inviteAlertMessage: String {
+        let name = inviteAlertName
+        let target = name.isEmpty ? "共有カレンダー" : "共有カレンダー「\(name)」"
+        return "\(target)に参加するにはアカウント登録かログインが必要です。"
     }
 
     /// 開いた招待を、順番待ちに入れる(同じ共有カレンダーの招待は、新しい方に置き換える)

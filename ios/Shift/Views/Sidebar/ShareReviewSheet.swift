@@ -112,13 +112,12 @@ struct ShareReviewSheet: View {
                     VStack(spacing: 8) {
                         Image(systemName: "checkmark.circle").font(.system(size: 36)).foregroundStyle(Theme.deltaUp)
                         Text("共有していない変更はありません").font(.app(15, weight: .semibold))
-                        Text("相手のカレンダーは、あなたの予定と同じ内容です。").font(.app(12)).foregroundStyle(.secondary)
                     }
                     Spacer()
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("相手のカレンダーがこう変わります。内容を見て、よければ共有してください。")
+                            Text("下記変更が共有カレンダーに反映されます。")
                                 .font(.app(12))
                                 .foregroundStyle(.secondary)
                             summary
@@ -346,7 +345,7 @@ struct ShareReviewSheet: View {
             }
             .buttonStyle(.plain)
             .disabled(selected.isEmpty || sending)
-            Text("チェックを外した変更は、今回は共有されず、未共有のまま残ります")
+            Text("チェックを外した変更は今回は共有されません。")
                 .font(.app(11))
                 .foregroundStyle(.secondary)
         }

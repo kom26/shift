@@ -36,14 +36,14 @@ struct AccountManageSection: View {
                     .font(.footnote).foregroundStyle(.red)
             }
         } footer: {
-            Text("アカウントを削除すると、アカウントのデータとログイン情報が消えます。端末の中の予定は残ります。参加している共有カレンダーからは自動で退会し、自分が持ち主の見せるだけのカレンダーは削除されます。")
+            Text("アカウント削除すると共有カレンダーは全て退出し、見せるだけの共有カレンダーやバックアップが全て削除されます。端末の予定(自分のカレンダー)は残ります。")
         }
     }
 
     private var confirmMessage: String {
         var lines: [String] = []
         if !owned.isEmpty {
-            lines.append("見せるだけの共有カレンダー「" + owned.map(\.name).joined(separator: "」「") + "」は、一緒に削除されます。参加者には、削除されたことが知らされます。")
+            lines.append("見せるだけの共有カレンダー「" + owned.map(\.name).joined(separator: "」「") + "」は削除されます。")
         }
         if !joined.isEmpty { lines.append("参加している共有カレンダー(\(joined.count)件)からは、退会します。") }
         lines.append("この操作は取り消せません。")

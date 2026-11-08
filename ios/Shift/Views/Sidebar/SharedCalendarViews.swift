@@ -107,7 +107,7 @@ struct CalendarCreateSheet: View {
                         TwoWayPicker("種類", selection: $kind, first: (CalendarKind.oneway.title, CalendarKind.oneway), second: (CalendarKind.mutual.title, CalendarKind.mutual))
                         Toggle("参加を許可制にする", isOn: $requireApproval)
                     } footer: {
-                        Text(kind.detail + (requireApproval ? "\n参加を申し込んだ人は、あなたが承認するまで予定を見られません。" : ""))
+                        Text(kind.detail + (requireApproval ? "\n承認するまで予定を見られません。" : ""))
                     }
                     ShareItemsSection(selection: $shared, required: true)
                     if let message = service.errorMessage {
@@ -179,7 +179,7 @@ struct CalendarJoinSheet: View {
                 if let joined {
                     Section {
                         Text(joined.status == .pending
-                             ? "「\(joined.name)」への参加を申し込みました。持ち主が承認すると、予定が見られるようになります。"
+                             ? "「\(joined.name)」に参加を申し込みました。\n承認されると予定が見られます。"
                              : "「\(joined.name)」に参加しました。")
                     }
                 } else if let found {
@@ -388,7 +388,7 @@ struct CalendarDetailSheet: View {
                         Toggle("参加を許可制にする", isOn: $calApproval)
                     } footer: {
                         Text(calApproval
-                             ? "参加を申し込んだ人は、あなたが承認するまで予定を見られません。"
+                             ? "承認するまで予定を見られません。"
                              : "招待を受け取った人は、すぐに参加できます。")
                     }
                 } else {

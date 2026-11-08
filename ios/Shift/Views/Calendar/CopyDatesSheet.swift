@@ -19,7 +19,7 @@ struct CopyDatesSheet: View {
                 Text(event.title.isEmpty ? "予定" : event.title)
                     .font(.app(15, weight: .semibold))
                     .padding(.top, 8)
-                Text("コピーする日をタップして選びます(複数選択できます)")
+                Text("コピーする日をタップ(複数選べます)")
                     .font(.app(12))
                     .foregroundStyle(.secondary)
                 MultiDatePicker("コピー先", selection: $picked)

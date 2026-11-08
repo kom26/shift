@@ -14,7 +14,7 @@ struct RestoringOverlay: View {
                     ProgressView().controlSize(.large)
                     Text("データを引き継いでいます")
                         .font(.app(17, weight: .semibold))
-                    Text("アカウントから予定を読み込んでいます。\nしばらくお待ちください。")
+                    Text("予定を読み込んでいます。")
                         .font(.app(13))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -28,7 +28,7 @@ struct RestoringOverlay: View {
         VStack(spacing: 20) {
             Text("どちらのデータを使いますか?")
                 .font(.app(19, weight: .bold))
-            Text("この端末にも、アカウントにも、データがあります。選ばなかったほうのデータは消えます。")
+            Text("端末とアカウントの両方に異なるデータがあります。どちらか一方のデータしか保持されません。")
                 .font(.app(14))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

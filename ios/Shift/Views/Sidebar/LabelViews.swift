@@ -177,8 +177,6 @@ struct LabelManageView: View {
                         ids.forEach { store.deleteLabel(id: $0) }
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
-                } footer: {
-                    Text("ラベルは、職場を選ばない予定の分類で、1 つの予定に 1 つ付けられます。左にスワイプすると削除できます(予定は「指定なし」に戻ります)。職場はドロワーの「職場の管理」から直せます。")
                 }
                 Section {
                     Button { target = LabelTarget(label: store.newLabelDraft(), isNew: true) } label: {

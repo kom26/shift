@@ -16,7 +16,7 @@ struct PayBasisSheet: View {
                     .pickerStyle(.inline)
                     .labelsHidden()
                 } footer: {
-                    Text("勤務ベース: 表示中の月に働いた分。給料日ベース: 表示中の月に受け取る給料(職場の給料日の設定が必要です)。")
+                    Text("勤務ベース: 表示中の月に働いた分 / 給料日ベース: 表示中の月に受け取る給料")
                 }
             }
             .navigationTitle("見込み給料の基準")

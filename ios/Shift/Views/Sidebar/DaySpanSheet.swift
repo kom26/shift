@@ -20,7 +20,7 @@ struct DaySpanSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Text("時間が24時をこえる予定があります。取り込み方を選んでください(あとから、1件ずつも直せます)。")
+                    Text("取り込み方を選んでください。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -31,11 +31,6 @@ struct DaySpanSheet: View {
                     } header: {
                         Text((group.kind == .lateEnd ? "終了が24時を超える予定" : "開始が24時以降の予定") + "　\(group.dayCount)件")
                     }
-                }
-                Section {
-                    Text("時間の長さは、どれを選んでも同じです。カレンダーでの見え方と、予定がどの日に入るかが変わります。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("日またぎの確認")
