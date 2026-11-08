@@ -231,6 +231,7 @@ struct LabelEditor: View {
                 }
             }
             .navigationTitle(isNew ? "ラベルを追加" : "ラベルを編集")
+            .keyboardDismissBar()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }

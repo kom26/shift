@@ -116,6 +116,7 @@ struct CalendarCreateSheet: View {
                 }
             }
             .navigationTitle(made == nil ? "共有カレンダーを作る" : "作成しました")
+            .keyboardDismissBar()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -223,6 +224,7 @@ struct CalendarJoinSheet: View {
                 }
             }
             .navigationTitle("共有カレンダーに参加")
+            .keyboardDismissBar()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(joined == nil ? "キャンセル" : "閉じる") { dismiss() } }
@@ -329,6 +331,7 @@ struct CalendarDetailSheet: View {
                     dangerSection
                 }
                 .navigationTitle(calendar.name)
+                .keyboardDismissBar()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }

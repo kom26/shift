@@ -39,4 +39,11 @@ extension View {
     func keyboardDismissBar(onClose: @escaping () -> Void) -> some View {
         modifier(KeyboardDismissBar(onClose: onClose))
     }
+
+    /// フォーカスの管理をしていない画面用。いま文字を入力している欄を閉じる
+    func keyboardDismissBar() -> some View {
+        keyboardDismissBar {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+    }
 }

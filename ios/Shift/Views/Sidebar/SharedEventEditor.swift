@@ -133,6 +133,7 @@ struct SharedEventEditor: View {
             }
             .environment(\.locale, Locale(identifier: "ja_JP"))
             .navigationTitle(target.isNew ? "共有カレンダーに追加" : "共有の予定を編集")
+            .keyboardDismissBar()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }

@@ -254,6 +254,7 @@ struct AnniversaryEditor: View {
                 }
             }
             .navigationTitle(item == nil ? "記念日・誕生日を追加" : "編集")
+            .keyboardDismissBar()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
