@@ -311,24 +311,11 @@ struct ScreenshotImportSheet: View {
                 .listRowBackground(Color.orange.opacity(0.14))
             }
             Section {
-                LabeledContent("タイトル", value: hasBulkTitle ? title : "指定なし")
-                LabeledContent("職場・ラベル") {
-                    HStack(spacing: 6) {
-                        ColorDot(hex: store.groupColor(workplaceId: workplaceId, labelId: labelId), size: 14)
-                        Text(workplace?.name ?? store.label(for: labelId)?.name ?? "指定なし")
-                    }
-                }
-            } header: {
-                Text("読み取り前に決めた設定")
-            } footer: {
-                Text("下の予定に付いています。変えるときは、予定をタップして、1 件ずつ直してください。タイトルが未入力の予定は、入力すると追加できます。")
-            }
-            Section {
                 ForEach(lines) { line in lineRow(line) }
             } header: {
                 Text("追加する予定(タップで、追加する・しないを切り替え)")
             } footer: {
-                Text("予定をタップすると、予定追加と同じ画面で直せます(終了の書き方を、06:00 と 30:00 で切り替えることもできます)。直した予定には「修正済み」が付きます。「休」の日は、追加しません。")
+                Text("予定をタップすると1 件ずつ修正できます。\nチェックを外した予定は取り込まれません。")
             }
         }
         .safeAreaInset(edge: .bottom) {
