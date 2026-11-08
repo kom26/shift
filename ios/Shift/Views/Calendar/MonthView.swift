@@ -246,6 +246,7 @@ struct MonthView: View {
     }
 
     /// 1週ぶんに必要な高さ。記念日のアイコンがある日は、その日のバーの下にもう1本ぶん確保する
+    /// (その日にバーが1本もないときは確保しない。予定のない週の高さが、アイコンのある週だけ変わらないように)
     private func neededHeight(cells: [String], rows: [[BarSpan]], barH: CGFloat, strip: CGFloat,
                               annivMap: [String: [Anniversary]]) -> CGFloat {
         let lane = barH + barGap
@@ -253,7 +254,7 @@ struct MonthView: View {
         for col in 0..<7 where annivMap[cells[col]] != nil {
             let used = rows.indices.filter { r in rows[r].contains { $0.col <= col && col < $0.col + $0.span } }
                 .map { $0 + 1 }.max() ?? 0
-            h = max(h, numH + CGFloat(used) * lane + stripH)
+            if used > 0 { h = max(h, numH + CGFloat(used) * lane + stripH) }
         }
         return h
     }
