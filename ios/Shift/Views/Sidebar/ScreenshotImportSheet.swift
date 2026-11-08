@@ -30,6 +30,29 @@ struct ScreenshotImportSheet: View {
     /// 24時をこえる時間の取り込み方(確認のシートで選ぶ)
     @State private var spanChoices = OvernightChoices()
     @State private var showSpanSheet = false
+    /// 重複する予定の扱い(読み取った日の id から引ける。選んでいなければ、どちらも残す)
+    @State private var dupChoices: [String: DupChoice] = [:]
+    @State private var dupTarget: DupTarget?
+
+    private struct DupTarget: Identifiable { let id: String }
+
+    private func choice(_ line: ShiftLine) -> DupChoice { dupChoices[line.id] ?? .both }
+
+    /// この行を取り込むか(チェックが入っていて、「いまの予定を残す」を選んでいない)
+    private func isImported(_ line: ShiftLine) -> Bool {
+        included.contains(line.id) && !line.off && choice(line) != .keep
+    }
+
+    /// この行と重なる、いまの予定(同じ日に、同じ職場。職場がなければ、同じラベル)
+    private func duplicates(of line: ShiftLine) -> [ShiftEvent] {
+        guard !line.off, let ev = draft(line), let date = ev.startDate else { return [] }
+        return store.events.filter { e in
+            guard e.placed, e.startDate == date else { return false }
+            if let w = ev.workplaceId { return e.workplaceId == w }
+            if let l = ev.labelId { return e.workplaceId == nil && e.labelId == l }
+            return false
+        }
+    }
 
     private var overnightGroups: [OvernightGroup] { ShiftLineImport.overnightGroups(of: lines) }
     private func resolved(_ line: ShiftLine) -> ShiftLine { ShiftLineImport.resolved(line, spanChoices) }
@@ -49,12 +72,12 @@ struct ScreenshotImportSheet: View {
         return ShiftLineImport.events(from: [resolved(line)], title: title, workplace: workplace,
                                       label: store.label(for: labelId), store: store).first
     }
-    private var addCount: Int { lines.filter { !$0.off && included.contains($0.id) }.count }
+    private var addCount: Int { lines.filter { isImported($0) }.count }
     private var hasBulkTitle: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
 
     /// タイトルがまだ無い予定か(まとめて設定のタイトルも、1件ずつの入力も無い)
     private func needsTitle(_ line: ShiftLine) -> Bool {
-        guard !line.off, included.contains(line.id) else { return false }
+        guard isImported(line) else { return false }
         if let e = edited[line.id] { return e.title.trimmingCharacters(in: .whitespaces).isEmpty }
         return !hasBulkTitle
     }
@@ -275,6 +298,7 @@ struct ScreenshotImportSheet: View {
             lines = result
             included = Set(result.filter { !$0.off }.map(\.id))
             edited = [:]
+            dupChoices = [:]
             spanChoices = OvernightChoices()
             // すぐには進まず、読み取りが終わったことを見せてから、ボタンで確認・変更の画面へ
             step = .done
@@ -345,6 +369,13 @@ struct ScreenshotImportSheet: View {
                 return e
             }
         }
+        .sheet(item: $dupTarget) { target in
+            if let line = lines.first(where: { $0.id == target.id }), let incoming = draft(line) {
+                DupChoiceSheet(dateText: dateText(resolved(line).date), byLabel: incoming.workplaceId == nil,
+                               existing: duplicates(of: line), incoming: incoming,
+                               choice: Binding(get: { choice(line) }, set: { dupChoices[line.id] = $0 }))
+            }
+        }
         .sheet(item: $lineEdit) { target in
             EventEditor(original: target.event, isNew: false, onCommit: { edited[target.id] = $0 })
         }
@@ -375,6 +406,7 @@ struct ScreenshotImportSheet: View {
             .font(.app(15))
             .foregroundStyle(.secondary)
         } else {
+            VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
                 // 左のチェックで、追加する・しないを切り替える
                 Button {
@@ -394,7 +426,7 @@ struct ScreenshotImportSheet: View {
                 } label: {
                     HStack(spacing: 8) {
                         Text(dateText(resolved(line).date)).fontWeight(.semibold).frame(width: 84, alignment: .leading)
-                        Text(timeText(line)).strikethrough(!on)
+                        Text(timeText(line)).strikethrough(!on || choice(line) == .keep)
                         Spacer(minLength: 4)
                         if needsTitle(line) {
                             Text("タイトル未入力")
@@ -420,6 +452,26 @@ struct ScreenshotImportSheet: View {
                 }
                 .buttonStyle(.borderless)
             }
+            dupChip(line)
+            }
+        }
+    }
+
+    /// 重複する予定がある行の、扱いの表示。押すと、その日だけの選択が開く
+    @ViewBuilder
+    private func dupChip(_ line: ShiftLine) -> some View {
+        if included.contains(line.id), !duplicates(of: line).isEmpty {
+            let c = choice(line)
+            Button { dupTarget = DupTarget(id: line.id) } label: {
+                Text("重複 ・ " + (c == .keep ? "追加しない" : c == .replace ? "置き換え" : "どちらも残す"))
+                    .font(.app(11, weight: .bold))
+                    .foregroundStyle(Color.orange)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.15), in: Capsule())
+            }
+            .buttonStyle(.borderless)
+            .padding(.leading, 44)
         }
     }
 
@@ -435,7 +487,11 @@ struct ScreenshotImportSheet: View {
     }
 
     private func add() {
-        let chosen = lines.filter { included.contains($0.id) }
+        let chosen = lines.filter { isImported($0) }
+        // 「置き換える」を選んだ日は、先に、いまの予定を消す
+        for line in chosen where choice(line) == .replace {
+            duplicates(of: line).forEach { store.delete(id: $0.id) }
+        }
         // 直した予定は、直した内容のまま。それ以外は、まとめて設定から作る
         let events = chosen.flatMap { line -> [ShiftEvent] in
             if let e = edited[line.id] { return [e] }
