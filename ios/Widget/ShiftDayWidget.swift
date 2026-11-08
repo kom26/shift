@@ -112,6 +112,30 @@ struct SmallDayView: View {
     }
 }
 
+/// 共有した人のアイコン(丸)。写真・絵文字・頭文字を、アプリと同じ見た目で出す
+struct WidgetOwnerAvatar: View {
+    let owner: DayOwner
+    let size: CGFloat
+
+    var body: some View {
+        if let photo = AvatarStyle.photo(from: owner.avatar) {
+            Image(uiImage: photo)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else {
+            let custom = AvatarStyle.customBackground(owner.avatar)
+            let showsInitial = owner.avatar.isEmpty || custom != nil
+            Text(showsInitial ? AvatarStyle.initial(of: owner.name) : owner.avatar)
+                .font(.system(size: size * (showsInitial ? 0.5 : 0.6), weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: size, height: size)
+                .background(Circle().fill(Color(hex: custom ?? AvatarStyle.color(for: owner.uid))))
+        }
+    }
+}
+
 /// 共有カレンダーのアイコン(丸)。写真なら丸く切り取り、記号なら予定の色の丸の中に出す
 struct WidgetAvatar: View {
     let icon: String
@@ -143,8 +167,9 @@ struct EventLineView: View {
     var body: some View {
         let color = EventColor.text(line.color)
         HStack(spacing: 6) {
-            // 共有カレンダーのアイコンは、バーの一番左に、バーに収まる大きさで出す
-            if let icon = line.icon { WidgetAvatar(icon: icon, color: color, size: compact ? 14 : 22) }
+            // 共有した人(共有カレンダーの中で作った予定は、共有カレンダー)のアイコンは、バーの一番左に、バーに収まる大きさで出す
+            if let owner = line.owner { WidgetOwnerAvatar(owner: owner, size: compact ? 14 : 22) }
+            else if let icon = line.icon { WidgetAvatar(icon: icon, color: color, size: compact ? 14 : 22) }
             Group {
             if compact {
                 HStack(spacing: 6) {

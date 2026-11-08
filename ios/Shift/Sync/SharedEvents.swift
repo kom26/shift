@@ -785,7 +785,7 @@ final class SharedViewState {
         return WidgetSharedCalendar(id: calendar.id, name: calendar.name, icon: calendar.icon,
                                     events: list.map { $0.shiftEvent() }, anniversaries: annivs.map(\.anniversary),
                                     sharedWorkplaceIds: calendar.mySharedKeys.filter { $0.hasPrefix("w:") }.map { String($0.dropFirst(2)) },
-                                    eventOwners: Dictionary(list.map { ($0.id, $0.ownerUid) }, uniquingKeysWith: { a, _ in a }),
+                                    eventOwners: Dictionary(list.filter { !$0.isCalendarOwned }.map { ($0.id, $0.ownerUid) }, uniquingKeysWith: { a, _ in a }),
                                     members: Dictionary(members.map { ($0.id, WidgetMember(name: $0.displayName, avatar: $0.avatar)) },
                                                         uniquingKeysWith: { a, _ in a }))
     }

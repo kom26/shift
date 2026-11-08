@@ -242,9 +242,13 @@ struct DaySheet: View {
                 }
             }
             Spacer(minLength: 0)
-            // 共有カレンダーでは、作った人ではなく、その共有カレンダーのアイコンをつける
-            if shared.isOpen, let cal = shared.calendar {
-                CalendarBadge(icon: cal.icon, size: 28)
+            // 共有カレンダーでは、共有に出した予定は共有した人のアバター、共有カレンダーの中で作った予定は、そのカレンダーのアイコンをつける
+            if shared.isOpen {
+                if shared.event(ev.id)?.isCalendarOwned == true {
+                    if let cal = shared.calendar { CalendarBadge(icon: cal.icon, size: 28) }
+                } else if let o = shared.owner(of: ev.id) {
+                    UserAvatar(uid: o.uid, name: o.name, avatar: o.avatar, size: 28)
+                }
             }
         }
         .padding(.vertical, 4)

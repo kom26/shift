@@ -127,7 +127,7 @@ struct WidgetSettingsView: View {
                 toggleRow("記念日", \.showAnniversaries)
                 if prefs.wrappedValue.calendarId == nil { toggleRow("アラーム", \.showAlarms) }
                 toggleRow("給料日", \.showPayday)
-                if prefs.wrappedValue.calendarId != nil { toggleRow("カレンダーのアイコン", \.showOwnerIcons) }
+                if prefs.wrappedValue.calendarId != nil { toggleRow("共有者・カレンダーのアイコン", \.showOwnerIcons) }
             } else {
                 toggleRow("労働時間", \.showHours, unavailable: workUnavailableReason != nil)
                 toggleRow("見込み給料", \.showEstimatedPay, unavailable: workUnavailableReason != nil)

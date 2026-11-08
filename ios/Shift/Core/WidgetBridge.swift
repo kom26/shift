@@ -21,7 +21,7 @@ struct WidgetSharedCalendar: Codable, Equatable {
     var anniversaries: [Anniversary]
     /// この共有カレンダーに、自分が共有している職場(労働時間・見込み給料の集計に使う)。古いデータには無いので省略可
     var sharedWorkplaceIds: [String]?
-    /// 予定の ID → 予定者の uid(予定者のアイコンを出すのに使う)。古いデータには無いので省略可
+    /// 予定の ID → 予定者の uid(予定者のアイコンを出すのに使う。共有カレンダーの中で作った予定は含まない)。古いデータには無いので省略可
     var eventOwners: [String: String]?
     /// 参加者の uid → 名前とアバター
     var members: [String: WidgetMember]?

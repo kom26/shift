@@ -71,8 +71,16 @@ struct DayEventLine: Identifiable, Equatable {
     let hours: String
     let isAllDay: Bool
     let showsTime: Bool
-    /// 共有カレンダーのアイコンを出すとき(記号の名前、または "img:" + base64 の写真)
+    /// 共有に出した予定の、共有した人のアイコン
+    var owner: DayOwner?
+    /// 共有カレンダーの中で作った予定の、共有カレンダーのアイコン(記号の名前、または "img:" + base64 の写真)
     var icon: String?
+}
+
+struct DayOwner: Equatable {
+    let uid: String
+    let name: String
+    let avatar: String
 }
 
 /// 日付の横に出す、その日の記念日・誕生日のアイコン
@@ -144,7 +152,7 @@ extension WidgetSource {
                 : (ev.startTime == nil ? "" : Rules.timeLabel(ev))
             return DayEventLine(id: ev.id, title: ev.title, color: ev.color, label: label, hours: hours,
                                 isAllDay: row.isAllDay, showsTime: !row.isAllDay && !isCarried && ev.startTime != nil,
-                                icon: calendarIcon)
+                                owner: owner(of: ev.id), icon: calendarIcon(of: ev.id))
         }
         let paid = summary.paydays.reduce(0) { $0 + $1.amount }
         let pay = (summary.paydays.isEmpty || !prefs.showPayday) ? nil : "給料日 " + Money.yen(paid)
@@ -167,9 +175,17 @@ extension WidgetSource {
         return content
     }
 
-    /// 共有カレンダーのアイコン(共有カレンダーを見ていて、設定でオンのとき)。作った人ではなく、カレンダーのもの
-    private var calendarIcon: String? {
-        guard prefs.showOwnerIcons, let cal = sharedCal else { return nil }
+    /// 共有した人のアイコン(共有カレンダーを見ていて、設定でオンのとき。共有カレンダーの中で作った予定は、出さない)
+    private func owner(of eventId: String) -> DayOwner? {
+        guard prefs.showOwnerIcons, let cal = sharedCal,
+              let uid = cal.eventOwners?[eventId], let m = cal.members?[uid] else { return nil }
+        return DayOwner(uid: uid, name: m.name, avatar: m.avatar)
+    }
+
+    /// 共有カレンダーのアイコン(共有カレンダーの中で作った予定だけ。設定でオンのとき)
+    private func calendarIcon(of eventId: String) -> String? {
+        guard prefs.showOwnerIcons, let cal = sharedCal, cal.eventOwners?[eventId] == nil, cal.eventOwners != nil,
+              cal.events.contains(where: { $0.id == eventId }) else { return nil }
         return cal.icon ?? "person.2.fill"
     }
 
