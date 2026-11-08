@@ -70,8 +70,11 @@ struct SmallDayView: View {
             if !content.annivs.isEmpty {
                 HStack(spacing: 2) {
                     ForEach(content.annivs) { a in
-                        Image(systemName: a.symbol)
-                            .font(.system(size: 10))
+                        Image(a.asset)
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 11, height: 11)
                             .foregroundStyle(Color(hex: a.color))
                     }
                 }

@@ -86,7 +86,8 @@ struct DayOwner: Equatable {
 /// 日付の横に出す、その日の記念日・誕生日のアイコン
 struct DayAnnivIcon: Identifiable, Equatable {
     let id: String
-    let symbol: String
+    /// アプリと同じ画像の名前(Anniversary.Icon.asset)
+    let asset: String
     let color: String
 }
 
@@ -169,7 +170,7 @@ extension WidgetSource {
                           annivs: store.anniversaries(on: ds)
                               .filter { $0.kind == .birthday ? prefs.showBirthdays : prefs.showAnniversaries }
                               .prefix(DayContent.maxAnnivIcons).map {
-                              DayAnnivIcon(id: $0.id, symbol: $0.icon.symbolName, color: $0.color)
+                              DayAnnivIcon(id: $0.id, asset: $0.icon.asset, color: $0.color)
                           })
         content.calendarId = prefs.calendarId
         return content

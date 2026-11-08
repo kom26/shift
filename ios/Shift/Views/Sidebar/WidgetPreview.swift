@@ -72,8 +72,8 @@ struct WidgetPreview: View {
                          icon: shared && prefs.showOwnerIcons ? calendarIcon : nil),
         ]
         var annivs: [DayAnnivIcon] = []
-        if prefs.showBirthdays { annivs.append(DayAnnivIcon(id: "bd", symbol: "gift.fill", color: "#e8890c")) }
-        if prefs.showAnniversaries { annivs.append(DayAnnivIcon(id: "an", symbol: "heart.fill", color: "#d9695f")) }
+        if prefs.showBirthdays { annivs.append(DayAnnivIcon(id: "bd", asset: Anniversary.Icon.cake.asset, color: "#e8890c")) }
+        if prefs.showAnniversaries { annivs.append(DayAnnivIcon(id: "an", asset: Anniversary.Icon.heart.asset, color: "#d9695f")) }
         let alarm = prefs.showAlarms && !shared ? DayAlarmBadge(first: "7:30", more: 0) : nil
         let pay = prefs.showPayday ? "給料日 " + Money.yen(182_000) : nil
         var c = DayContent(date: today, weekday: ["日", "月", "火", "水", "木", "金", "土"][Rules.weekday(today)],

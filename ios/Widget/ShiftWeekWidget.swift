@@ -76,7 +76,7 @@ struct MediumWeekView: View {
         if content.hours != nil || content.pay != nil {
             HStack {
                 if let hours = content.hours {
-                    Text("労働 ").font(.app(10)).foregroundStyle(.secondary)
+                    Text("労働時間 ").font(.app(10)).foregroundStyle(.secondary)
                         + Text(hours).font(.app(10, weight: .semibold))
                 }
                 Spacer()
