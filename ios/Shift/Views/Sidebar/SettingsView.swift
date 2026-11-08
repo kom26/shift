@@ -58,7 +58,7 @@ struct SettingsView: View {
                     Text(payBasis == PayBasis.payday.rawValue ? "表示中の月に受け取る給料" : "表示中の月に働いた分")
                 }
                 Section {
-                    Toggle("予定が重複している日を赤く注意表示", isOn: $conflictWarningOn)
+                    Toggle("予定重複を赤く注意表示", isOn: $conflictWarningOn)
                     if conflictWarningOn {
                         HStack {
                             Text("予定の間の時間が").lineLimit(1).fixedSize()
