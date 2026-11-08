@@ -122,7 +122,7 @@ struct ScreenshotImportSheet: View {
             WorkLabelSheet(workplaceId: workplaceId, labelId: labelId) { newWorkplace, newLabel in
                 workplaceId = newWorkplace
                 labelId = newWorkplace == nil ? newLabel : nil
-                // 職場を選んだら、その名前をタイトルにする(ラベルのときは、読み取り後に入力する)
+                // 職場を選んだら、その名前をタイトルにする(ラベルのときは、読み取り後に、予定を開いて 1 件ずつ入力する)
                 title = workplace?.name ?? ""
             }
         }
@@ -394,17 +394,6 @@ struct ScreenshotImportSheet: View {
                     .foregroundStyle(Theme.deltaUp)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 0, trailing: 0))
-            }
-            // ラベルを選んだときは、読み取ったあとに、タイトルを入力してから取り込む(職場のときは、職場の名前が入っている)
-            if workplace == nil, store.label(for: labelId) != nil {
-                Section {
-                    HStack {
-                        Text("タイトル")
-                        TextField("必須", text: $title)
-                            .multilineTextAlignment(.trailing)
-                            .focused($titleFocused)
-                    }
-                }
             }
             if !overnightGroups.isEmpty {
                 Section {
