@@ -55,9 +55,9 @@ struct ScreenshotImportSheet: View {
     /// 前の日から続く予定も、その日のセルに出るので含める(時間が違っても、同じ日なら出す)
     private func duplicates(of line: ShiftLine) -> [ShiftEvent] {
         guard !line.off, let ev = draft(line), let date = ev.startDate else { return [] }
-        let lastDate = ev.endDate ?? date
+        // バーの開始日が同じ予定だけが対象(前の日から続く予定は数えない)
         return store.events.filter { e in
-            guard e.placed, let sd = e.startDate, sd <= lastDate, (e.endDate ?? sd) >= date else { return false }
+            guard e.placed, e.startDate == date else { return false }
             if let w = ev.workplaceId { return e.workplaceId == w }
             if let l = ev.labelId { return e.workplaceId == nil && e.labelId == l }
             return false
