@@ -23,6 +23,9 @@ struct MonthView: View {
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @Environment(\.isSharedView) private var isSharedView
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
+    @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
+    @AppStorage(BarFontSize.thicknessKey) private var thickness = 0.0
+    @AppStorage(BarFontSize.scrollKey) private var scrollOnOverflow = false
     @State private var dropTarget: String?
     @State private var annivTarget: AnnivTarget?
     @Environment(\.isStamping) private var isStamping
@@ -57,32 +60,12 @@ struct MonthView: View {
             .frame(height: LayoutMath.weekdayHeaderH - 1)
             Divider()
             GeometryReader { geo in
-                // 区切り線 1pt ぶんを差し引いた、1週あたりの最小の高さ
-                let weekRows = weeks.map { SpanLayout.rows(events: store.visibleEvents, weekCells: $0.map { Optional($0) }) }
-                let n = CGFloat(max(1, weeks.count))
-                let strip: CGFloat = summaryOn ? stripH : 0
-                // 週の間の区切り線(Divider)の太さは 1pt ではなく 1px ぶん
-                let divH = 1 / UIScreen.main.scale
-                let minRow = (geo.size.height - (n - 1) * divH) / n
-                // 予定3本+週計行が入る高さを基準にバーを太くする(増えたら縦スクロール)
-                let barH = min(20, max(11, floor((minRow - stripH - numH - bottomPad) / 3) - 1))
-                let needed = weeks.indices.map { neededHeight(cells: weeks[$0], rows: weekRows[$0], barH: barH, strip: strip, annivMap: annivMap) }
-                // 予定が多い週が増やした高さは、予定が少ない週から削って吸収する(最低3本ぶんは残す)
-                let floor3 = numH + 3 * (barH + barGap) + bottomPad + strip
-                let extra = needed.reduce(0) { $0 + max(0, $1 - minRow) }
-                let room = needed.map { $0 <= minRow ? minRow - max($0, floor3) : 0 }.map { max(0, $0) }
-                let roomTotal = room.reduce(0, +)
-                let taken = roomTotal > 0 ? min(extra, roomTotal) : 0
-                let raw: [CGFloat] = needed.indices.map { i in
-                    needed[i] > minRow ? needed[i] : minRow - (roomTotal > 0 ? taken * room[i] / roomTotal : 0)
-                }
-                // 吸収しきれずに余った高さ(最終週と月計の間の隙間になる)は、全週に均等に配る
-                let slack = max(0, geo.size.height - raw.reduce(0, +) - (n - 1) * divH)
-                let heights = raw.map { $0 + slack / n }
+                let fullRows = weeks.map { SpanLayout.rows(events: store.visibleEvents, weekCells: $0.map { Optional($0) }) }
+                let lay = monthLayout(weeks: weeks, fullRows: fullRows, size: geo.size, annivMap: annivMap)
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
                         ForEach(weeks.indices, id: \.self) { i in
-                            weekBlock(weeks[i], rows: weekRows[i], rowH: heights[i], barH: barH, monthOrder: monthOrder, conflictDays: conflictDays, annivMap: annivMap)
+                            weekBlock(weeks[i], rows: lay.rows[i], hidden: lay.hidden[i], rowH: lay.heights[i], barH: lay.barH, monthOrder: monthOrder, conflictDays: conflictDays, annivMap: annivMap)
                             if i < weeks.count - 1 { Divider() }
                         }
                     }
@@ -108,9 +91,9 @@ struct MonthView: View {
         .sheet(item: $annivTarget) { AnniversaryDetailSheet(id: $0.id, asOf: $0.date) }
     }
 
-    private func weekBlock(_ cells: [String], rows: [[BarSpan]], rowH: CGFloat, barH: CGFloat, monthOrder: [String], conflictDays: Set<String>, annivMap: [String: [Anniversary]]) -> some View {
+    private func weekBlock(_ cells: [String], rows: [[BarSpan]], hidden: [Int], rowH: CGFloat, barH: CGFloat, monthOrder: [String], conflictDays: Set<String>, annivMap: [String: [Anniversary]]) -> some View {
         VStack(spacing: 0) {
-            weekCells(cells, rows: rows, barH: barH, conflictDays: conflictDays, annivMap: annivMap)
+            weekCells(cells, rows: rows, hidden: hidden, barH: barH, conflictDays: conflictDays, annivMap: annivMap)
                 .frame(height: summaryOn ? rowH - stripH : rowH)
                 .clipped()
             if summaryOn {
@@ -127,7 +110,7 @@ struct MonthView: View {
         }
     }
 
-    private func weekCells(_ cells: [String], rows: [[BarSpan]], barH: CGFloat, conflictDays: Set<String>, annivMap: [String: [Anniversary]]) -> some View {
+    private func weekCells(_ cells: [String], rows: [[BarSpan]], hidden: [Int], barH: CGFloat, conflictDays: Set<String>, annivMap: [String: [Anniversary]]) -> some View {
         GeometryReader { geo in
             let w = geo.size.width / 7
             let rowH = geo.size.height
@@ -144,6 +127,23 @@ struct MonthView: View {
                 SpanBars(rows: rows, colW: w, barH: barH, compactFont: true, leading: 0, gap: barGap,
                          onTap: { ev, col in onTapEvent(ev, cells[min(6, max(0, col))]) }, onEdit: onSelectEvent)
                     .offset(y: numH)
+                // 入りきらなかった予定の数(「+件数」)
+                HStack(spacing: 0) {
+                    ForEach(0..<7, id: \.self) { i in
+                        ZStack(alignment: .bottomLeading) {
+                            Color.clear
+                            if i < hidden.count, hidden[i] > 0 {
+                                Text("+\(hidden[i])")
+                                    .font(.app(9, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.leading, 4)
+                                    .padding(.bottom, 1)
+                            }
+                        }
+                        .frame(width: w, height: geo.size.height)
+                    }
+                }
+                .allowsHitTesting(false)
                 movePreview(cells: cells, rows: rows, colW: w, barH: barH)
             }
             .onDrop(of: [.plainText], delegate: EventDropDelegate(
@@ -183,6 +183,66 @@ struct MonthView: View {
                 .offset(x: CGFloat(col) * colW + 1, y: numH + CGFloat(used) * (barH + barGap))
                 .allowsHitTesting(false)
         }
+    }
+
+    private struct MonthLayout {
+        let barH: CGFloat
+        /// 週ごとに、表示するバーの行
+        let rows: [[[BarSpan]]]
+        /// 週ごとの、日ごとの「入りきらない」件数
+        let hidden: [[Int]]
+        let heights: [CGFloat]
+    }
+
+    /// 月の週ごとの高さとバー。予定の少ない週は必要なぶんだけにして、浮いた高さを多い週に回す。
+    /// それでも収まらないとき、「+件数」なら、出す本数を全部の週でそろえて減らす。「縦にスクロール」なら、全部出す
+    private func monthLayout(weeks: [[String]], fullRows: [[[BarSpan]]], size: CGSize,
+                             annivMap: [String: [Anniversary]]) -> MonthLayout {
+        let n = CGFloat(max(1, weeks.count))
+        let strip: CGFloat = summaryOn ? stripH : 0
+        // 週の間の区切り線(Divider)の太さは 1pt ではなく 1px ぶん
+        let divH = 1 / UIScreen.main.scale
+        let avail = size.height - (n - 1) * divH
+        let colW = size.width / 7
+        // バーの太さ: 設定があればそれ。なければ、予定3本ぶんが入る太さ。どちらも、文字が入る太さより細くはしない
+        let fontPx = max(5, FixedWidthTime.fitSize(width: colW - 2 - BarFontSize.sidePadding) + CGFloat(monthDelta))
+        let minBar = BarFontSize.minBar(font: fontPx)
+        let minRow = avail / n
+        let autoBar = min(20, max(11, floor((minRow - stripH - numH - bottomPad) / 3) - 1))
+        let barH = max(thickness > 0 ? CGFloat(thickness) : autoBar, minBar)
+        let moreH: CGFloat = 10
+        let floorH = numH + bottomPad + strip
+
+        func shown(_ i: Int, cap: Int?) -> [[BarSpan]] { cap.map { Array(fullRows[i].prefix($0)) } ?? fullRows[i] }
+        func heights(cap: Int?) -> [CGFloat] {
+            weeks.indices.map { i in
+                let rows = shown(i, cap: cap)
+                let hasHidden = cap.map { fullRows[i].count > $0 } ?? false
+                return max(floorH, neededHeight(cells: weeks[i], rows: rows, barH: barH, strip: strip, annivMap: annivMap))
+                    + (hasHidden ? moreH : 0)
+            }
+        }
+
+        var cap: Int?
+        var base = heights(cap: nil)
+        if !scrollOnOverflow, base.reduce(0, +) > avail {
+            var c = max(1, fullRows.map(\.count).max() ?? 1)
+            while c > 1, heights(cap: c).reduce(0, +) > avail { c -= 1 }
+            cap = c
+            base = heights(cap: c)
+        }
+        // 余った高さは、全部の週に均等に配る
+        let slack = max(0, avail - base.reduce(0, +))
+        let rows = weeks.indices.map { shown($0, cap: cap) }
+        let hidden: [[Int]] = weeks.indices.map { i in
+            (0..<7).map { col in
+                func covering(_ list: [[BarSpan]]) -> Int {
+                    list.reduce(0) { $0 + $1.filter { $0.col <= col && col < $0.col + $0.span }.count }
+                }
+                return covering(fullRows[i]) - covering(rows[i])
+            }
+        }
+        return MonthLayout(barH: barH, rows: rows, hidden: hidden, heights: base.map { $0 + slack / n })
     }
 
     /// 1週ぶんに必要な高さ。記念日のアイコンがある日は、その日のバーの下にもう1本ぶん確保する

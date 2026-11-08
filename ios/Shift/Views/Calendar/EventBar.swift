@@ -154,4 +154,12 @@ enum BarFontSize {
     static let range: ClosedRange<Double> = -2...3
     /// バーの左右の余白(先頭の 5 と末尾の 3)
     static let sidePadding: CGFloat = 8
+    /// 月表示のバーの太さ(pt)。0 は標準(画面に合わせて自動)
+    static let thicknessKey = "monthBarThickness"
+    static let thicknessMax: CGFloat = 26
+    /// 月表示で、入りきらない予定を、縦スクロールにするか(false は「+件数」)
+    static let scrollKey = "monthBarOverflowScroll"
+
+    /// 文字がはみ出さない、いちばん細いバーの太さ(文字が大きいほど、太くなる)
+    static func minBar(font: CGFloat) -> CGFloat { (font + 5).rounded(.up) }
 }
