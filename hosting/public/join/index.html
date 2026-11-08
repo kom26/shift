@@ -15,6 +15,7 @@
   p { margin: 0; color: var(--mute); font-size: 14px; }
   a.btn { display: block; text-align: center; padding: 14px; border-radius: 12px; text-decoration: none; font-weight: 700; background: var(--accent); color: var(--on); }
   a.btn.sub { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+  ol { margin: 0; padding-left: 1.4em; color: var(--mute); font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
   code { display: block; padding: 10px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); word-break: break-all; font-size: 13px; }
 </style>
 </head>
@@ -24,7 +25,12 @@
   <p id="msg">「開く」を選ぶと、アプリで参加の確認が出ます。開かないときは、下のボタンを押してください。</p>
   <a class="btn" id="open" href="#">アプリで開く</a>
   <a class="btn sub" id="install" href="https://testflight.apple.com/join/wwsStTJA">アプリを入れる(TestFlight)</a>
-  <p>アプリが入っていないときは、先に上のボタンからアプリを入れてください。入れたあとに、このリンクをもう一度開くと、参加の確認が出ます。</p>
+  <p>アプリが入っていないときは、次の順に進めてください。</p>
+  <ol>
+    <li>「アプリを入れる(TestFlight)」を押す。TestFlight が入っていなければ、先に TestFlight を入れます。</li>
+    <li>TestFlight を入れたら、このページに戻って、もう一度「アプリを入れる(TestFlight)」を押す。TestFlight を開いただけでは、シフトパレットの画面には進みません。</li>
+    <li>シフトパレットを入れたら、このページに戻って「アプリで開く」を押す。参加の確認が出ます。</li>
+  </ol>
 </main>
 <script>
 (function () {

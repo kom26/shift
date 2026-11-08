@@ -150,7 +150,13 @@ struct CalendarCreateSheet: View {
     }
 }
 
-/// 招待コードやリンクで参加する。内容を確認してから、名前と共有する項目を選んで参加する
+/// 参加の確認を開くときの招待コード
+struct JoinTarget: Identifiable {
+    let code: String
+    var id: String { code }
+}
+
+/// 招待リンク(QR)で参加する。内容を確認してから、名前と共有する項目を選んで参加する
 struct CalendarJoinSheet: View {
     @Environment(CalendarService.self) private var service
     @Environment(AuthService.self) private var auth
@@ -164,13 +170,10 @@ struct CalendarJoinSheet: View {
     @State private var avatar = ""
     @State private var shared: Set<String> = []
     @State private var joined: SharedCalendar?
-    /// 招待リンク(QR)から開いたか。その場合は、リンクの貼り付け欄は出さず、確認の状況だけを出す
-    private let fromLink: Bool
     @State private var checking = false
 
     init(code: String = "") {
         _code = State(initialValue: code)
-        fromLink = !code.isEmpty
     }
 
     var body: some View {
@@ -199,7 +202,7 @@ struct CalendarJoinSheet: View {
                     if found.preview.kind == .mutual {
                         ShareItemsSection(selection: $shared)
                     }
-                } else if fromLink {
+                } else {
                     Section {
                         if checking || service.busy {
                             HStack(spacing: 10) {
@@ -209,14 +212,6 @@ struct CalendarJoinSheet: View {
                         } else {
                             Button("もう一度確認する") { Task { await check() } }
                         }
-                    }
-                } else {
-                    Section {
-                        TextField("招待リンク", text: $code)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    } footer: {
-                        Text("共有してくれた人から届いた招待リンクを貼り付けてください。")
                     }
                 }
                 if joined == nil, let message = service.errorMessage {
@@ -239,9 +234,6 @@ struct CalendarJoinSheet: View {
                                 }
                             }
                             .disabled(service.busy || displayName.trimmingCharacters(in: .whitespaces).isEmpty)
-                        } else {
-                            Button("確認") { Task { await check() } }
-                                .disabled(service.busy || code.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                     }
                 }
@@ -251,8 +243,8 @@ struct CalendarJoinSheet: View {
                 displayName = profile.displayName(for: auth.account)
                 avatar = profile.avatar
                 shared = store.allShareKeys
-                // リンクから開いたときは、コードが入った状態で始まるので、そのまま内容を確認する
-                if !code.isEmpty, found == nil { Task { await check() } }
+                // コードが入った状態で始まるので、そのまま内容を確認する
+                if found == nil { Task { await check() } }
             }
         }
         .presentationDetents([.large])

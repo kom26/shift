@@ -60,11 +60,10 @@ struct RootView: View {
     @State private var addMenuOpen = false
     @State private var showShotImport = false
     @State private var showCreateCalendar = false
-    @State private var showJoinCalendar = false
+    /// 参加の確認。招待コードを持たせて開く(コードが空のまま開かないように)
+    @State private var joinTarget: JoinTarget?
     @State private var sharedEditing: SharedEditTarget?
     @State private var sharedDetail: SharedDetailTarget?
-    /// 招待リンクから開いたときの招待コード
-    @State private var joinCode = ""
     /// アカウント登録の前に開いた招待。端末に残しておき、登録が済んだら上から順に参加の確認を開く
     @AppStorage("pending-invites") private var pendingInvitesJSON = ""
     private var pendingInvites: [PendingInvite] {
@@ -249,12 +248,11 @@ struct RootView: View {
         .sheet(item: $sharedEditing) { SharedEventEditor(target: $0) }
         .sheet(item: $sharedDetail) { SharedEventDetail(eventId: $0.eventId) }
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
-        .sheet(isPresented: $showJoinCalendar, onDismiss: {
-            joinCode = ""
+        .sheet(item: $joinTarget, onDismiss: {
             joinPresenting = false
             // ほかに待っている招待があれば、続けて開く
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { presentPendingJoin() }
-        }) { CalendarJoinSheet(code: joinCode) }
+        }) { CalendarJoinSheet(code: $0.code) }
         .sheet(item: $calendarDetail) { CalendarDetailSheet(calendar: $0) }
         .sheet(item: $reviewCalendar) { ShareReviewSheet(calendar: $0) }
     }
@@ -322,12 +320,11 @@ struct RootView: View {
     }
 
     private func presentPendingJoin() {
-        guard auth.account != nil, !showJoinCalendar, !joinPresenting, let next = pendingInvites.first else { return }
+        guard auth.account != nil, joinTarget == nil, !joinPresenting, let next = pendingInvites.first else { return }
         pendingInvites = Array(pendingInvites.dropFirst())
         joinPresenting = true
         let open = {
-            joinCode = next.code
-            showJoinCalendar = true
+            joinTarget = JoinTarget(code: next.code)
         }
         if showSettings || showDrawer {
             showSettings = false
