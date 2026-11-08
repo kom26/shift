@@ -303,7 +303,7 @@ struct RootView: View {
         // アプリが閉じていたときは、共有カレンダーの一覧がまだ読めていない。読めるまで少し待つ(待たないと、自分のカレンダーが開いてしまう)
         if let id = sharedId {
             var waited = 0
-            while waited < 50, !calendarService.calendars.contains(where: { $0.id == id && $0.status == .active }) {
+            while waited < 20, !calendarService.calendars.contains(where: { $0.id == id && $0.status == .active }) {
                 try? await Task.sleep(for: .milliseconds(200))
                 waited += 1
             }
