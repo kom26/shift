@@ -549,7 +549,9 @@ struct ScreenshotImportSheet: View {
         if included.contains(line.id), !duplicates(of: line).isEmpty {
             let c = choice(line)
             Button { dupTarget = DupTarget(id: line.id) } label: {
-                Text("重複 ・ " + (c == .keep ? "追加しない" : c == .replace ? "置き換え" : "どちらも残す"))
+                // まだ選んでいないときは案内、選んだあとは、選んだ内容
+                Text(dupChoices[line.id] == nil ? "既に同日に予定があります"
+                     : "同日予定・" + (c == .keep ? "取り込まない" : c == .replace ? "置き換え" : "どちらも残す"))
                     .font(.app(11, weight: .bold))
                     .foregroundStyle(Color.orange)
                     .padding(.horizontal, 9)
