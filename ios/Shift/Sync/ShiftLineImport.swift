@@ -90,8 +90,9 @@ enum ShiftLineImport {
         return lines.compactMap { line in
             let p = Rules.ymd(line.date)
             let index = p.year * 12 + (p.month - 1) - base + target
+            // その月に無い日(2/30 など)は捨てる
+            guard DateComponents(calendar: Calendar(identifier: .gregorian), year: index / 12, month: index % 12 + 1, day: p.day).isValidDate else { return nil }
             let date = String(format: "%04d-%02d-%02d", index / 12, index % 12 + 1, p.day)
-            guard Rules.parse(date) != nil else { return nil }
             var out = line
             out.date = date
             return out
