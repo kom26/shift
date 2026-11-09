@@ -301,15 +301,6 @@ final class Store {
         persist()
     }
 
-    /// 編集内容を保存したうえで、同じ内容のコピーを別IDで追加する(Web版の「複製保存」)
-    func saveAndDuplicate(_ event: ShiftEvent) {
-        save(event)
-        var copy = stamped(event)
-        copy.id = UUID().uuidString
-        events.append(copy)
-        persist()
-    }
-
     func delete(id: String) {
         events.removeAll { $0.id == id }
         persist()

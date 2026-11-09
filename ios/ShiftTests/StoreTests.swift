@@ -35,19 +35,6 @@ struct StoreTests {
         #expect(store.events.isEmpty)
     }
 
-    @Test func saveAndDuplicateKeepsOriginalAndAddsCopyWithNewId() {
-        let (store, _, _, _) = make()
-        store.save(ev("a", "2026-10-20"))
-        var edited = ev("a", "2026-10-22")
-        edited.title = "edited"
-        store.saveAndDuplicate(edited)
-        #expect(store.events.count == 2)
-        #expect(store.events[0].id == "a")
-        #expect(store.events[0].startDate == "2026-10-22")
-        #expect(store.events[1].id != "a")
-        #expect(store.events[1].title == "edited")
-    }
-
     @Test func visibleEventsExcludeUnplacedAndFilteredWorkplaces() {
         let (store, _, _, _) = make()
         store.addWorkplace(Workplace(id: "w1", name: "A", color: "#ef4444"))

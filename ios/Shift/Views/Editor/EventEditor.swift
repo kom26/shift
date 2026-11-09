@@ -10,7 +10,7 @@ struct EventEditor: View {
     let isNew: Bool
     /// よく使う予定のテンプレートを編集する(日付なし。保存先はよく使う予定)
     var favoriteMode = false
-    /// 指定すると、保存の代わりに、直した予定を返す(画像取り込みの確認画面から開いたとき。削除・複製保存・よく使う予定の登録は出さない)
+    /// 指定すると、保存の代わりに、直した予定を返す(画像取り込みの確認画面から開いたとき。削除・よく使う予定の登録は出さない)
     var onCommit: ((ShiftEvent) -> Void)?
 
     @State private var title: String
@@ -186,16 +186,13 @@ struct EventEditor: View {
                         Toggle("よく使う予定にも登録", isOn: $registerFavorite)
                     }
                 }
-                // 最後に変えた人と時刻(画像取り込みで作った予定には、その印も)。削除・複製保存の上に出す
+                // 最後に変えた人と時刻(画像取り込みで作った予定には、その印も)。削除の上に出す
                 if !isNew, let line = original.lastModifiedText() {
                     Section { Text(line).font(.app(12)).foregroundStyle(.secondary) }
                 }
                 if onCommit == nil {
-                    Section {
-                        if !favoriteMode {
-                            Button("複製保存") { commit(duplicate: true) }.disabled(!canSave)
-                        }
-                        if !isNew {
+                    if !isNew {
+                        Section {
                             Button("削除", role: .destructive) { confirmDelete = true }
                         }
                     }
@@ -225,7 +222,7 @@ struct EventEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isNew ? "追加" : "保存") { commit(duplicate: false) }.disabled(!canSave)
+                    Button(isNew ? "追加" : "保存") { commit() }.disabled(!canSave)
                 }
             }
             .keyboardDismissBar { closeTimePanel() }
@@ -806,7 +803,7 @@ struct EventEditor: View {
         return e
     }
 
-    private func commit(duplicate: Bool) {
+    private func commit() {
         let e = build()
         store.rememberColor(e.color)
         if let onCommit {
@@ -815,7 +812,7 @@ struct EventEditor: View {
         } else if favoriteMode {
             store.saveFavorite(e)
         } else {
-            if duplicate { store.saveAndDuplicate(e) } else { store.save(e) }
+            store.save(e)
             if registerFavorite && !store.isFavorite(e) { store.addFavorite(from: e) }
         }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
