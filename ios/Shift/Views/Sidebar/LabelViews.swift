@@ -14,6 +14,19 @@ extension Store {
     }
 }
 
+/// 編集中に行の左へ出す、赤い −。押すと、削除の確認を出す(スワイプでは削除しない)
+struct DeleteMinusButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "minus.circle.fill").font(.title3).foregroundStyle(Color.red)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("削除")
+    }
+}
+
 /// 予定の編集画面の「職場・ラベル」から開く、下から出る選択シート。
 /// 職場を選ぶと勤務予定、ラベル(または指定なし)を選ぶと通常予定になる。
 /// 右上の「編集」を押すと、行のタップが名前・色の編集になり、右端に並べ替えが出る。「指定なし」は固定で、直せない
@@ -47,15 +60,11 @@ struct WorkLabelSheet: View {
             List {
                 Section("職場") {
                     ForEach(store.workplaces) { w in
-                        row(name: w.name, color: w.color, selected: workplaceId == w.id) {
+                        row(name: w.name, color: w.color, selected: workplaceId == w.id, onDelete: { pendingWorkplace = w }) {
                             if editing { editingWorkplace = w } else { choose(workplace: w.id) }
                         }
-                        .deleteDisabled(!editing)
                     }
                     .onMove { store.moveWorkplaces(from: $0, to: $1) }
-                    .onDelete { offsets in
-                        if let i = offsets.first { pendingWorkplace = store.workplaces[i] }
-                    }
                     if !editing {
                         Button {
                             workplaceCountBeforeAdd = store.workplaces.count
@@ -76,15 +85,11 @@ struct WorkLabelSheet: View {
                     }
                     .moveDisabled(true)
                     ForEach(store.labels) { l in
-                        row(name: l.name, color: l.color, selected: workplaceId == nil && labelId == l.id) {
+                        row(name: l.name, color: l.color, selected: workplaceId == nil && labelId == l.id, onDelete: { pendingLabel = l }) {
                             if editing { editingLabel = LabelTarget(label: l, isNew: false) } else { choose(label: l.id) }
                         }
-                        .deleteDisabled(!editing)
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
-                    .onDelete { offsets in
-                        if let i = offsets.first { pendingLabel = store.labels[i] }
-                    }
                     if !editing {
                         Button {
                             labelCountBeforeAdd = store.labels.count
@@ -133,20 +138,26 @@ struct WorkLabelSheet: View {
         .sheet(item: $editingLabel) { LabelEditor(label: $0.label, isNew: $0.isNew) }
     }
 
-    private func row(name: String, color: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                ColorDot(hex: color, size: 14)
-                Text(name)
-                Spacer()
-                if !editing {
-                    Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(selected ? Color.primary : Color.secondary.opacity(0.5))
+    /// onDelete があるときは、編集中だけ、左に赤い − を出す
+    private func row(name: String, color: String, selected: Bool, onDelete: (() -> Void)? = nil,
+                     action: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            if editing, let onDelete { DeleteMinusButton(action: onDelete) }
+            Button(action: action) {
+                HStack(spacing: 12) {
+                    ColorDot(hex: color, size: 14)
+                    Text(name)
+                    Spacer()
+                    if !editing {
+                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                            .foregroundStyle(selected ? Color.primary : Color.secondary.opacity(0.5))
+                    }
                 }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.borderless)
+            .foregroundStyle(.primary)
         }
-        .foregroundStyle(.primary)
     }
 
     /// 選んでいた職場を消したときは、「指定なし」に切り替える
@@ -204,21 +215,21 @@ struct LabelManageView: View {
                     }
                     .moveDisabled(true)
                     ForEach(store.labels) { l in
-                        Button { target = LabelTarget(label: l, isNew: false) } label: {
-                            HStack(spacing: 12) {
-                                ColorDot(hex: l.color, size: 14)
-                                Text(l.name)
-                                Spacer()
-                                Text("\(store.labelEventCount(l.id))件").foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            // 削除したラベルの予定は「指定なし」に戻る(予定は消えない)。消す前に、確認を出す
+                            if editMode.isEditing { DeleteMinusButton { pendingDelete = l } }
+                            Button { target = LabelTarget(label: l, isNew: false) } label: {
+                                HStack(spacing: 12) {
+                                    ColorDot(hex: l.color, size: 14)
+                                    Text(l.name)
+                                    Spacer()
+                                    Text("\(store.labelEventCount(l.id))件").foregroundStyle(.secondary)
+                                }
+                                .contentShape(Rectangle())
                             }
-                            .contentShape(Rectangle())
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.primary)
                         }
-                        .foregroundStyle(.primary)
-                        .deleteDisabled(!editMode.isEditing)
-                    }
-                    .onDelete { offsets in
-                        // 削除したラベルの予定は「指定なし」に戻る(予定は消えない)。消す前に、確認を出す
-                        if let i = offsets.first { pendingDelete = store.labels[i] }
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
                 }

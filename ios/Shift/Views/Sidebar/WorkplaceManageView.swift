@@ -19,17 +19,19 @@ struct WorkplaceManageView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(store.workplaces) { w in
-                        Button { editingWorkplace = w } label: {
-                            HStack(spacing: 10) {
-                                ColorDot(hex: w.color, size: 12)
-                                Text(w.name).foregroundStyle(.primary)
+                        HStack(spacing: 10) {
+                            // 消す前に、確認を出す
+                            if editMode.isEditing { DeleteMinusButton { pendingDelete = w } }
+                            Button { editingWorkplace = w } label: {
+                                HStack(spacing: 10) {
+                                    ColorDot(hex: w.color, size: 12)
+                                    Text(w.name).foregroundStyle(.primary)
+                                    Spacer(minLength: 0)
+                                }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.borderless)
                         }
-                        .deleteDisabled(!editMode.isEditing)
-                    }
-                    .onDelete { offsets in
-                        // 消す前に、確認を出す
-                        if let i = offsets.first { pendingDelete = store.workplaces[i] }
                     }
                     .onMove { store.moveWorkplaces(from: $0, to: $1) }
                     Button("＋ 職場を追加") { addingWorkplace = true }
