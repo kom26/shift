@@ -10,6 +10,19 @@ struct EditorTarget: Identifiable {
     var id: String { event.id }
 }
 
+/// 予定一覧の「この日に予定を追加」で開く編集画面(自分の予定か、共有カレンダーの予定)
+enum DayAddTarget: Identifiable {
+    case own(EditorTarget)
+    case shared(SharedEditTarget)
+
+    var id: String {
+        switch self {
+        case .own(let t): return t.id
+        case .shared(let t): return t.id.uuidString
+        }
+    }
+}
+
 struct PaydayTarget: Identifiable {
     let date: String
     var id: String { date }
@@ -238,9 +251,7 @@ struct RootView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { edit(ev) }
             }, onSelectPayday: { date in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: date) }
-            }, onAddEvent: { date in
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { createEvent(on: date) }
-            })
+            }, makeAddTarget: dayAddTarget, addEditor: { AnyView(dayAddEditor($0)) })
             .environment(displayStore)
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
@@ -763,6 +774,18 @@ struct RootView: View {
         ZStack(alignment: .topTrailing) {
             // うしろを暗くして、メニューが開いているのが分かるようにする
             Color.black.opacity(0.38).ignoresSafeArea().onTapGesture { closeAddMenu() }
+            // 暗くしたうえに、右上のボタン(×になったもの)だけ、明るいまま重ねる
+            Button { closeAddMenu() } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Theme.onAccent)
+                    .rotationEffect(.degrees(45))
+                    .frame(width: 36, height: 36)
+                    .background(Theme.accent, in: Circle())
+            }
+            .accessibilityLabel("閉じる")
+            .padding(.top, 8)
+            .padding(.trailing, 12)
             VStack(alignment: .leading, spacing: 0) {
                 addMenuRow(icon: "calendar.badge.plus", title: addButtonTitle) {
                     closeAddMenu()
@@ -840,6 +863,27 @@ struct RootView: View {
         }
         selectedDate = date
         editing = EditorTarget(event: .new(on: date), isNew: true)
+    }
+
+    /// 予定一覧の＋から開く編集画面。一覧は閉じずに、その上に重ねて開く
+    private func dayAddTarget(_ date: String) -> DayAddTarget? {
+        selectedDate = date
+        if sharedView.isOpen {
+            guard let e = sharedView.newEvent(on: date) else { return nil }
+            return .shared(SharedEditTarget(event: e, isNew: true))
+        }
+        return .own(EditorTarget(event: .new(on: date), isNew: true))
+    }
+
+    @ViewBuilder
+    private func dayAddEditor(_ target: DayAddTarget) -> some View {
+        switch target {
+        case .own(let t):
+            // 一覧には表示用のストアが入っているので、編集画面には本物のストアを渡す
+            EventEditor(original: t.event, isNew: t.isNew, favoriteMode: t.favorite).environment(store)
+        case .shared(let t):
+            SharedEventEditor(target: t)
+        }
     }
 
     private func addFromHeader() {

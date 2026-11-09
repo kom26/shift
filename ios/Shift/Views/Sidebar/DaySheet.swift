@@ -16,15 +16,21 @@ struct DaySheet: View {
     let canAdd: Bool
     let onSelectEvent: (ShiftEvent) -> Void
     let onSelectPayday: (String) -> Void
-    let onAddEvent: (String) -> Void
+    /// 「この日に予定を追加」で開く編集画面の中身を作る(一覧は閉じずに、その上に重ねて開く)
+    let makeAddTarget: (String) -> DayAddTarget?
+    let addEditor: (DayAddTarget) -> AnyView
+    @State private var adding: DayAddTarget?
 
     init(date: String, canAdd: Bool = true, onSelectEvent: @escaping (ShiftEvent) -> Void,
-         onSelectPayday: @escaping (String) -> Void = { _ in }, onAddEvent: @escaping (String) -> Void = { _ in }) {
+         onSelectPayday: @escaping (String) -> Void = { _ in },
+         makeAddTarget: @escaping (String) -> DayAddTarget? = { _ in nil },
+         addEditor: @escaping (DayAddTarget) -> AnyView = { _ in AnyView(EmptyView()) }) {
         self.date = date
         self.canAdd = canAdd
         self.onSelectEvent = onSelectEvent
         self.onSelectPayday = onSelectPayday
-        self.onAddEvent = onAddEvent
+        self.makeAddTarget = makeAddTarget
+        self.addEditor = addEditor
     }
 
     private var dateText: String {
@@ -47,14 +53,14 @@ struct DaySheet: View {
             }
             .navigationDestination(item: $annivId) { AnniversaryDetail(id: $0, asOf: date) }
             .sheet(item: $editingAlarm) { AlarmEditSheet(entry: $0) }
+            .sheet(item: $adding) { addEditor($0) }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 右上の ⊕ で、この日に予定を追加する(閉じるのは、画面を下げる)
                 if canAdd {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
-                            dismiss()
-                            onAddEvent(date)
+                            adding = makeAddTarget(date)
                         } label: {
                             // カレンダー右上の ⊕ と同じ、丸いボタン
                             Image(systemName: "plus")
