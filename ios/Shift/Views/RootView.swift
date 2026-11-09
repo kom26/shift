@@ -10,15 +10,17 @@ struct EditorTarget: Identifiable {
     var id: String { event.id }
 }
 
-/// 予定一覧の「この日に予定を追加」で開く編集画面(自分の予定か、共有カレンダーの予定)
-enum DayAddTarget: Identifiable {
+/// 予定一覧の上に重ねて開く画面(自分の予定の編集、共有カレンダーの予定の編集、共有カレンダーの予定の詳細)
+enum DayEditTarget: Identifiable {
     case own(EditorTarget)
     case shared(SharedEditTarget)
+    case detail(SharedDetailTarget)
 
     var id: String {
         switch self {
         case .own(let t): return t.id
         case .shared(let t): return t.id.uuidString
+        case .detail(let t): return t.id.uuidString
         }
     }
 }
@@ -243,11 +245,9 @@ struct RootView: View {
         }) { EventEditor(original: $0.event, isNew: $0.isNew, favoriteMode: $0.favorite) }
         .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
         .sheet(item: $dayTarget) { t in
-            DaySheet(date: t.date, canAdd: !sharedView.isOpen || sharedView.canCreate, onSelectEvent: { ev in
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { edit(ev) }
-            }, onSelectPayday: { date in
+            DaySheet(date: t.date, canAdd: !sharedView.isOpen || sharedView.canCreate, onSelectPayday: { date in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: date) }
-            }, makeAddTarget: dayAddTarget, addEditor: { AnyView(dayAddEditor($0)) })
+            }, makeAddTarget: dayAddTarget, makeEditTarget: dayEditTarget, addEditor: { AnyView(dayAddEditor($0)) })
             .environment(displayStore)
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
@@ -862,7 +862,7 @@ struct RootView: View {
     }
 
     /// 予定一覧の＋から開く編集画面。一覧は閉じずに、その上に重ねて開く
-    private func dayAddTarget(_ date: String) -> DayAddTarget? {
+    private func dayAddTarget(_ date: String) -> DayEditTarget? {
         selectedDate = date
         if sharedView.isOpen {
             guard let e = sharedView.newEvent(on: date) else { return nil }
@@ -871,14 +871,23 @@ struct RootView: View {
         return .own(EditorTarget(event: .new(on: date), isNew: true))
     }
 
+    /// 予定一覧で予定を押したとき。一覧は閉じずに、その上に重ねて開く(edit と同じ分け方)
+    private func dayEditTarget(_ event: ShiftEvent) -> DayEditTarget? {
+        if sharedView.event(event.id) != nil { return .detail(SharedDetailTarget(eventId: event.id)) }
+        if sharedView.isOpen { return nil }
+        return .own(EditorTarget(event: event, isNew: false))
+    }
+
     @ViewBuilder
-    private func dayAddEditor(_ target: DayAddTarget) -> some View {
+    private func dayAddEditor(_ target: DayEditTarget) -> some View {
         switch target {
         case .own(let t):
             // 一覧には表示用のストアが入っているので、編集画面には本物のストアを渡す
             EventEditor(original: t.event, isNew: t.isNew, favoriteMode: t.favorite).environment(store)
         case .shared(let t):
             SharedEventEditor(target: t)
+        case .detail(let t):
+            SharedEventDetail(eventId: t.eventId)
         }
     }
 

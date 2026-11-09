@@ -7,6 +7,8 @@ struct FilterSheet: View {
     @Environment(CalendarService.self) private var calendarService
     @Environment(SharedViewState.self) private var sharedView
     @Environment(\.dismiss) private var dismiss
+    /// いつも全画面まで広げて開く
+    @State private var detent: PresentationDetent = .large
 
     private enum Mark { case off, partial, on }
 
@@ -88,7 +90,7 @@ struct FilterSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
         .presentationBackground(Color(.systemGroupedBackground))
     }
 
@@ -114,7 +116,7 @@ struct FilterSheet: View {
         Button { sharedView.setOverlay([c.id], on: !sharedView.isOverlaid(c.id)) } label: {
             HStack(spacing: 12) {
                 box(sharedView.isOverlaid(c.id) ? .on : .off)
-                Image(systemName: "person.2").foregroundStyle(.secondary).frame(width: 14)
+                CalendarIconView(icon: c.icon.isEmpty ? CalendarIcon.defaultName : c.icon, size: 20)
                 Text(c.name)
                 Spacer()
             }

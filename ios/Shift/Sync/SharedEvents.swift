@@ -42,7 +42,7 @@ struct SharedEvent: Equatable, Identifiable {
         let c = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: Date(timeIntervalSince1970: at / 1000))
         let when = String(format: "%d年%d月%d日 %d:%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0, c.hour ?? 0, c.minute ?? 0)
         let who = (updatedByName?.isEmpty == false) ? updatedByName! : "不明"
-        return "最終変更: \(who) ・ \(when)"
+        return "- 最終変更\(when) ・\(who) -"
     }
 
     /// 日付を決めない予定(未配置)の下書き。あとで、カレンダーの日にドラッグして置く

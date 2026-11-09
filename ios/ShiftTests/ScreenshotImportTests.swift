@@ -192,11 +192,11 @@ struct LastModifiedTests {
         let e = try #require(store.events.first)
         #expect(e.updatedBy == "ゆう")
         #expect(e.updatedAt != nil)
-        #expect(e.lastModifiedText()?.hasPrefix("最終変更: ゆう ・ ") == true)
-        #expect(e.lastModifiedText()?.hasSuffix("(画像取り込み)") == false)
+        #expect(e.lastModifiedText()?.hasPrefix("- 最終変更") == true && e.lastModifiedText()?.contains("・ゆう") == true)
+        #expect(e.lastModifiedText()?.contains("(画像取り込み)") == false)
         var imported = e
         imported.source = ShiftEvent.screenshotSource
-        #expect(imported.lastModifiedText()?.hasSuffix("(画像取り込み)") == true)
+        #expect(imported.lastModifiedText()?.hasSuffix("(画像取り込み) -") == true)
         // 名前がないときは「自分」。動かしたときも、最終変更が更新される
         store.editorName = ""
         store.place(id: "a", on: "2026-11-12")

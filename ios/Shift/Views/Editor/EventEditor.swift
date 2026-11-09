@@ -188,7 +188,12 @@ struct EventEditor: View {
                 }
                 // 最後に変えた人と時刻(画像取り込みで作った予定には、その印も)。削除の上に出す
                 if !isNew, let line = original.lastModifiedText() {
-                    Section { Text(line).font(.app(12)).foregroundStyle(.secondary) }
+                    Section {
+                        Text(line).font(.app(12)).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .multilineTextAlignment(.center)
+                            .listRowBackground(Color.clear)
+                    }
                 }
                 if onCommit == nil {
                     if !isNew {

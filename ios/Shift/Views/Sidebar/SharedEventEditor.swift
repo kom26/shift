@@ -405,7 +405,12 @@ struct SharedEventEditor: View {
                 }
                 // 最後に変えた人と時刻。削除の上に出す
                 if !target.isNew, let line = target.event.lastModifiedText() {
-                    Section { Text(line).font(.app(12)).foregroundStyle(.secondary) }
+                    Section {
+                        Text(line).font(.app(12)).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .multilineTextAlignment(.center)
+                            .listRowBackground(Color.clear)
+                    }
                 }
                 if !target.isNew {
                     Section {

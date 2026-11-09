@@ -66,7 +66,7 @@ extension ShiftEvent {
         let c = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: d)
         let when = String(format: "%d年%d月%d日 %d:%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0, c.hour ?? 0, c.minute ?? 0)
         let who = (updatedBy?.isEmpty == false) ? updatedBy! : "自分"
-        return "最終変更: \(who) ・ \(when)" + (source == Self.screenshotSource ? "(画像取り込み)" : "")
+        return "- 最終変更\(when) ・\(who)" + (source == Self.screenshotSource ? "(画像取り込み)" : "") + " -"
     }
 
     /// Web版のJSONは項目が欠けていることがあるため、欠落は既定値で補う

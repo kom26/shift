@@ -14,22 +14,23 @@ struct DaySheet: View {
     @State private var editingAlarm: AlarmEntry?
     /// 共有カレンダーなど、見るだけのときは false(予定追加のボタンを出さない)
     let canAdd: Bool
-    let onSelectEvent: (ShiftEvent) -> Void
     let onSelectPayday: (String) -> Void
-    /// 「この日に予定を追加」で開く編集画面の中身を作る(一覧は閉じずに、その上に重ねて開く)
-    let makeAddTarget: (String) -> DayAddTarget?
-    let addEditor: (DayAddTarget) -> AnyView
-    @State private var adding: DayAddTarget?
+    /// 「この日に予定を追加」や、予定を押したときに開く画面の中身を作る(一覧は閉じずに、その上に重ねて開く)
+    let makeAddTarget: (String) -> DayEditTarget?
+    let makeEditTarget: (ShiftEvent) -> DayEditTarget?
+    let addEditor: (DayEditTarget) -> AnyView
+    @State private var adding: DayEditTarget?
 
-    init(date: String, canAdd: Bool = true, onSelectEvent: @escaping (ShiftEvent) -> Void,
+    init(date: String, canAdd: Bool = true,
          onSelectPayday: @escaping (String) -> Void = { _ in },
-         makeAddTarget: @escaping (String) -> DayAddTarget? = { _ in nil },
-         addEditor: @escaping (DayAddTarget) -> AnyView = { _ in AnyView(EmptyView()) }) {
+         makeAddTarget: @escaping (String) -> DayEditTarget? = { _ in nil },
+         makeEditTarget: @escaping (ShiftEvent) -> DayEditTarget? = { _ in nil },
+         addEditor: @escaping (DayEditTarget) -> AnyView = { _ in AnyView(EmptyView()) }) {
         self.date = date
         self.canAdd = canAdd
-        self.onSelectEvent = onSelectEvent
         self.onSelectPayday = onSelectPayday
         self.makeAddTarget = makeAddTarget
+        self.makeEditTarget = makeEditTarget
         self.addEditor = addEditor
     }
 
@@ -138,15 +139,11 @@ struct DaySheet: View {
                             // 横にスワイプして指を離したときに開かないよう、ボタンではなく「タップ」だけで開く
                             eventRow(row)
                                 .contentShape(Rectangle())
-                                .onTapGesture {
-                                    dismiss()
-                                    onSelectEvent(row.event)
-                                }
+                                .onTapGesture { adding = makeEditTarget(row.event) }
                                 .accessibilityAddTraits(.isButton)
                                 // 長押ししてつかむと、カレンダー上のバーと同じに動かせる(動かせない予定は、詳細が開くだけ)
                                 .eventDragSource(row.event, barPreview: true) { ev in
-                                    dismiss()
-                                    onSelectEvent(ev)
+                                    adding = makeEditTarget(ev)
                                 }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     if canDelete(row.event) {
