@@ -38,6 +38,9 @@ struct WorkLabelSheet: View {
     @State private var labelCountBeforeAdd = 0
     @State private var editingWorkplace: Workplace?
     @State private var editingLabel: LabelTarget?
+    /// 削除の確認待ち(スワイプや、編集中の赤い − から)
+    @State private var pendingWorkplace: Workplace?
+    @State private var pendingLabel: EventLabel?
 
     var body: some View {
         NavigationStack {
@@ -49,6 +52,9 @@ struct WorkLabelSheet: View {
                         }
                     }
                     .onMove { store.moveWorkplaces(from: $0, to: $1) }
+                    .onDelete { offsets in
+                        if let i = offsets.first { pendingWorkplace = store.workplaces[i] }
+                    }
                     if !editing {
                         Button {
                             workplaceCountBeforeAdd = store.workplaces.count
@@ -74,6 +80,9 @@ struct WorkLabelSheet: View {
                         }
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
+                    .onDelete { offsets in
+                        if let i = offsets.first { pendingLabel = store.labels[i] }
+                    }
                     if !editing {
                         Button {
                             labelCountBeforeAdd = store.labels.count
@@ -88,10 +97,23 @@ struct WorkLabelSheet: View {
             .navigationTitle(editing ? "職場・ラベルを編集" : "職場・ラベル")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(editing ? "完了" : "編集") { withAnimation { editing.toggle() } }
                         .disabled(!editing && store.workplaces.isEmpty && store.labels.isEmpty)
                 }
+            }
+            .confirmationDialog("この職場を削除しますか?", isPresented: Binding(get: { pendingWorkplace != nil }, set: { if !$0 { pendingWorkplace = nil } }),
+                                titleVisibility: .visible, presenting: pendingWorkplace) { w in
+                Button("削除", role: .destructive) { remove(workplace: w) }
+            } message: { w in
+                Text("「\(w.name)」を削除します。この職場の予定は消えません。職場の指定だけがなくなります。")
+            }
+            .confirmationDialog("このラベルを削除しますか?", isPresented: Binding(get: { pendingLabel != nil }, set: { if !$0 { pendingLabel = nil } }),
+                                titleVisibility: .visible, presenting: pendingLabel) { l in
+                Button("削除", role: .destructive) { remove(label: l) }
+            } message: { l in
+                Text("削除すると、\(store.labelEventCount(l.id))件の予定は「指定なし」に戻ります。予定は消えません。")
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
@@ -122,6 +144,19 @@ struct WorkLabelSheet: View {
         .foregroundStyle(.primary)
     }
 
+    /// 選んでいた職場を消したときは、「指定なし」に切り替える
+    private func remove(workplace w: Workplace) {
+        let wasSelected = workplaceId == w.id
+        store.deleteWorkplace(id: w.id)
+        if wasSelected { onSelect(nil, nil) }
+    }
+
+    private func remove(label l: EventLabel) {
+        let wasSelected = workplaceId == nil && labelId == l.id
+        store.deleteLabel(id: l.id)
+        if wasSelected { onSelect(nil, nil) }
+    }
+
     private func choose(workplace id: String) {
         onSelect(id, nil)
         dismiss()
@@ -149,6 +184,7 @@ struct LabelManageView: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var target: LabelTarget?
+    @State private var pendingDelete: EventLabel?
 
     var body: some View {
         NavigationStack {
@@ -174,9 +210,8 @@ struct LabelManageView: View {
                         .foregroundStyle(.primary)
                     }
                     .onDelete { offsets in
-                        // 削除したラベルの予定は「指定なし」に戻る(予定は消えない)
-                        let ids = offsets.map { store.labels[$0].id }
-                        ids.forEach { store.deleteLabel(id: $0) }
+                        // 削除したラベルの予定は「指定なし」に戻る(予定は消えない)。消す前に、確認を出す
+                        if let i = offsets.first { pendingDelete = store.labels[i] }
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
                 }
@@ -189,10 +224,16 @@ struct LabelManageView: View {
             .navigationTitle("ラベルの管理")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { EditButton() }
-                ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { EditButton() }
             }
             .sheet(item: $target) { LabelEditor(label: $0.label, isNew: $0.isNew) }
+            .confirmationDialog("このラベルを削除しますか?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+                                titleVisibility: .visible, presenting: pendingDelete) { l in
+                Button("削除", role: .destructive) { store.deleteLabel(id: l.id) }
+            } message: { l in
+                Text("削除すると、\(store.labelEventCount(l.id))件の予定は「指定なし」に戻ります。予定は消えません。")
+            }
         }
     }
 }
