@@ -570,6 +570,11 @@ final class Store {
         persistWorkplaces()
     }
 
+    /// その職場を付けている予定の数(職場を消すときの確認に出す)
+    func workplaceEventCount(_ id: String) -> Int {
+        events.filter { $0.workplaceId == id }.count
+    }
+
     /// その職場の予定のうち、タイトルが職場名と同じもの(職場名を変えたとき、一緒に変える対象)
     func eventCount(forWorkplace id: String) -> Int {
         guard let name = workplaces.first(where: { $0.id == id })?.name else { return 0 }

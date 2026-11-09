@@ -117,7 +117,7 @@ struct WorkLabelSheet: View {
                                 titleVisibility: .visible, presenting: pendingWorkplace) { w in
                 Button("削除", role: .destructive) { remove(workplace: w) }
             } message: { w in
-                Text("「\(w.name)」を削除します。この職場の予定は消えません。職場の指定だけがなくなります。")
+                Text("\(store.workplaceEventCount(w.id))件の予定は「指定なし」の通常予定に変更されます。色はそのまま残ります。")
             }
             .confirmationDialog("このラベルを削除しますか?", isPresented: Binding(get: { pendingLabel != nil }, set: { if !$0 { pendingLabel = nil } }),
                                 titleVisibility: .visible, presenting: pendingLabel) { l in
