@@ -555,9 +555,23 @@ final class Store {
         persistWorkplaces()
     }
 
+    /// 職場を消す。付いていた予定は消さず、職場のない「指定なし」の通常予定になる(個別カラーでない予定はグレーになる)
     func deleteWorkplace(id: String) {
+        guard let removed = workplaces.first(where: { $0.id == id }) else { return }
         workplaces.removeAll { $0.id == id }
+        var touched = false
+        for i in events.indices where events[i].workplaceId == id {
+            events[i].workplaceId = nil
+            if events[i].ownColor != true, events[i].color == removed.color { events[i].color = EventLabel.noneColor }
+            touched = true
+        }
+        for i in favorites.indices where favorites[i].workplaceId == id {
+            favorites[i].workplaceId = nil
+            persistFavorites()
+        }
+        if checkedWorkplaces.contains(id) { toggleWorkplaceFilter(id) }
         persistWorkplaces()
+        if touched { persist() }
     }
 
     func moveWorkplaces(from source: IndexSet, to destination: Int) {

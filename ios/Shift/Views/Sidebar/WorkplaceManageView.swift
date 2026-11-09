@@ -49,7 +49,7 @@ struct WorkplaceManageView: View {
                                 titleVisibility: .visible, presenting: pendingDelete) { w in
                 Button("削除", role: .destructive) { store.deleteWorkplace(id: w.id) }
             } message: { w in
-                Text("\(store.workplaceEventCount(w.id))件の予定は「指定なし」の通常予定に変更されます。色はそのまま残ります。")
+                Text("\(store.workplaceEventCount(w.id))件の予定は「指定なし」の通常予定に変更されます。")
             }
             .environment(\.editMode, $editMode)
             .sheet(item: $editingWorkplace) { WorkplaceEditor(workplace: $0) }

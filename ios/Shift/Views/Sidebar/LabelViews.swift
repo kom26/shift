@@ -117,13 +117,13 @@ struct WorkLabelSheet: View {
                                 titleVisibility: .visible, presenting: pendingWorkplace) { w in
                 Button("削除", role: .destructive) { remove(workplace: w) }
             } message: { w in
-                Text("\(store.workplaceEventCount(w.id))件の予定は「指定なし」の通常予定に変更されます。色はそのまま残ります。")
+                Text("\(store.workplaceEventCount(w.id))件の予定は「指定なし」の通常予定に変更されます。")
             }
             .confirmationDialog("このラベルを削除しますか?", isPresented: Binding(get: { pendingLabel != nil }, set: { if !$0 { pendingLabel = nil } }),
                                 titleVisibility: .visible, presenting: pendingLabel) { l in
                 Button("削除", role: .destructive) { remove(label: l) }
             } message: { l in
-                Text("削除すると、\(store.labelEventCount(l.id))件の予定は「指定なし」に戻ります。予定は消えません。")
+                Text("\(store.labelEventCount(l.id))件の予定は「指定なし」に変更されます。")
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
@@ -251,7 +251,7 @@ struct LabelManageView: View {
                                 titleVisibility: .visible, presenting: pendingDelete) { l in
                 Button("削除", role: .destructive) { store.deleteLabel(id: l.id) }
             } message: { l in
-                Text("削除すると、\(store.labelEventCount(l.id))件の予定は「指定なし」に戻ります。予定は消えません。")
+                Text("\(store.labelEventCount(l.id))件の予定は「指定なし」に変更されます。")
             }
         }
     }
