@@ -761,7 +761,8 @@ struct RootView: View {
     /// 右上の ⊕ の下に出る 2 択
     private var addMenu: some View {
         ZStack(alignment: .topTrailing) {
-            Color.black.opacity(0.001).ignoresSafeArea().onTapGesture { closeAddMenu() }
+            // うしろを暗くして、メニューが開いているのが分かるようにする
+            Color.black.opacity(0.38).ignoresSafeArea().onTapGesture { closeAddMenu() }
             VStack(alignment: .leading, spacing: 0) {
                 addMenuRow(icon: "calendar.badge.plus", title: addButtonTitle) {
                     closeAddMenu()
@@ -779,8 +780,8 @@ struct RootView: View {
                 }
             }
             .frame(width: 230)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
-            .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+            .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+            .shadow(color: .black.opacity(0.35), radius: 14, y: 8)
             .padding(.top, 48)
             .padding(.trailing, 12)
             .transition(.scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity))
