@@ -6,6 +6,7 @@ struct WorkplaceManageView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editingWorkplace: Workplace?
     @State private var addingWorkplace = false
+    @State private var pendingDelete: Workplace?
 
     var body: some View {
         NavigationStack {
@@ -25,8 +26,8 @@ struct WorkplaceManageView: View {
                         }
                     }
                     .onDelete { offsets in
-                        let ids = offsets.map { store.workplaces[$0].id }
-                        ids.forEach { store.deleteWorkplace(id: $0) }
+                        // 消す前に、確認を出す
+                        if let i = offsets.first { pendingDelete = store.workplaces[i] }
                     }
                     .onMove { store.moveWorkplaces(from: $0, to: $1) }
                     Button("＋ 職場を追加") { addingWorkplace = true }
@@ -37,8 +38,14 @@ struct WorkplaceManageView: View {
             .navigationTitle("職場の管理")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { EditButton() }
-                ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { EditButton() }
+            }
+            .confirmationDialog("この職場を削除しますか?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+                                titleVisibility: .visible, presenting: pendingDelete) { w in
+                Button("削除", role: .destructive) { store.deleteWorkplace(id: w.id) }
+            } message: { w in
+                Text("「\(w.name)」を削除します。この職場の予定は消えません。職場の指定だけがなくなります。")
             }
             .sheet(item: $editingWorkplace) { WorkplaceEditor(workplace: $0) }
             .sheet(isPresented: $addingWorkplace) { WorkplaceEditor(workplace: nil) }
