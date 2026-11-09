@@ -225,7 +225,7 @@ struct EventEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isNew ? "追加" : "保存") { commit(duplicate: false) }.disabled(!canSave || focusedField != nil)
+                    Button(isNew ? "追加" : "保存") { commit(duplicate: false) }.disabled(!canSave)
                 }
             }
             .keyboardDismissBar { closeTimePanel() }
