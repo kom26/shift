@@ -50,6 +50,7 @@ struct WorkLabelSheet: View {
                         row(name: w.name, color: w.color, selected: workplaceId == w.id) {
                             if editing { editingWorkplace = w } else { choose(workplace: w.id) }
                         }
+                        .deleteDisabled(!editing)
                     }
                     .onMove { store.moveWorkplaces(from: $0, to: $1) }
                     .onDelete { offsets in
@@ -78,6 +79,7 @@ struct WorkLabelSheet: View {
                         row(name: l.name, color: l.color, selected: workplaceId == nil && labelId == l.id) {
                             if editing { editingLabel = LabelTarget(label: l, isNew: false) } else { choose(label: l.id) }
                         }
+                        .deleteDisabled(!editing)
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
                     .onDelete { offsets in
@@ -97,7 +99,10 @@ struct WorkLabelSheet: View {
             .navigationTitle(editing ? "職場・ラベルを編集" : "職場・ラベル")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+                // 何も選ばずに閉じる(編集中は、変更がその場で保存されているので、出さない)
+                if !editing {
+                    ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(editing ? "完了" : "編集") { withAnimation { editing.toggle() } }
                         .disabled(!editing && store.workplaces.isEmpty && store.labels.isEmpty)
@@ -185,6 +190,7 @@ struct LabelManageView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var target: LabelTarget?
     @State private var pendingDelete: EventLabel?
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
         NavigationStack {
@@ -208,6 +214,7 @@ struct LabelManageView: View {
                             .contentShape(Rectangle())
                         }
                         .foregroundStyle(.primary)
+                        .deleteDisabled(!editMode.isEditing)
                     }
                     .onDelete { offsets in
                         // 削除したラベルの予定は「指定なし」に戻る(予定は消えない)。消す前に、確認を出す
@@ -224,10 +231,11 @@ struct LabelManageView: View {
             .navigationTitle("ラベルの管理")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { EditButton() }
             }
             .sheet(item: $target) { LabelEditor(label: $0.label, isNew: $0.isNew) }
+            .environment(\.editMode, $editMode)
             .confirmationDialog("このラベルを削除しますか?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
                                 titleVisibility: .visible, presenting: pendingDelete) { l in
                 Button("削除", role: .destructive) { store.deleteLabel(id: l.id) }

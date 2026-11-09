@@ -7,6 +7,7 @@ struct WorkplaceManageView: View {
     @State private var editingWorkplace: Workplace?
     @State private var addingWorkplace = false
     @State private var pendingDelete: Workplace?
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
         NavigationStack {
@@ -24,6 +25,7 @@ struct WorkplaceManageView: View {
                                 Text(w.name).foregroundStyle(.primary)
                             }
                         }
+                        .deleteDisabled(!editMode.isEditing)
                     }
                     .onDelete { offsets in
                         // 消す前に、確認を出す
@@ -38,7 +40,7 @@ struct WorkplaceManageView: View {
             .navigationTitle("職場の管理")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { EditButton() }
             }
             .confirmationDialog("この職場を削除しますか?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
@@ -47,6 +49,7 @@ struct WorkplaceManageView: View {
             } message: { w in
                 Text("「\(w.name)」を削除します。この職場の予定は消えません。職場の指定だけがなくなります。")
             }
+            .environment(\.editMode, $editMode)
             .sheet(item: $editingWorkplace) { WorkplaceEditor(workplace: $0) }
             .sheet(isPresented: $addingWorkplace) { WorkplaceEditor(workplace: nil) }
         }
