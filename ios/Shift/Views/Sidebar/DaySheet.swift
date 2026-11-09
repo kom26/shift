@@ -131,7 +131,7 @@ struct DaySheet: View {
                                 }
                                 .accessibilityAddTraits(.isButton)
                                 // 長押ししてつかむと、カレンダー上のバーと同じに動かせる(動かせない予定は、詳細が開くだけ)
-                                .eventDragSource(row.event) { ev in
+                                .eventDragSource(row.event, barPreview: true) { ev in
                                     dismiss()
                                     onSelectEvent(ev)
                                 }

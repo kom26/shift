@@ -312,6 +312,8 @@ struct RootView: View {
             sharedView.close()
         }
         selectTodayAfterMove = false
+        // ウィジェットからは、いつも月表示で開く(週表示で見ていても)
+        mode = .month
         anchor = date
         // 日付が動いたときの「選択を外す」処理のあとに、その日を選ぶ
         try? await Task.sleep(for: .milliseconds(150))
@@ -885,6 +887,8 @@ struct RootView: View {
                 Task { await sharedView.place(id: id, on: date) }
                 return
             }
+            // 元と同じ日に離したときは、何も出さずに取り消す
+            if sharedView.event(id)?.startDate == date { return }
             dropChoice = DropChoice(eventId: id, date: date, title: sharedView.event(id)?.title ?? "",
                                      rect: DragState.shared.dropRect, color: sharedView.event(id)?.color ?? "#bec1cc",
                                      label: sharedView.event(id)?.title ?? "")
@@ -903,6 +907,8 @@ struct RootView: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             return
         }
+        // 元と同じ日に離したときは、何も出さずに取り消す
+        if event.startDate == date { return }
         dropChoice = DropChoice(eventId: id, date: date, title: event.title, rect: DragState.shared.dropRect,
                                  color: event.color, label: event.barShowsTime ? Rules.timeLabel(event) : event.title)
     }
