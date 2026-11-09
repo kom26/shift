@@ -179,6 +179,14 @@ struct RootView: View {
         .onChange(of: alarmStamp) { _, new in
             if new != nil { store.clearFilters() }
         }
+        .onChange(of: showDrawer) { _, open in
+            // ドロワーを開いたら、その日の予定一覧は閉じる
+            if open { dayTarget = nil }
+        }
+        .onChange(of: sharedView.calendar?.id) { _, _ in
+            // カレンダーを切り替えたら、前のカレンダーの予定一覧は閉じる
+            dayTarget = nil
+        }
         .onChange(of: mode) { _, new in
             // 日付を選んだまま週表示にしたら、その日を含む週を出す
             if new == .week, let d = selectedDate { anchor = d }
