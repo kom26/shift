@@ -52,12 +52,13 @@ struct StorePayTests {
         #expect(other == nil)
     }
 
-    @Test func workplaceIdTakesPriorityOverTitle() {
+    @Test func workplaceIsDecidedByIdNotByTitle() {
         let store = make()
         var e = shift("e1", "something", "2026-10-20")
         e.workplaceId = store.workplaces[0].id
         #expect(store.workplace(for: e)?.name == "A")
-        #expect(store.workplace(for: shift("e2", "A", "2026-10-20"))?.name == "A")
+        // タイトルが職場名と同じでも、職場を選んでいなければ職場の予定ではない
+        #expect(store.workplace(for: shift("e2", "A", "2026-10-20")) == nil)
         #expect(store.workplace(for: shift("e3", "Z", "2026-10-20")) == nil)
     }
 
