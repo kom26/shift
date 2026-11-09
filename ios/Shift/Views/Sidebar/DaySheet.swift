@@ -138,7 +138,7 @@ struct DaySheet: View {
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     if canDelete(row.event) {
                                         Button(role: .destructive) { delete(row.event) } label: {
-                                            Label("削除", systemImage: "trash").labelStyle(SwipeDeleteLabelStyle())
+                                            swipeDeleteLabel
                                         }
                                     }
                                 }
