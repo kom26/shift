@@ -55,8 +55,15 @@ struct DaySheet: View {
                         Button {
                             dismiss()
                             onAddEvent(date)
-                        } label: { Image(systemName: "plus") }
-                            .accessibilityLabel("この日に予定を追加")
+                        } label: {
+                            // カレンダー右上の ⊕ と同じ、丸いボタン
+                            Image(systemName: "plus")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(Theme.onAccent)
+                                .frame(width: 36, height: 36)
+                                .background(Theme.accent, in: Circle())
+                        }
+                        .accessibilityLabel("この日に予定を追加")
                     }
                 }
             }
