@@ -285,8 +285,6 @@ struct LabelEditor: View {
                 if !isNew {
                     Section {
                         Button("このラベルを削除", role: .destructive) { confirmDelete = true }
-                    } footer: {
-                        Text("削除すると、\(store.labelEventCount(label.id))件の予定は「指定なし」に戻ります。予定は消えません。")
                     }
                 }
             }
@@ -304,6 +302,8 @@ struct LabelEditor: View {
                     store.deleteLabel(id: label.id)
                     dismiss()
                 }
+            } message: {
+                Text("\(store.labelEventCount(label.id))件の予定は「指定なし」に変更されます。")
             }
         }
         .presentationDetents([.medium, .large])
