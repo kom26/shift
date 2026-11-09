@@ -62,7 +62,7 @@ struct DaySummaryTests {
         store.updateWorkplaceDetails(w)
         var e = ev("e1", "2026-09-05", allDay: false, st: "09:00", et: "18:00", wh: 8)
         e.title = "A"
-        store.save(e)
+        store.save(bind(store, e))
         let rows = store.daySummary(date: "2026-10-25").paydays
         #expect(rows.count == 1)
         #expect(abs(rows[0].amount - 8500) < 0.0001)

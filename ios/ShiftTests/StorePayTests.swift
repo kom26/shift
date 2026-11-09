@@ -24,15 +24,15 @@ struct StorePayTests {
 
     @Test func oneWayTransportIsDoubledInStorePay() {
         let store = make()
-        store.save(shift("e1", "A", "2026-10-20"))
+        store.save(bind(store, shift("e1", "A", "2026-10-20")))
         let t = store.totals(from: "2026-10-18", to: "2026-10-24")
         #expect(abs(t[0].pay - 8500) < 0.0001)
     }
 
     @Test func totalsIncludePay() {
         let store = make()
-        store.save(shift("e1", "A", "2026-10-20"))
-        store.save(shift("e2", "A", "2026-10-21"))
+        store.save(bind(store, shift("e1", "A", "2026-10-20")))
+        store.save(bind(store, shift("e2", "A", "2026-10-21")))
         let t = store.totals(from: "2026-10-18", to: "2026-10-24")
         #expect(t.count == 1)
         #expect(abs(t[0].pay - 17000) < 0.0001)
@@ -41,8 +41,8 @@ struct StorePayTests {
 
     @Test func eventWithoutWorkplaceAddsNoPay() {
         let store = make()
-        store.save(shift("e1", "A", "2026-10-20"))
-        store.save(shift("e2", "B", "2026-10-21"))
+        store.save(bind(store, shift("e1", "A", "2026-10-20")))
+        store.save(bind(store, shift("e2", "B", "2026-10-21")))
         let t = store.totals(from: "2026-10-18", to: "2026-10-24")
         #expect(t.count == 1)
         let a = t.first { $0.title == "A" }
@@ -63,7 +63,7 @@ struct StorePayTests {
 
     @Test func holidayClosureAppliesBonus() {
         let store = make(holidayBonus: 100)
-        store.save(shift("e1", "A", "2026-10-20"))
+        store.save(bind(store, shift("e1", "A", "2026-10-20")))
         let t = store.totals(from: "2026-10-20", to: "2026-10-20", isHoliday: { $0 == "2026-10-20" })
         #expect(abs(t[0].pay - 9300) < 0.0001)
     }
@@ -80,7 +80,7 @@ struct StorePayTests {
         w.breakRules = [BreakRule(id: "r1", hours: 6, comparison: .over, minutes: 30)]
         store.updateWorkplaceDetails(w)
         var e = ev("e1", "2026-10-20", allDay: false, st: "22:00", et: "06:30")
-        e.title = "A"
+        e.workplaceId = w.id
         e.endDate = "2026-10-21"
         // 拘束 8.5 時間。職場の休憩ルール(6 時間超で 30 分)なら 8 時間。法定の 60 分なら 7.5 時間
         #expect(store.effectiveHours(of: e) == 8)

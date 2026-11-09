@@ -26,9 +26,9 @@ struct StorePayCycleTests {
 
     @Test func paymentsSumPeriodEvents() {
         let store = make()
-        store.save(shift("e1", "A", "2026-10-05"))
-        store.save(shift("e2", "A", "2026-10-20"))
-        store.save(shift("e3", "A", "2026-11-02"))
+        store.save(bind(store, shift("e1", "A", "2026-10-05")))
+        store.save(bind(store, shift("e2", "A", "2026-10-20")))
+        store.save(bind(store, shift("e3", "A", "2026-11-02")))
         let rows = store.payments(onPayday: "2026-11-25")
         #expect(rows.count == 1)
         #expect(abs(rows[0].amount - 17000) < 0.0001)
@@ -50,7 +50,7 @@ struct StorePayCycleTests {
     @Test func otherWorkplaceEventsNotCounted() {
         let store = make()
         store.addWorkplace(name: "B", color: "#222222")
-        store.save(shift("e1", "A", "2026-10-05"))
+        store.save(bind(store, shift("e1", "A", "2026-10-05")))
         var b = shift("e2", "B", "2026-10-06")
         b.workplaceId = store.workplaces[1].id
         store.save(b)

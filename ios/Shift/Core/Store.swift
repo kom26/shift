@@ -55,6 +55,7 @@ final class Store {
         static let labels = "shift-labels"
         static let checkedLabels = "shift-checked-labels"
         static let seededLabels = "shift-seeded-labels"
+        static let migratedTitleWorkplaces = "shift-migrated-title-workplaces"
         /// 以前のレイヤー(読むだけ)
         static let legacyLayers = "shift-layers"
     }
@@ -225,10 +226,25 @@ final class Store {
         }
     }
 
-    /// workplaceId が一致する職場、なければタイトルが職場名と一致する職場
+    /// 予定の職場。職場 ID で決める(タイトルが職場名と同じでも、職場を選んでいなければ職場の予定にはならない)
     func workplace(for event: ShiftEvent) -> Workplace? {
-        if let id = event.workplaceId, let w = workplaces.first(where: { $0.id == id }) { return w }
-        return workplaces.first(where: { $0.name == event.title })
+        guard let id = event.workplaceId else { return nil }
+        return workplaces.first(where: { $0.id == id })
+    }
+
+    /// 以前は、職場を選んでいなくてもタイトルが職場名と同じ予定を、その職場の予定として扱っていた。
+    /// その予定に、1 回だけ職場を結びつける(ラベルを付けた予定は、そのまま)。あとからは、タイトルでは決めない
+    func migrateTitleWorkplacesIfNeeded() {
+        guard !defaults.bool(forKey: Keys.migratedTitleWorkplaces) else { return }
+        defaults.set(true, forKey: Keys.migratedTitleWorkplaces)
+        var touched = false
+        for i in events.indices where events[i].workplaceId == nil && events[i].labelId == nil {
+            let same = workplaces.filter { $0.name == events[i].title }
+            guard same.count == 1 else { continue }
+            events[i].workplaceId = same[0].id
+            touched = true
+        }
+        if touched { persist() }
     }
 
     /// 同じ内容で新IDのコピーを作る。配置済みなら最後の配置済みの直後、未配置なら末尾
@@ -531,9 +547,9 @@ final class Store {
         workplaces[i].name = n
         workplaces[i].color = color
         persistWorkplaces()
-        if oldColor != color { recolorEvents(where: { $0.workplaceId == id || $0.title == oldName }, from: oldColor, to: color, includeLegacy: applyToEvents) }
+        if oldColor != color { recolorEvents(where: { $0.workplaceId == id }, from: oldColor, to: color, includeLegacy: applyToEvents) }
         if applyToEvents {
-            for j in events.indices where events[j].title == oldName {
+            for j in events.indices where events[j].workplaceId == id && events[j].title == oldName {
                 events[j].title = n
                 events[j].color = color
             }
@@ -563,8 +579,10 @@ final class Store {
         persistWorkplaces()
     }
 
-    func eventCount(matchingTitle name: String) -> Int {
-        events.filter { $0.title == name }.count
+    /// その職場の予定のうち、タイトルが職場名と同じもの(職場名を変えたとき、一緒に変える対象)
+    func eventCount(forWorkplace id: String) -> Int {
+        guard let name = workplaces.first(where: { $0.id == id })?.name else { return 0 }
+        return events.filter { $0.workplaceId == id && $0.title == name }.count
     }
 
     private func persistWorkplaces() {

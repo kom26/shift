@@ -26,9 +26,9 @@ struct MonthlyPayTests {
 
     private func seeded() -> Store {
         let store = make()
-        store.save(shift("e1", "A", "2026-09-05"))
-        store.save(shift("e2", "A", "2026-09-20"))
-        store.save(shift("e3", "A", "2026-10-05"))
+        store.save(bind(store, shift("e1", "A", "2026-09-05")))
+        store.save(bind(store, shift("e2", "A", "2026-09-20")))
+        store.save(bind(store, shift("e3", "A", "2026-10-05")))
         return store
     }
 
@@ -74,7 +74,7 @@ struct MonthlyPayTests {
         b.paydayDay = 25
         b.paydayMonthOffset = 1
         store.updateWorkplaceDetails(b)
-        store.save(shift("b1", "B", "2026-09-10"))
+        store.save(bind(store, shift("b1", "B", "2026-09-10")))
         let all = store.monthlyPay(anchor: "2026-10-15", basis: .payday)
         #expect(abs(all.amount - 33000) < 0.0001)
         store.toggleWorkplaceFilter(store.workplaces[0].id)

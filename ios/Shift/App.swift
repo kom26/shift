@@ -23,6 +23,7 @@ struct ShiftApp: App {
         FirebaseApp.configure()
         let s = Store()
         s.seedDefaultLabelsIfNeeded()
+        s.migrateTitleWorkplacesIfNeeded()
         let a = AccountSync(store: s, backing: FirestoreBacking())
         let cal = CalendarService(backing: FirestoreCalendarBacking())
         let eventsBacking = FirestoreSharedEvents()

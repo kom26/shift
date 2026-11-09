@@ -56,7 +56,7 @@ struct WorkplaceEditor: View {
     private var trimmed: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var affectedCount: Int {
         guard let workplace else { return 0 }
-        return store.eventCount(matchingTitle: workplace.name)
+        return store.eventCount(forWorkplace: workplace.id)
     }
     private var changed: Bool {
         guard let workplace else { return false }

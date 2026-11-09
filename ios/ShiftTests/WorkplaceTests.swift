@@ -32,7 +32,7 @@ struct WorkplaceTests {
     @Test func updateWithoutApplyKeepsEvents() {
         let store = make()
         store.addWorkplace(name: "ドンキ", color: "#f59e0b")
-        store.save(evt("a", title: "ドンキ", color: "#f59e0b"))
+        store.save(bind(store, evt("a", title: "ドンキ", color: "#f59e0b")))
         store.updateWorkplace(id: store.workplaces[0].id, name: "ドンキ新宿", color: "#10b981", applyToEvents: false)
         #expect(store.workplaces[0].name == "ドンキ新宿")
         #expect(store.workplaces[0].color == "#10b981")
@@ -43,8 +43,8 @@ struct WorkplaceTests {
     @Test func updateWithApplyChangesMatchingEventsOnly() {
         let store = make()
         store.addWorkplace(name: "ドンキ", color: "#f59e0b")
-        store.save(evt("a", title: "ドンキ", color: "#111111"))
-        store.save(evt("b", title: "ドンキ", color: "#222222"))
+        store.save(bind(store, evt("a", title: "ドンキ", color: "#111111")))
+        store.save(bind(store, evt("b", title: "ドンキ", color: "#222222")))
         store.save(evt("c", title: "まねき", color: "#333333"))
         store.updateWorkplace(id: store.workplaces[0].id, name: "ドンキ新宿", color: "#10b981", applyToEvents: true)
         #expect(store.events[0].title == "ドンキ新宿")
@@ -55,18 +55,46 @@ struct WorkplaceTests {
         #expect(store.events[2].color == "#333333")
     }
 
-    @Test func eventCountIsExactMatch() {
+    @Test func eventCountIsTheWorkplacesOwnEventsWithTheSameTitle() {
         let store = make()
-        store.save(evt("a", title: "ドンキ", color: "#111111"))
-        store.save(evt("b", title: "ドンキ", color: "#222222"))
-        store.save(evt("c", title: "ドンキ新宿", color: "#333333"))
-        #expect(store.eventCount(matchingTitle: "ドンキ") == 2)
+        store.addWorkplace(name: "ドンキ", color: "#f59e0b")
+        store.save(bind(store, evt("a", title: "ドンキ", color: "#111111")))
+        store.save(bind(store, evt("b", title: "ドンキ", color: "#222222")))
+        // 職場を選んでいない予定は、タイトルが同じでも数えない
+        store.save(evt("c", title: "ドンキ", color: "#333333"))
+        store.save(evt("d", title: "ドンキ新宿", color: "#444444"))
+        #expect(store.eventCount(forWorkplace: store.workplaces[0].id) == 2)
+    }
+
+    @Test func titleAloneNeverMakesAWorkplaceEvent() {
+        let store = make()
+        store.addWorkplace(name: "ドンキ", color: "#f59e0b")
+        let e = evt("a", title: "ドンキ", color: "#f59e0b")
+        store.save(e)
+        #expect(store.workplace(for: e) == nil)
+    }
+
+    @Test func migrationBindsOldTitleOnlyEventsOnce() {
+        let store = make()
+        store.addWorkplace(name: "ドンキ", color: "#f59e0b")
+        store.save(evt("a", title: "ドンキ", color: "#f59e0b"))
+        var labeled = evt("b", title: "ドンキ", color: "#f59e0b")
+        labeled.labelId = "l1"
+        store.save(labeled)
+        store.migrateTitleWorkplacesIfNeeded()
+        #expect(store.events.first { $0.id == "a" }?.workplaceId == store.workplaces[0].id)
+        // ラベルを付けた予定は、そのまま
+        #expect(store.events.first { $0.id == "b" }?.workplaceId == nil)
+        // 2 回目からは、タイトルが同じでも結びつけない
+        store.save(evt("c", title: "ドンキ", color: "#f59e0b"))
+        store.migrateTitleWorkplacesIfNeeded()
+        #expect(store.events.first { $0.id == "c" }?.workplaceId == nil)
     }
 
     @Test func deleteKeepsEvents() {
         let store = make()
         store.addWorkplace(name: "ドンキ", color: "#f59e0b")
-        store.save(evt("a", title: "ドンキ", color: "#f59e0b"))
+        store.save(bind(store, evt("a", title: "ドンキ", color: "#f59e0b")))
         store.deleteWorkplace(id: store.workplaces[0].id)
         #expect(store.workplaces.isEmpty)
         #expect(store.events.count == 1)

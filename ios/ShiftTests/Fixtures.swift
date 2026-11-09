@@ -19,3 +19,10 @@ func attachWorkplaces(_ store: Store) {
         store.save(copy)
     }
 }
+
+/// タイトルが職場名と同じ予定に、その職場を結びつけて返す(職場は、予定の職場 ID で決まる)
+func bind(_ store: Store, _ e: ShiftEvent) -> ShiftEvent {
+    var c = e
+    if c.workplaceId == nil, let w = store.workplaces.first(where: { $0.name == c.title }) { c.workplaceId = w.id }
+    return c
+}
