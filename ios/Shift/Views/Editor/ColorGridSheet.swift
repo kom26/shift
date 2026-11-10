@@ -56,8 +56,9 @@ struct ColorGridSheet: View {
         NavigationStack {
             VStack(spacing: 16) {
                 grid
-                Spacer(minLength: 0)
                 bottomBar
+                // 画面を内容の高さにして、グリッドとボタンのあいだに空きを作らない
+                Spacer(minLength: 0)
             }
             .padding(16)
             .navigationTitle("カスタム色")
@@ -66,7 +67,7 @@ struct ColorGridSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
             }
         }
-        .presentationDetents([.height(640), .large])
+        .presentationDetents([.height(560), .large])
         .presentationBackground(Color(.systemBackground))
     }
 
