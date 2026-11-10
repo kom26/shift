@@ -116,10 +116,11 @@ struct RootView: View {
         mainBody
             // 開いた共有カレンダーで、まだ見ていない退会のお知らせがあれば出す
             .onChange(of: sharedView.calendar?.id) { _, id in showNotices(for: id) }
-            // カレンダーを切り替えたり、ドロワーを開いたりしたら、その日の予定一覧は閉じる
+            // カレンダーを切り替えたり、ドロワーを開いたり、週表示にしたりしたら、その日の予定一覧は閉じる
             // (長い式で型の検査が終わらなくなるので、mainBody の外に置く)
             .onChange(of: sharedView.calendar?.id) { _, _ in dayTarget = nil }
             .onChange(of: showDrawer) { _, open in if open { dayTarget = nil } }
+            .onChange(of: mode) { _, new in if new == .week { dayTarget = nil } }
     }
 
     private func showNotices(for id: String?) {
