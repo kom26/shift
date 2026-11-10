@@ -24,6 +24,11 @@ struct SharedEvent: Equatable, Identifiable {
     /// 最後に変えた時刻(Unix ミリ秒)と、変えた人の名前。共有の予定の編集画面の下に出す(古い予定は nil)
     var updatedAt: Double? = nil
     var updatedByName: String? = nil
+    /// メモ・URL・画像。共有カレンダーの中で作った予定だけが持つ(自分の予定を共有に出すときは、メモなどは出さない)。
+    /// 画像の名前は `AttachmentStore.calendarPrefix` で始まり、共有カレンダーの保存先に置かれる
+    var memo: String = ""
+    var url: String = ""
+    var imageId: String? = nil
 
     /// 共有カレンダーの中で作った予定のキー(参加者全員が直せる)
     static let calendarKey = "calendar"
@@ -63,6 +68,9 @@ struct SharedEvent: Equatable, Identifiable {
         var e = SharedEvent(id: id, ownerUid: ownerUid, sourceKey: sourceKey, title: title, startDate: date, endDate: end,
                             startTime: startTime, endTime: endTime, allDay: allDay, name: name, color: color, barTime: barTime)
         e.placed = true
+        e.memo = memo
+        e.url = url
+        e.imageId = imageId
         return e
     }
 
@@ -71,6 +79,9 @@ struct SharedEvent: Equatable, Identifiable {
         var e = SharedEvent(id: id, ownerUid: ownerUid, sourceKey: sourceKey, title: title, startDate: "", endDate: "",
                             startTime: startTime, endTime: endTime, allDay: allDay, name: name, color: color, barTime: barTime)
         e.placed = false
+        e.memo = memo
+        e.url = url
+        e.imageId = imageId
         return e
     }
 
@@ -90,10 +101,10 @@ struct SharedEvent: Equatable, Identifiable {
     /// showsTime: この端末で選んだ表示(true: 時間 / false: 予定名)。nil なら共有した人の表示に合わせる。
     /// 時間のない予定は、どちらでも予定名のまま
     func shiftEvent(color shownColor: String? = nil, showsTime: Bool? = nil) -> ShiftEvent {
-        ShiftEvent(id: id, title: title, memo: "", color: shownColor ?? color,
+        ShiftEvent(id: id, title: title, memo: memo, color: shownColor ?? color,
                    startDate: placed ? startDate : nil, endDate: placed ? endDate : nil,
                    placed: placed, allDay: allDay, startTime: startTime, endTime: endTime, workHours: nil,
-                   barShowsTitle: (showsTime ?? barTime) ? nil : true)
+                   barShowsTitle: (showsTime ?? barTime) ? nil : true, url: url.isEmpty ? nil : url, imageId: imageId)
     }
 }
 
@@ -423,6 +434,10 @@ final class SharedViewState {
                                title: e.title, startDate: e.startDate, endDate: e.endDate, startTime: e.startTime,
                                endTime: e.endTime, allDay: e.allDay, name: e.name, color: e.color, barTime: e.barTime)
         made.placed = e.placed
+        // 画像は、共有カレンダーの同じ保存先を指す(コピーは、同じ画像を見る)
+        made.memo = e.memo
+        made.url = e.url
+        made.imageId = e.imageId
         return await save(made.moved(to: date))
     }
 

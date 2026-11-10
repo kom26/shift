@@ -12,6 +12,18 @@ enum AttachmentStore {
 
     private static func fileURL(_ id: String) -> URL { directory.appending(path: "\(id).jpg") }
 
+    /// 共有カレンダーの画像の名前の頭。"cal~<カレンダーID>~<画像ID>" で、クラウドの保存先が決まる
+    static let calendarPrefix = "cal~"
+
+    static func calendarImageId(calendarId: String) -> String { "\(calendarPrefix)\(calendarId)~\(UUID().uuidString)" }
+
+    /// 共有カレンダーの画像なら、そのカレンダーの ID
+    static func calendarId(of imageId: String) -> String? {
+        guard imageId.hasPrefix(calendarPrefix) else { return nil }
+        let parts = imageId.split(separator: "~", omittingEmptySubsequences: false)
+        return parts.count == 3 ? String(parts[1]) : nil
+    }
+
     /// 保存する画像の大きさの目安(300KB 前後)。元の写真は残さない
     static let targetBytes = 300_000
 
@@ -38,10 +50,10 @@ enum AttachmentStore {
         }
     }
 
-    /// 300KB 前後に縮めて保存し、名前を返す
-    static func save(_ data: Data) -> String? {
+    /// 300KB 前後に縮めて保存し、名前を返す。calendarId を渡すと、共有カレンダーの画像として保存する
+    static func save(_ data: Data, calendarId: String? = nil) -> String? {
         guard let image = UIImage(data: data), let jpeg = shrink(image) else { return nil }
-        let id = UUID().uuidString
+        let id = calendarId.map { calendarImageId(calendarId: $0) } ?? UUID().uuidString
         do {
             try jpeg.write(to: fileURL(id), options: .atomic)
             return id
@@ -185,6 +197,8 @@ struct AttachmentFields: View {
     var outsideTap: Int
     /// 画像の追加と取り外しを覚えておく(保存・キャンセルで、あとから片づける)
     var session: AttachmentSession
+    /// 共有カレンダーの予定を直すときの、そのカレンダーの ID(画像を、共有カレンダーの保存先に置く)
+    var calendarId: String?
 
     private enum Kind: Hashable { case memo, image, url }
 
@@ -197,8 +211,10 @@ struct AttachmentFields: View {
     @State private var lastTouch: (kind: Kind, at: Date)?
     @FocusState private var focus: Kind?
 
-    init(memo: Binding<String>, url: Binding<String>, imageId: Binding<String?>, outsideTap: Int, session: AttachmentSession) {
+    init(memo: Binding<String>, url: Binding<String>, imageId: Binding<String?>, outsideTap: Int, session: AttachmentSession,
+         calendarId: String? = nil) {
         self.session = session
+        self.calendarId = calendarId
         _memo = memo
         _url = url
         _imageId = imageId
@@ -337,7 +353,7 @@ struct AttachmentFields: View {
     private func loadPhoto(_ item: PhotosPickerItem) async {
         defer { photoItem = nil }
         guard let data = try? await item.loadTransferable(type: Data.self),
-              let id = AttachmentStore.save(data) else { return }
+              let id = AttachmentStore.save(data, calendarId: calendarId) else { return }
         if let old = imageId { session.didRemove(old) }
         session.didAdd(id)
         imageId = id

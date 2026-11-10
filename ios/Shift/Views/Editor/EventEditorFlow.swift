@@ -193,6 +193,10 @@ struct EventEditorFlow: View {
             out.placed = placed
             out.updatedAt = base.updatedAt
             out.updatedByName = base.updatedByName
+            // メモ・URL・画像は、この画面では直さないので、そのまま残す
+            out.memo = base.memo
+            out.url = base.url
+            out.imageId = base.imageId
             return out
         }
 

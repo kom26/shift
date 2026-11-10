@@ -12,8 +12,12 @@ enum AttachmentCloud {
 
     private static var uid: String? { Auth.auth().currentUser?.uid }
 
+    /// 共有カレンダーの画像は calendars/<カレンダーID>/attachments、自分の画像は users/<uid>/attachments に置く
     private static func reference(_ id: String, uid: String) -> StorageReference {
-        Storage.storage().reference().child("users/\(uid)/attachments/\(id).jpg")
+        if let cid = AttachmentStore.calendarId(of: id) {
+            return Storage.storage().reference().child("calendars/\(cid)/attachments/\(id).jpg")
+        }
+        return Storage.storage().reference().child("users/\(uid)/attachments/\(id).jpg")
     }
 
     private static var uploaded: Set<String> {
@@ -60,7 +64,9 @@ enum AttachmentCloud {
         for id in referenced where AttachmentStore.exists(id) { await upload(id) }
         let cutoff = Date().addingTimeInterval(-Double(pruneGraceDays) * 86_400)
         // 端末の中
-        for (id, created) in AttachmentStore.localFiles() where !referenced.contains(id) && created < cutoff {
+        // 共有カレンダーの画像は、端末のキャッシュなので、ここでは片づけない
+        for (id, created) in AttachmentStore.localFiles()
+        where !referenced.contains(id) && created < cutoff && AttachmentStore.calendarId(of: id) == nil {
             AttachmentStore.delete(id)
         }
         // クラウドの中

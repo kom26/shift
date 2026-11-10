@@ -49,6 +49,12 @@ struct SharedEventEditor: View {
     @State private var endWarningTask: Task<Void, Never>?
     @FocusState private var focusedField: Field?
     @State private var color: String
+    @State private var memo: String
+    @State private var url: String
+    @State private var imageId: String?
+    /// フォームのどこかをタップするたびに増やす(メモ・画像・URL の空の欄を閉じる合図)
+    @State private var outsideTap = 0
+    @State private var attachments = AttachmentSession()
     @State private var saving = false
     @State private var failed = false
     @State private var confirmDelete = false
@@ -72,6 +78,9 @@ struct SharedEventEditor: View {
         _endTime = State(initialValue: e.endTime.nonEmpty ?? "18:00")
         _lastValidEndTime = State(initialValue: e.endTime.nonEmpty ?? "18:00")
         _color = State(initialValue: e.color)
+        _memo = State(initialValue: e.memo)
+        _url = State(initialValue: e.url)
+        _imageId = State(initialValue: e.imageId)
     }
 
     /// "2026-11-10" と "09:30" から日時を作る(時刻が無ければ、指定の時)
@@ -109,6 +118,9 @@ struct SharedEventEditor: View {
                               startTime: allDay ? nil : startTime, endTime: allDay ? nil : endTime,
                               allDay: allDay, name: e.name, color: color, barTime: e.barTime)
         out.placed = hasDate
+        out.memo = memo
+        out.url = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        out.imageId = imageId
         return out
     }
 
@@ -415,6 +427,12 @@ struct SharedEventEditor: View {
         return p
     }
 
+    /// 画像の置き場にする共有カレンダーの ID(保存先を切り替えているときは、切り替え先)
+    private var attachmentCalendarId: String? {
+        if let flow, !flow.isAtOrigin, let cid = flow.destination { return cid }
+        return shared.calendar?.id
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -441,6 +459,11 @@ struct SharedEventEditor: View {
                         endNotationHints
                     }
                 }
+                // 共有カレンダーの中で作った予定だけ、メモ・画像・URL を付けられる(自分の予定を共有に出したものは、メモなどを共有しない)
+                if target.event.isCalendarOwned {
+                    AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap, session: attachments,
+                                     calendarId: attachmentCalendarId)
+                }
                 if failed {
                     Section { Text("保存できませんでした。通信を確認してください。").foregroundStyle(.red) }
                 }
@@ -454,6 +477,8 @@ struct SharedEventEditor: View {
                 }
             }
             .environment(\.locale, Locale(identifier: "ja_JP"))
+            .simultaneousGesture(TapGesture().onEnded { outsideTap += 1 })
+            .onDisappear { attachments.discardIfUncommitted() }
             .navigationTitle(target.isNew ? "共有カレンダーに追加" : "共有の予定を編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -472,6 +497,7 @@ struct SharedEventEditor: View {
                                 ok = await shared.save(e)
                             }
                             if ok {
+                                attachments.commit(keeping: e.imageId)
                                 store.rememberColor(color)
                                 dismiss()
                                 flow?.saved(e.placed ? e.startDate : nil)
@@ -499,7 +525,13 @@ struct SharedEventEditor: View {
                 Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
                     Task {
-                        if await shared.delete(id: target.event.id) { dismiss() } else { failed = true }
+                        if await shared.delete(id: target.event.id) {
+                            // 付いていた画像も、保存先から消す
+                            if let id = target.event.imageId { await AttachmentCloud.remove(id) }
+                            dismiss()
+                        } else {
+                            failed = true
+                        }
                     }
                 }
             } message: {

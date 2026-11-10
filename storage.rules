@@ -9,5 +9,20 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
+
+    // 共有カレンダーの中で作った予定の画像。そのカレンダーに参加している(承認済みの)人が、読み書きできる(画像だけ、3MBまで)
+    match /calendars/{cid}/attachments/{file} {
+      function isActiveMember() {
+        return request.auth != null && (
+          firestore.get(/databases/(default)/documents/calendars/$(cid)).data.ownerUid == request.auth.uid
+          || (firestore.exists(/databases/(default)/documents/calendars/$(cid)/members/$(request.auth.uid))
+              && firestore.get(/databases/(default)/documents/calendars/$(cid)/members/$(request.auth.uid)).data.status == 'active'));
+      }
+      allow read: if isActiveMember();
+      allow create, update: if isActiveMember()
+        && request.resource.size < 3 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isActiveMember();
+    }
   }
 }
