@@ -398,6 +398,23 @@ struct SharedEventEditor: View {
         }
     }
 
+    /// 予定バーの見た目のプレビュー用(月カレンダーで、この予定のバーがどう見えるか)
+    private var previewEvent: ShiftEvent {
+        let e = built()
+        var p = ShiftEvent.newUnplaced()
+        p.title = e.title.isEmpty ? "タイトル" : e.title
+        p.color = e.color
+        p.ownColor = true
+        p.barShowsTitle = true
+        p.placed = e.placed
+        p.startDate = e.placed ? e.startDate : nil
+        p.endDate = e.placed ? e.endDate : nil
+        p.allDay = e.allDay
+        p.startTime = e.startTime
+        p.endTime = e.endTime
+        return p
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -406,8 +423,12 @@ struct SharedEventEditor: View {
                     TextField("タイトル(必須)", text: $title)
                         .focused($focusedField, equals: .title)
                     ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
-                } footer: {
-                    Text("この予定は、共有カレンダーの参加者全員が見られて、直せます。給料やメモは持ちません。日付未定の予定は、下の未配置エリアに入ります。")
+                    // 予定バーの見た目(自分の予定の編集と同じ)
+                    HStack(alignment: .center, spacing: 8) {
+                        Text("予定バーの見た目").lineLimit(1).fixedSize()
+                        Spacer(minLength: 0)
+                        BarLookPreview(event: previewEvent)
+                    }
                 }
                 Section {
                     Toggle("終日", isOn: $allDay)
