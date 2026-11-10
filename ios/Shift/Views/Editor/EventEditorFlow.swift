@@ -294,7 +294,7 @@ struct DestinationSheet: View {
                 } header: {
                     Text("この予定を保存するカレンダー")
                 } footer: {
-                    Text("共有カレンダーに保存すると、参加者全員に見えて、直せます。")
+                    Text("共有カレンダーに保存した予定は参加者全員が修正・削除できます。")
                 }
             }
             .navigationTitle("保存先のカレンダー")
