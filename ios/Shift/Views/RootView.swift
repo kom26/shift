@@ -32,7 +32,8 @@ struct PaydayTarget: Identifiable {
 
 struct DayTarget: Identifiable {
     let date: String
-    var id: String { date }
+    /// 日が変わっても、同じシートのまま中身だけ差し替える(日ごとに id を変えると、シートが閉じて開き直しになる)
+    var id: String { "day-list" }
 }
 
 /// 予定をドラッグして日付で離したときの、移動・コピーの選択
@@ -258,6 +259,7 @@ struct RootView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: date) }
             }, makeAddTarget: dayAddTarget, makeEditTarget: dayEditTarget, addEditor: { AnyView(dayAddEditor($0)) })
             .environment(displayStore)
+            .id(t.date)
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .alert(inviteAlertTitle, isPresented: $showJoinNeedsAccount) {
@@ -841,6 +843,11 @@ struct RootView: View {
     private func tapDay(_ date: String) {
         if alarmStamp != nil || stampId != nil {
             addEvent(on: date)
+        } else if dayTarget != nil {
+            // 予定一覧を開いたまま別の日を選んだら、一覧もその日の中身に差し替える
+            selectedDate = date
+            dayTarget = DayTarget(date: date)
+            UISelectionFeedbackGenerator().selectionChanged()
         } else if selectedDate == date {
             dayTarget = DayTarget(date: date)
         } else {
