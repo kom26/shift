@@ -13,8 +13,8 @@ struct TaskItem: Codable, Identifiable, Equatable {
     var dueTime: String?
     var done: Bool
 
-    /// 最初に選ばれている色。カスタム色の並びの、赤(3 行目・色相 4°の列)
-    static var defaultColor: String { ColorGridSheet.cells[12 + 2 * 12 + 5] }
+    /// 最初に選ばれている色。カスタム色の並びの、赤(3 行目・色相 4°の列)。ウィジェットでも使う Core なので、画面の部品は参照せず、値で持つ
+    static let defaultColor = "#df3226"
 
     static func new(startDate: String? = nil, dueDate: String? = nil) -> TaskItem {
         TaskItem(id: UUID().uuidString, title: "", color: defaultColor,
