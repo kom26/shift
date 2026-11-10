@@ -255,7 +255,7 @@ struct CalendarNameField: View {
             .accessibilityLabel("アイコンを変える")
             .popover(isPresented: $picking) {
                 VStack(alignment: .leading, spacing: 12) {
-                    CalendarIconPicker(selection: $icon) { picking = false }
+                    CalendarIconPicker(selection: $icon)
                     if !CalendarIcon.isPhoto(icon) {
                         // アイコンの色(参加者全員に同じ色で見える)。予定の色と同じ、決まった色と好きな色
                         ColorRow(color: iconColor, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) },
@@ -273,6 +273,15 @@ struct CalendarNameField: View {
                             .font(.app(15, weight: .semibold))
                             .frame(maxWidth: .infinity, minHeight: 40)
                             .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                    // アイコンと色を選び終えたら、ここで閉じる(外をタップしても閉じるが、気づきにくい)
+                    Button { picking = false } label: {
+                        Text("完了")
+                            .font(.app(16, weight: .bold))
+                            .foregroundStyle(Theme.onAccent)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(Theme.accent, in: RoundedRectangle(cornerRadius: 10))
                     }
                     .buttonStyle(.plain)
                 }
