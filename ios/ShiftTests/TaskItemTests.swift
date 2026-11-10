@@ -80,7 +80,7 @@ struct TaskItemTests {
     }
 
     @Test func decodesOldJSONWithoutDone() throws {
-        let json = #"{"id":"x","title":"t","color":"#fff","dueDate":"2026-12-11"}"#
+        let json = ##"{"id":"x","title":"t","color":"#fff","dueDate":"2026-12-11"}"##
         let t = try JSONDecoder().decode(TaskItem.self, from: Data(json.utf8))
         #expect(!t.done && t.dueDate == "2026-12-11" && t.startDate == nil)
     }
