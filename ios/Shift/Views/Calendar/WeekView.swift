@@ -260,22 +260,11 @@ struct WeekView: View {
                         .offset(x: 1 + laneW * CGFloat(slot.lane), y: H * CGFloat(seg.top))
                 }
             }
-            ForEach(store.alarmFireMinutes(on: ds), id: \.self) { m in
-                ZStack(alignment: .leading) {
-                    Rectangle().fill(Theme.alarm).frame(width: colW, height: 2)
-                    Image(systemName: "bell.fill")
-                        .font(.app(8))
-                        .foregroundStyle(Theme.alarm)
-                        .padding(2)
-                        .background(calBg, in: Circle())
-                        .offset(x: 1, y: -7)
-                }
-                .offset(y: H * CGFloat(m) / 1440 - 1)
-                .allowsHitTesting(false)
-            }
-            // 時刻つきの開始・締切は、アラームのように、その時刻に線で出す
-            ForEach(Array(store.taskLines(on: ds).enumerated()), id: \.offset) { _, line in
-                taskLine(line.task, isStart: line.isStart, minutes: line.minutes, colW: colW, H: H)
+            // アラーム・開始・締切の印は、その時刻に線で出す。近い印は、通常の予定と同じように、列の幅を分け合う
+            let markers = store.alarmFireMinutes(on: ds).map { WeekMarkerLayout.Item(kind: .bell, minutes: $0, color: nil) }
+                + store.taskLines(on: ds).map { WeekMarkerLayout.Item(kind: $0.isStart ? .start : .due, minutes: $0.minutes, color: $0.task.color) }
+            ForEach(Array(WeekMarkerLayout.layout(markers).enumerated()), id: \.offset) { _, slot in
+                markerLine(slot, colW: colW, H: H)
             }
             if ds == Rules.today() {
                 TimelineView(.everyMinute) { ctx in
@@ -292,19 +281,46 @@ struct WeekView: View {
         }
     }
 
-    private func taskLine(_ t: TaskItem, isStart: Bool, minutes: Int, colW: CGFloat, H: CGFloat) -> some View {
-        ZStack(alignment: .topLeading) {
-            Rectangle().fill(Color(hex: t.color)).frame(width: colW, height: 2)
-            HStack(spacing: 2) {
-                TaskKindMark(isStart: isStart).font(.app(7))
-                Text(t.title).font(.bar(9 + CGFloat(fontDelta), weight: .bold)).lineLimit(1)
-            }
-            .foregroundStyle(EventColor.text(t.color))
-            .frame(width: max(0, colW - 2), alignment: .leading)
-            .offset(x: 1, y: -11)
+    /// 時刻の印 1 つ。線の上に、印(ベル・再生・旗)だけを出す(開始・締切のタイトルは出さない)。
+    /// 印と「+n」は、分け合った幅に収まるように、幅に合わせて小さくする
+    private func markerLine(_ slot: WeekMarkerLayout.Slot, colW: CGFloat, H: CGFloat) -> some View {
+        let w = colW / CGFloat(slot.count)
+        let size = max(5, min(9, (w * 0.42).rounded(.down)))
+        let plusSize = max(5, min(8, (w * 0.34).rounded(.down)))
+        let tint = slot.color.map { Color(hex: $0) } ?? Theme.alarm
+        let symbol: String
+        switch slot.kind {
+        case .bell: symbol = "bell.fill"
+        case .start: symbol = "play.fill"
+        case .due: symbol = "flag.fill"
         }
-        .offset(y: H * CGFloat(minutes) / 1440 - 1)
+        return ZStack(alignment: .topLeading) {
+            Rectangle().fill(tint).frame(width: w, height: 2)
+            HStack(spacing: 1) {
+                Image(systemName: symbol).font(.system(size: size))
+                if slot.extra > 0 {
+                    Text("+\(slot.extra)").font(.system(size: plusSize, weight: .bold))
+                }
+            }
+            .foregroundStyle(slot.color.map { EventColor.text($0) } ?? Theme.alarm)
+            .frame(width: w, alignment: .leading)
+            .lineLimit(1)
+            .fixedSize(horizontal: false, vertical: true)
+            .offset(x: 1, y: -(size + 3))
+        }
+        .offset(x: w * CGFloat(slot.slot), y: H * CGFloat(slot.minutes) / 1440 - 1)
         .allowsHitTesting(false)
+        .accessibilityLabel(markerLabel(slot))
+    }
+
+    private func markerLabel(_ slot: WeekMarkerLayout.Slot) -> String {
+        let name: String
+        switch slot.kind {
+        case .bell: name = "アラーム"
+        case .start: name = "開始"
+        case .due: name = "締切"
+        }
+        return slot.extra > 0 ? "\(name) ほか\(slot.extra)件" : name
     }
 
     private func blockPreview(_ ev: ShiftEvent, w: CGFloat, h: CGFloat) -> some View {
