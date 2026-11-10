@@ -33,8 +33,8 @@ struct TaskEditor: View {
         _color = State(initialValue: original.color)
         _hasStart = State(initialValue: original.hasStart)
         _startDay = State(initialValue: original.startDate.flatMap(Rules.parse) ?? Rules.parse(Rules.today()) ?? Date())
-        // 時刻は、最初はどちらもオン(すでにある項目は、その通り)
-        _startTimed = State(initialValue: isNew ? true : original.startTime != nil)
+        // 最初は、開始オフ・時間オフ、締切オン・時間オン(すでにある項目は、その通り)
+        _startTimed = State(initialValue: isNew ? false : original.startTime != nil)
         _startClock = State(initialValue: Self.clock(original.startTime, fallback: (9, 0)))
         _hasDue = State(initialValue: original.hasDue)
         _dueDay = State(initialValue: original.dueDate.flatMap(Rules.parse) ?? original.startDate.flatMap(Rules.parse) ?? Rules.parse(Rules.today()) ?? Date())
@@ -74,17 +74,26 @@ struct TaskEditor: View {
                 Section {
                     Toggle("開始", isOn: $hasStart.animation())
                     if hasStart {
-                        DatePicker("日付", selection: $startDay, displayedComponents: .date)
                         Toggle("時間も設定", isOn: $startTimed.animation())
-                        if startTimed { DatePicker("時刻", selection: $startClock, displayedComponents: .hourAndMinute) }
+                        // 時間をオンにしたときは、別の行にせず、日付の行に並べる(通常の予定の「開始」の行と同じ)
+                        HStack(spacing: 8) {
+                            Text("日付")
+                            Spacer()
+                            DatePicker("", selection: $startDay, displayedComponents: .date).labelsHidden()
+                            if startTimed { DatePicker("", selection: $startClock, displayedComponents: .hourAndMinute).labelsHidden() }
+                        }
                     }
                 }
                 Section {
                     Toggle("締切", isOn: $hasDue.animation())
                     if hasDue {
-                        DatePicker("日付", selection: $dueDay, in: (hasStart ? startDay : Date.distantPast)..., displayedComponents: .date)
                         Toggle("時間も設定", isOn: $dueTimed.animation())
-                        if dueTimed { DatePicker("時刻", selection: $dueClock, displayedComponents: .hourAndMinute) }
+                        HStack(spacing: 8) {
+                            Text("日付")
+                            Spacer()
+                            DatePicker("", selection: $dueDay, in: (hasStart ? startDay : Date.distantPast)..., displayedComponents: .date).labelsHidden()
+                            if dueTimed { DatePicker("", selection: $dueClock, displayedComponents: .hourAndMinute).labelsHidden() }
+                        }
                     }
                 } footer: {
                     if !hasStart && !hasDue {

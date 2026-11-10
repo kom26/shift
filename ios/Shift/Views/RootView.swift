@@ -811,7 +811,7 @@ struct RootView: View {
                 addMenuRow(icon: "flag", title: "開始・締切予定追加") {
                     closeAddMenu()
                     let d = selectedDate ?? Rules.today()
-                    taskEditing = TaskEditTarget(task: .new(startDate: d, dueDate: d), isNew: true)
+                    taskEditing = TaskEditTarget(task: .new(dueDate: d), isNew: true)
                 }
             }
             .frame(width: 230)
