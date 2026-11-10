@@ -166,7 +166,7 @@ struct DaySheet: View {
                                         Button(role: .destructive) { delete(row.event) } label: {
                                             swipeDeleteLabel
                                         }
-                                        .tint(.red)
+                                        .tint(swipeDeleteTint)
                                     }
                                 }
                         }

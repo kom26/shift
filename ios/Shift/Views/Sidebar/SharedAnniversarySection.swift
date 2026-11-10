@@ -135,7 +135,7 @@ struct SharedAnniversaryListView: View {
                 } label: {
                     swipeDeleteLabel
                 }
-                .tint(.red)
+                .tint(swipeDeleteTint)
             }
         }
     }
