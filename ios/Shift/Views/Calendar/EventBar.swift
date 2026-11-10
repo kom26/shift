@@ -14,6 +14,7 @@ struct EventBar: View {
         }
     }
 
+    @ViewBuilder
     private var bar: some View {
         let ev = span.event
         let r: CGFloat = 4
