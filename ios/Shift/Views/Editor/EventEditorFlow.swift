@@ -63,13 +63,6 @@ struct EventEditorFlow: View {
     @State private var destination: String?
     @State private var ownDraft: ShiftEvent
     @State private var sharedDraft: SharedEvent
-    @State private var pending: PendingSwitch?
-    @State private var showNotice = false
-
-    private struct PendingSwitch {
-        let dest: String?
-        let draft: FlowDraft
-    }
 
     private static let placeholder = SharedEvent(id: "", ownerUid: "", sourceKey: SharedEvent.calendarKey, title: "",
                                                  startDate: "", endDate: "", startTime: nil, endTime: nil,
@@ -105,14 +98,6 @@ struct EventEditorFlow: View {
         }
         // 保存先を切り替えると、編集画面を作り直す(入力は、切り替える前に写してある)
         .id(destination ?? "")
-        .alert("共有カレンダーに保存先を変更します。", isPresented: $showNotice) {
-            Button("OK") {
-                if let p = pending { apply(p.dest, p.draft) }
-                pending = nil
-            }
-        } message: {
-            Text("参加者の共通の予定として保存される為、選択している職場・ラベルは解除されます。")
-        }
     }
 
     // MARK: 保存先
@@ -137,14 +122,8 @@ struct EventEditorFlow: View {
 
     private func request(_ dest: String?, _ draft: FlowDraft) {
         guard dest != destination else { return }
-        // 保存されている自分の予定を、共有カレンダーに変えるときだけ、お知らせを出す
-        // (新しい予定のとき、共有から自分へ、元に戻すときは出さない)
-        if !isNew, origin == nil, destination == nil, dest != nil {
-            pending = PendingSwitch(dest: dest, draft: draft)
-            showNotice = true
-        } else {
-            apply(dest, draft)
-        }
+        // 切り替えるときに、お知らせは出さない(職場・ラベルは、保存したときに共有の形で解除される)
+        apply(dest, draft)
     }
 
     private func apply(_ dest: String?, _ draft: FlowDraft) {
