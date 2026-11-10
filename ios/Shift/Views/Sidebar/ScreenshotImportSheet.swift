@@ -1,7 +1,7 @@
 import PhotosUI
 import SwiftUI
 
-/// スクリーンショットから予定を追加する。
+/// AI で画像から追加する(シフト表などのスクリーンショットから予定を、課題の一覧などの画像から開始・締切を)。
 /// 画像(最大 5 枚)を選ぶ → AI が日付と時間を読み取る → 確認して、タイトルと職場・ラベルをまとめて付けて追加する
 struct ScreenshotImportSheet: View {
     @Environment(Store.self) private var store
@@ -9,11 +9,21 @@ struct ScreenshotImportSheet: View {
     var reader: ScreenshotReading = FirebaseScreenshotReader()
     /// 予定を追加したあとに、追加した件数を知らせる(トースト用)
     var onAdded: (Int) -> Void = { _ in }
+    /// 開始・締切を追加したあとに、追加した件数を知らせる(トースト用)
+    var onAddedTasks: (Int) -> Void = { _ in }
 
     private enum Step { case pick, reading, done, review }
+    /// 読み取る内容。最初は予定
+    private enum Mode: Hashable { case events, tasks }
     private static let maxImages = 5
 
     @State private var step = Step.pick
+    @State private var mode = Mode.events
+    /// 開始・締切の読み取り結果と、追加する行、直した内容(読み取った行の id から引ける)
+    @State private var taskLines: [TaskLine] = []
+    @State private var taskIncluded: Set<String> = []
+    @State private var taskEdited: [String: TaskItem] = [:]
+    @State private var taskEdit: TaskLineEdit?
     @State private var picked: [PhotosPickerItem] = []
     @State private var images: [UIImage] = []
     @State private var lines: [ShiftLine] = []
@@ -43,6 +53,12 @@ struct ScreenshotImportSheet: View {
     @FocusState private var nameFocused: Bool
 
     private struct DupTarget: Identifiable { let id: String }
+
+    /// 確認画面から、開始・締切の編集画面を開くための組
+    private struct TaskLineEdit: Identifiable {
+        let id: String
+        let task: TaskItem
+    }
 
     private func choice(_ line: ShiftLine) -> DupChoice { dupChoices[line.id] ?? .both }
 
@@ -104,10 +120,11 @@ struct ScreenshotImportSheet: View {
                 case .pick: pickView
                 case .reading: readingView
                 case .done: doneView
-                case .review: reviewView
+                case .review:
+                    if mode == .tasks { taskReviewView } else { reviewView }
                 }
             }
-            .navigationTitle(step == .review ? "読み取り結果" : (step == .done ? "読み取り完了" : "スクショから予定を追加"))
+            .navigationTitle(step == .review ? "読み取り結果" : (step == .done ? "読み取り完了" : "AIで画像から追加"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -134,10 +151,10 @@ struct ScreenshotImportSheet: View {
 
     /// 読み取り完了。チェックマークを見せてから、ボタンで確認・変更の画面へ
     private var doneView: some View {
-        ReadDoneView(workCount: lines.filter { !$0.off }.count) {
+        ReadDoneView(workCount: mode == .tasks ? taskLines.count : lines.filter { !$0.off }.count) {
             step = .review
-            // 24時をこえる時間があれば、取り込む前に、取り込み方を確認する
-            showSpanSheet = !overnightGroups.isEmpty
+            // 24時をこえる時間があれば、取り込む前に、取り込み方を確認する(予定のときだけ)
+            showSpanSheet = mode == .events && !overnightGroups.isEmpty
         }
     }
 
@@ -146,10 +163,20 @@ struct ScreenshotImportSheet: View {
     private var pickView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("シフト表などのスクリーンショットから\n予定を一括で取り込みます。")
+                // 読み取る内容(最初は予定)
+                Picker("読み取る内容", selection: $mode) {
+                    Text("予定").tag(Mode.events)
+                    Text("開始・締切").tag(Mode.tasks)
+                }
+                .pickerStyle(.segmented)
+
+                Text(mode == .events
+                     ? "シフト表などのスクリーンショットから\n予定を一括で取り込みます。"
+                     : "課題の一覧や予定表、メールの画面などの画像から、\nタイトルと開始・締切を一括で取り込みます。")
                     .font(.app(14))
                     .foregroundStyle(.secondary)
 
+                if mode == .events {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("まとめて設定").font(.app(13, weight: .bold)).padding(.bottom, 4)
                     Button { choosing = true } label: {
@@ -170,17 +197,20 @@ struct ScreenshotImportSheet: View {
                 }
                 .padding(14)
                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+                }
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("スクリーンショット").font(.app(13, weight: .bold))
+                        Text(mode == .events ? "スクリーンショット" : "画像").font(.app(13, weight: .bold))
                         Spacer()
                         Text("\(images.count) / \(Self.maxImages) 枚").font(.app(12)).foregroundStyle(.secondary)
                     }
                     HStack(spacing: 8) {
                         ForEach(0..<Self.maxImages, id: \.self) { i in slot(i) }
                     }
-                    Text("表が何枚かに分かれる場合でもまとめて取り込みできます。同じ予定が複数枚に写っていても重複せず取り込まれます。")
+                    Text(mode == .events
+                         ? "表が何枚かに分かれる場合でもまとめて取り込みできます。同じ予定が複数枚に写っていても重複せず取り込まれます。"
+                         : "複数の画像でもまとめて取り込めます。同じ項目が複数枚に写っていても、重複せず取り込まれます。")
                         .font(.app(12))
                         .foregroundStyle(.secondary)
                 }
@@ -266,6 +296,7 @@ struct ScreenshotImportSheet: View {
             .padding(.vertical, yearMonthOn ? 6 : 0)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
 
+            if mode == .events {
             VStack(spacing: 0) {
                 Toggle("シフト表に複数の名前がある", isOn: $nameOn)
                     .frame(minHeight: 40)
@@ -288,6 +319,7 @@ struct ScreenshotImportSheet: View {
             .padding(.horizontal, 14)
             .padding(.vertical, nameOn ? 6 : 0)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+            }
         }
     }
 
@@ -362,9 +394,24 @@ struct ScreenshotImportSheet: View {
             return
         }
         do {
-            let name = nameOn ? nameText.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            let name = nameOn && mode == .events ? nameText.trimmingCharacters(in: .whitespacesAndNewlines) : ""
             let options = ScreenshotReadOptions(name: name.isEmpty ? nil : name,
                                                 yearMonth: yearMonthOn ? String(format: "%04d-%02d", year, month) : nil)
+            if mode == .tasks {
+                // 開始・締切: 画像にあるタイトル・開始・締切を、全部読み取る
+                let found = try await reader.readTasks(images: datas, options: options)
+                guard !found.isEmpty else {
+                    errorMessage = "開始・締切を読み取れませんでした。別の画像で試してください"
+                    step = .pick
+                    return
+                }
+                taskLines = found
+                taskIncluded = Set(found.map(\.id))
+                taskEdited = [:]
+                step = .done
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                return
+            }
             var result = try await reader.read(images: datas, options: options)
             // 年月の表記がない写真は、選んだ年月に合わせる
             if yearMonthOn { result = ShiftLineImport.alignYearMonth(result, year: year, month: month) }
@@ -385,6 +432,110 @@ struct ScreenshotImportSheet: View {
             errorMessage = error.localizedDescription
             step = .pick
         }
+    }
+
+    // MARK: 開始・締切の確認
+
+    /// 追加する項目(直していれば、直した内容)
+    private func taskDraft(_ line: TaskLine) -> TaskItem { taskEdited[line.id] ?? line.makeTask() }
+
+    private var taskAddCount: Int { taskLines.filter { taskIncluded.contains($0.id) }.count }
+
+    private func shortDate(_ ds: String, _ time: String?) -> String {
+        let p = Rules.ymd(ds)
+        return "\(p.month)/\(p.day)" + (time.map { " " + $0 } ?? "")
+    }
+
+    /// 行の下に出す、開始と締切(どちらもなければ「タスク」)
+    private func taskDetail(_ t: TaskItem) -> String {
+        var parts: [String] = []
+        if let s = t.startDate { parts.append("開始 " + shortDate(s, t.startTime)) }
+        if let d = t.dueDate { parts.append("締切 " + shortDate(d, t.dueTime)) }
+        return parts.isEmpty ? "タスク" : parts.joined(separator: "  ")
+    }
+
+    private var taskReviewView: some View {
+        List {
+            Section {
+                Text("\(taskLines.count)件を読み取りました。")
+                    .font(.app(13, weight: .semibold))
+                    .foregroundStyle(Theme.deltaUp)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 0, trailing: 0))
+            }
+            Section {
+                ForEach(taskLines) { line in taskRow(line) }
+            } header: {
+                Text("項目をタップすると1 件ずつ修正できます。\nチェックを外した項目は取り込まれません。")
+                    .textCase(nil)
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button { addTasks() } label: {
+                Text(taskAddCount == 0 ? "追加する項目がありません" : "\(taskAddCount)件を追加")
+                    .font(.app(16, weight: .bold))
+                    .foregroundStyle(Theme.onAccent)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(Theme.accent.opacity(taskAddCount > 0 ? 1 : 0.4), in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .disabled(taskAddCount == 0)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(.systemGroupedBackground))
+        }
+        .sheet(item: $taskEdit) { target in
+            TaskEditor(original: target.task, isNew: false, onCommit: { taskEdited[target.id] = $0 })
+        }
+    }
+
+    private func taskRow(_ line: TaskLine) -> some View {
+        let on = taskIncluded.contains(line.id)
+        let t = taskDraft(line)
+        return HStack(spacing: 4) {
+            Button {
+                if on { taskIncluded.remove(line.id) } else { taskIncluded.insert(line.id) }
+            } label: {
+                Image(systemName: on ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 20))
+                    .foregroundStyle(on ? Theme.accent : Color.secondary)
+                    .frame(width: 36, height: 40)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(on ? "追加しない" : "追加する")
+            Button {
+                taskEdit = TaskLineEdit(id: line.id, task: t)
+            } label: {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(t.title).font(.app(16)).strikethrough(!on)
+                        Text(taskDetail(t)).font(.app(12)).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 4)
+                    if taskEdited[line.id] != nil {
+                        Text("修正済み")
+                            .font(.app(11, weight: .bold))
+                            .foregroundStyle(Theme.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Theme.accent.opacity(0.14), in: Capsule())
+                    }
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                }
+                .foregroundStyle(on ? Color.primary : Color.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    private func addTasks() {
+        let chosen = taskLines.filter { taskIncluded.contains($0.id) }
+        chosen.forEach { store.saveTask(taskDraft($0)) }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        onAddedTasks(chosen.count)
+        dismiss()
     }
 
     // MARK: 確認と一括設定

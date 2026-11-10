@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanNameHint, cleanYearMonth, extractJson, normalizeLines } from "./lines.js";
+import { cleanKind, cleanNameHint, cleanYearMonth, extractJson, normalizeLines, normalizeTasks } from "./lines.js";
 
 test("説明やコードブロックが付いていても、配列を取り出す", () => {
   const text = '読み取りました:\n```json\n[{"date":"2026-11-08","start":"17:00","end":"21:00","off":false}]\n```';
@@ -63,4 +63,41 @@ test("休みは時間を捨て、形のおかしい行は捨てる", () => {
 test("配列でない返事は、空にする", () => {
   assert.deepEqual(normalizeLines({}), []);
   assert.deepEqual(normalizeLines(undefined), []);
+});
+
+test("開始・締切の読み取り: タイトルの無いものは捨て、日付のないタスクも残す", () => {
+  const tasks = normalizeTasks([
+    { title: "発表資料", startDate: "2026-12-08", startTime: "14:00", dueDate: "2026-12-11", dueTime: "17:00" },
+    { title: "", dueDate: "2026-12-12" },
+    { title: "本を返す", startDate: null, dueDate: null },
+    { title: "レポート", dueDate: "2026-12-05", dueTime: "18:00" },
+  ]);
+  assert.deepEqual(tasks.map((t) => t.title), ["レポート", "発表資料", "本を返す"]);
+  assert.equal(tasks[1].startTime, "14:00");
+  assert.equal(tasks[2].dueDate, null);
+});
+
+test("開始・締切の読み取り: 形のおかしい日付は無いことにし、日付のない時刻は捨てる", () => {
+  const [t] = normalizeTasks([{ title: "A", startDate: "2026-13-40", startTime: "09:00", dueDate: "2026-12-11", dueTime: "25:00" }]);
+  assert.equal(t.startDate, null);
+  assert.equal(t.startTime, null);
+  assert.equal(t.dueDate, "2026-12-11");
+  assert.equal(t.dueTime, null);
+});
+
+test("開始・締切の読み取り: 締切が開始より前なら開始を捨て、同じ内容は 1 件にする", () => {
+  const tasks = normalizeTasks([
+    { title: "B", startDate: "2026-12-20", dueDate: "2026-12-10" },
+    { title: "C", dueDate: "2026-12-11", dueTime: "24:00" },
+    { title: "C", dueDate: "2026-12-11", dueTime: "24:00" },
+  ]);
+  assert.equal(tasks.length, 2);
+  assert.equal(tasks[0].startDate, null);
+  assert.equal(tasks[1].dueTime, "24:00");
+});
+
+test("読み取りの種類: tasks 以外は、シフト", () => {
+  assert.equal(cleanKind("tasks"), "tasks");
+  assert.equal(cleanKind(undefined), "events");
+  assert.equal(cleanKind("x"), "events");
 });

@@ -14,6 +14,8 @@ struct TaskEditor: View {
     @Environment(\.dismiss) private var dismiss
     let original: TaskItem
     let isNew: Bool
+    /// 画像からの取り込みの確認で直すときは、保存せずに、直した内容だけを返す(削除も出さない)
+    var onCommit: ((TaskItem) -> Void)?
 
     @State private var title: String
     @State private var color: String
@@ -35,19 +37,20 @@ struct TaskEditor: View {
     enum Field: Hashable { case title, startTime, dueTime }
     enum TimePanel: Hashable { case start, due }
 
-    init(original: TaskItem, isNew: Bool) {
+    init(original: TaskItem, isNew: Bool, onCommit: ((TaskItem) -> Void)? = nil) {
         self.original = original
         self.isNew = isNew
+        self.onCommit = onCommit
         _title = State(initialValue: original.title)
         _color = State(initialValue: original.color)
         _hasStart = State(initialValue: original.hasStart)
         _startDay = State(initialValue: original.startDate.flatMap(Rules.parse) ?? Rules.parse(Rules.today()) ?? Date())
         // 最初は、開始オフ・時間オフ、締切オン・時間オン(すでにある項目は、その通り)
-        _startTimed = State(initialValue: isNew ? false : original.startTime != nil)
+        _startTimed = State(initialValue: isNew && onCommit == nil ? false : original.startTime != nil)
         _startTime = State(initialValue: original.startTime ?? "09:00")
         _hasDue = State(initialValue: original.hasDue)
         _dueDay = State(initialValue: original.dueDate.flatMap(Rules.parse) ?? original.startDate.flatMap(Rules.parse) ?? Rules.parse(Rules.today()) ?? Date())
-        _dueTimed = State(initialValue: isNew ? true : original.dueTime != nil)
+        _dueTimed = State(initialValue: isNew && onCommit == nil ? true : original.dueTime != nil)
         _dueTime = State(initialValue: original.dueTime ?? "18:00")
     }
 
@@ -94,7 +97,7 @@ struct TaskEditor: View {
                             Text("開始も締切も指定がない場合は「タスク」として保存されます。")
                         }
                     }
-                    if !isNew {
+                    if !isNew && onCommit == nil {
                         Section {
                             Button("削除", role: .destructive) { confirmDelete = true }
                         }
@@ -117,12 +120,12 @@ struct TaskEditor: View {
                     if new == nil || panel(for: new!) == nil { closeTimePanel() }
                 }
             }
-            .navigationTitle(isNew ? "開始・締切予定を追加" : "開始・締切予定を編集")
+            .navigationTitle(isNew && onCommit == nil ? "開始・締切予定を追加" : "開始・締切予定を編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isNew ? "追加" : "保存") { commit() }.disabled(!canSave)
+                    Button(isNew && onCommit == nil ? "追加" : "保存") { commit() }.disabled(!canSave)
                 }
             }
             .keyboardDismissBar { closeTimePanel() }
@@ -153,7 +156,11 @@ struct TaskEditor: View {
         t.dueDate = dueText
         t.dueTime = hasDue && dueTimed ? dueTime : nil
         store.rememberColor(color)
-        store.saveTask(t)
+        if let onCommit {
+            onCommit(t)
+        } else {
+            store.saveTask(t)
+        }
         dismiss()
     }
 

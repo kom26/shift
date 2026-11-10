@@ -68,3 +68,44 @@ export function cleanYearMonth(s) {
   const m = Number(s.slice(5));
   return m >= 1 && m <= 12 ? s : null;
 }
+
+/** 時刻("HH:MM")。開始・締切は、その日のうちの時刻なので、24:00 まで受ける */
+function normalizeTaskTime(s) {
+  const t = normalizeTime(s);
+  if (t === null) return null;
+  const [h, m] = t.split(":").map(Number);
+  return h < 24 || (h === 24 && m === 0) ? t : null;
+}
+
+/** タイトル(空や長すぎるものは、無いことにする) */
+function normalizeTitle(s) {
+  if (typeof s !== "string") return null;
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > 0 && t.length <= 100 ? t : null;
+}
+
+/**
+ * 画像から読み取った、開始・締切・タスクを整える。
+ * タイトルの無いものは捨てる。日付の形がおかしければ、その日付は無いことにする(時刻は、日付があるときだけ残す)。
+ * 締切が開始より前なら、読み違いなので、開始は無いことにする。同じ内容は 1 件にして、日付順(日付のないタスクは最後)に並べる
+ */
+export function normalizeTasks(raw) {
+  const byKey = new Map();
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const title = item && normalizeTitle(item.title);
+    if (!title) continue;
+    let startDate = validDate(item.startDate) ? item.startDate : null;
+    let dueDate = validDate(item.dueDate) ? item.dueDate : null;
+    if (startDate && dueDate && dueDate < startDate) startDate = null;
+    const startTime = startDate ? normalizeTaskTime(item.startTime) : null;
+    const dueTime = dueDate ? normalizeTaskTime(item.dueTime) : null;
+    byKey.set([title, startDate, startTime, dueDate, dueTime].join("|"), { title, startDate, startTime, dueDate, dueTime });
+  }
+  const key = (t) => [t.dueDate ?? t.startDate ?? "9999-99-99", t.dueTime ?? t.startTime ?? "", t.title].join("|");
+  return [...byKey.values()].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+}
+
+/** アプリから受け取る読み取りの種類。"tasks" 以外は、シフト(予定) */
+export function cleanKind(s) {
+  return s === "tasks" ? "tasks" : "events";
+}

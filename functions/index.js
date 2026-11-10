@@ -6,7 +6,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { cleanNameHint, cleanYearMonth, extractJson, normalizeLines } from "./lines.js";
+import { cleanKind, cleanNameHint, cleanYearMonth, extractJson, normalizeLines, normalizeTasks } from "./lines.js";
 
 initializeApp();
 
@@ -32,8 +32,34 @@ const PROMPT = `これは勤務シフト表のスクリーンショットです(
 出力の形(1 日 1 要素。同じ日に別の時間の予定があれば、別の要素にしてください):
 [{"date": "YYYY-MM-DD", "start": "HH:MM" または null, "end": "HH:MM" または null, "off": true/false}]`;
 
-/** アプリからの指定(年月・名前)を、AI への文章に足す */
-function buildPrompt({ yearMonth, name }) {
+/** 課題の一覧・予定表・メールの画面などから、タイトルと開始・締切を読み取る */
+const TASK_PROMPT = `これは課題の一覧、予定表、メール、チャットなどのスクリーンショットです(複数枚のときは、同じ内容の続きです。同じ項目が 2 枚に写っていても、1 回だけにしてください)。やること・課題・提出物・予定の「タイトル」と、「開始」「締切」の日付と時刻を読み取って、JSON の配列だけを返してください(説明やコードブロックは付けない)。
+
+読み取りのルール:
+- 1 つのやること・課題につき 1 要素にしてください。
+- 「いつまで」「期限」「提出」「〆」「due」などは締切(dueDate / dueTime)、「いつから」「開始」「公開」「start」などは開始(startDate / startTime)にしてください。
+- 日付や時刻が、画像に書かれていないときは、その項目は null にしてください。推測で埋めないでください。
+- 開始も締切も書かれていないやること(日付のないタスク)も、タイトルだけで 1 要素にしてください。
+- 年が書かれていない日付は、今日(日本時間で __TODAY__)に近い年にしてください。
+- 時刻は "HH:MM"(24 時間表記)にしてください。「24:00」は、そのまま "24:00" と書いてください。時刻が無いときは null にしてください。
+- 「午前 9 時」「17 時まで」のような書き方も、"09:00" "17:00" にしてください。
+- タイトルは、画像に書かれている言葉を、そのまま短く使ってください(長い説明文は入れないでください)。
+
+出力の形:
+[{"title": "…", "startDate": "YYYY-MM-DD" または null, "startTime": "HH:MM" または null, "dueDate": "YYYY-MM-DD" または null, "dueTime": "HH:MM" または null}]`;
+
+/** アプリからの指定(年月・名前)を、AI への文章に足す。kind が tasks のときは、開始・締切を読み取る文章 */
+function buildPrompt({ yearMonth, name, kind }) {
+  if (kind === "tasks") {
+    let prompt = TASK_PROMPT.replace("__TODAY__", today());
+    if (yearMonth) {
+      const y = Number(yearMonth.split("-")[0]);
+      prompt += `
+
+年の指定: 年が書かれていない日付は、${y}年としてください(上の「今日に近い年にしてください」より、こちらを優先してください)。`;
+    }
+    return prompt;
+  }
   let prompt = PROMPT;
   if (yearMonth) {
     const [y, m] = yearMonth.split("-").map(Number);
@@ -94,7 +120,8 @@ export const readShiftScreenshots = onCall(
       if (images.length > 1) content.push({ type: "text", text: `画像${i + 1}:` });
       content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data } });
     });
-    const prompt = buildPrompt({ yearMonth: cleanYearMonth(request.data?.yearMonth), name: cleanNameHint(request.data?.name) });
+    const kind = cleanKind(request.data?.kind);
+    const prompt = buildPrompt({ yearMonth: cleanYearMonth(request.data?.yearMonth), name: cleanNameHint(request.data?.name), kind });
     content.push({ type: "text", text: prompt });
 
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
@@ -114,12 +141,13 @@ export const readShiftScreenshots = onCall(
     const text = response.content.filter((b) => b.type === "text").map((b) => b.text).join("");
     let lines;
     try {
-      lines = normalizeLines(extractJson(text));
+      lines = kind === "tasks" ? normalizeTasks(extractJson(text)) : normalizeLines(extractJson(text));
     } catch (error) {
       console.error("読み取り結果の形が正しくない", error?.message);
       throw new HttpsError("internal", "読み取り結果を読めませんでした。画像を変えて、もう一度試してください。");
     }
-    console.log("読み取り", { uid: request.auth.uid, images: images.length, lines: lines.length, usage: response.usage });
-    return { lines };
+    console.log("読み取り", { uid: request.auth.uid, kind, images: images.length, lines: lines.length, usage: response.usage });
+    // 開始・締切の読み取りは tasks、シフトの読み取りは lines(古いアプリは、lines だけを読む)
+    return kind === "tasks" ? { tasks: lines } : { lines };
   },
 );

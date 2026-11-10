@@ -75,7 +75,7 @@ struct RootView: View {
     @State private var dropChoice: DropChoice?
     /// 招待リンクから開いたが、アカウント登録がまだのとき、案内を出す
     @State private var showJoinNeedsAccount = false
-    /// 右上の ⊕ を押して開く「予定追加 / 画像から追加」の 2 択(開いている間、ボタンは ⊗)
+    /// 右上の ⊕ を押して開く「予定追加 / 開始・締切予定追加 / AIで画像から追加」の 3 択(開いている間、ボタンは ⊗)
     @State private var addMenuOpen = false
     @State private var showShotImport = false
     @State private var showCreateCalendar = false
@@ -564,7 +564,7 @@ struct RootView: View {
                     Text(title).font(.app(17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
                     Button { pagerCommand = PagerCommand(direction: 1, id: UUID()) } label: { Image(systemName: "chevron.right") }
                     Spacer(minLength: 0)
-                    // 丸い ⊕。押すと「予定追加 / 画像から追加」が開き、ボタンは ⊗ に変わる(もう一度押すと閉じて、⊕ に戻る)。
+                    // 丸い ⊕。押すと「予定追加 / 開始・締切予定追加 / AIで画像から追加」が開き、ボタンは ⊗ に変わる(もう一度押すと閉じて、⊕ に戻る)。
                     // 共有カレンダーを開いているときは、2 択を出さず、共有カレンダーに予定を追加する
                     Button { tapAdd() } label: {
                         // 「＋」を 45 度まわして「×」に見せる(戻すときは逆にまわる)
@@ -579,7 +579,8 @@ struct RootView: View {
                     .disabled(sharedView.isOpen && !sharedView.canCreate)
                     .opacity(sharedView.isOpen && !sharedView.canCreate ? 0.5 : 1)
                     .sheet(isPresented: $showShotImport) {
-                        ScreenshotImportSheet(onAdded: { showToast("\($0)件の予定を追加しました") })
+                        ScreenshotImportSheet(onAdded: { showToast("\($0)件の予定を追加しました") },
+                                              onAddedTasks: { showToast("\($0)件の開始・締切を追加しました") })
                     }
                 }
             }
@@ -800,20 +801,20 @@ struct RootView: View {
                     addFromHeader()
                 }
                 Divider()
-                addMenuRow(icon: "photo.on.rectangle", title: "画像から追加") {
-                    closeAddMenu()
-                    // 読み取りは、サーバー経由で使うので、ログインが要る
-                    if auth.account == nil {
-                        showToast("画像から追加は、アカウント登録かログインが必要です")
-                    } else {
-                        showShotImport = true
-                    }
-                }
-                Divider()
                 addMenuRow(icon: "flag", title: "開始・締切予定追加") {
                     closeAddMenu()
                     let d = selectedDate ?? Rules.today()
                     taskEditing = TaskEditTarget(task: .new(dueDate: d), isNew: true)
+                }
+                Divider()
+                addMenuRow(icon: "photo.on.rectangle", title: "AIで画像から追加") {
+                    closeAddMenu()
+                    // 読み取りは、サーバー経由で使うので、ログインが要る
+                    if auth.account == nil {
+                        showToast("AIで画像から追加は、アカウント登録かログインが必要です")
+                    } else {
+                        showShotImport = true
+                    }
                 }
             }
             .frame(width: 230)

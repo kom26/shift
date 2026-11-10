@@ -39,6 +39,50 @@ struct ShiftLine: Identifiable, Equatable {
     }
 }
 
+/// 画像から AI が読み取った、開始・締切・タスク 1 件分
+struct TaskLine: Identifiable, Equatable {
+    var title: String
+    /// yyyy-MM-dd。nil は無い
+    var startDate: String?
+    var startTime: String?
+    var dueDate: String?
+    var dueTime: String?
+
+    var id: String { [title, startDate ?? "", startTime ?? "", dueDate ?? "", dueTime ?? ""].joined(separator: "|") }
+
+    /// サーバーの返事から作る。タイトルの無い行は捨てて、同じ内容は 1 件にする。順番は、サーバーが並べたまま
+    static func parse(_ raw: Any?) -> [TaskLine] {
+        var seen = Set<String>()
+        var out: [TaskLine] = []
+        for item in (raw as? [[String: Any]]) ?? [] {
+            let title = (item["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !title.isEmpty, title.count <= 100 else { continue }
+            func date(_ key: String) -> String? {
+                guard let s = item[key] as? String, s.count == 10, Rules.parse(s) != nil else { return nil }
+                return s
+            }
+            func time(_ key: String, on date: String?) -> String? {
+                guard date != nil, let s = item[key] as? String,
+                      let m = Rules.minutes(s.trimmingCharacters(in: .whitespaces)), m >= 0, m <= 24 * 60 else { return nil }
+                return String(format: "%02d:%02d", m / 60, m % 60)
+            }
+            var start = date("startDate")
+            let due = date("dueDate")
+            if let s = start, let d = due, d < s { start = nil }
+            let line = TaskLine(title: title, startDate: start, startTime: time("startTime", on: start),
+                                dueDate: due, dueTime: time("dueTime", on: due))
+            if seen.insert(line.id).inserted { out.append(line) }
+        }
+        return out
+    }
+
+    /// 取り込む項目にする(色は、開始・締切の最初の色)
+    func makeTask() -> TaskItem {
+        TaskItem(id: UUID().uuidString, title: title, color: TaskItem.defaultColor,
+                 startDate: startDate, startTime: startTime, dueDate: dueDate, dueTime: dueTime, done: false)
+    }
+}
+
 /// 読み取りに添える指定
 struct ScreenshotReadOptions: Equatable {
     /// 複数の名前がある表で、読み取る名前(部分一致でよい)
@@ -53,11 +97,17 @@ protocol ScreenshotReading {
     func read(images: [Data]) async throws -> [ShiftLine]
     /// 名前や年月の指定つき
     func read(images: [Data], options: ScreenshotReadOptions) async throws -> [ShiftLine]
+    /// 画像から、開始・締切・タスクを読み取る
+    func readTasks(images: [Data], options: ScreenshotReadOptions) async throws -> [TaskLine]
 }
 
 extension ScreenshotReading {
     func read(images: [Data], options: ScreenshotReadOptions) async throws -> [ShiftLine] {
         try await read(images: images)
+    }
+
+    func readTasks(images: [Data], options: ScreenshotReadOptions) async throws -> [TaskLine] {
+        throw ScreenshotReadError(message: "開始・締切の読み取りには、対応していません")
     }
 }
 
@@ -73,17 +123,27 @@ struct FirebaseScreenshotReader: ScreenshotReading {
     }
 
     func read(images: [Data], options: ScreenshotReadOptions) async throws -> [ShiftLine] {
+        ShiftLine.parse(try await call(images: images, options: options, kind: nil)["lines"])
+    }
+
+    func readTasks(images: [Data], options: ScreenshotReadOptions) async throws -> [TaskLine] {
+        TaskLine.parse(try await call(images: images, options: options, kind: "tasks")["tasks"])
+    }
+
+    /// サーバーを呼ぶ。kind が tasks のときは開始・締切、なければシフト
+    private func call(images: [Data], options: ScreenshotReadOptions, kind: String?) async throws -> [String: Any] {
         let callable = Functions.functions(region: "asia-northeast1").httpsCallable("readShiftScreenshots")
         callable.timeoutInterval = 120
         var payload: [String: Any] = ["images": images.map { $0.base64EncodedString() }]
         if let name = options.name { payload["name"] = name }
         if let yearMonth = options.yearMonth { payload["yearMonth"] = yearMonth }
+        if let kind { payload["kind"] = kind }
         do {
             let result = try await callable.call(payload)
             guard let body = result.data as? [String: Any] else {
                 throw ScreenshotReadError(message: "読み取り結果を受け取れませんでした")
             }
-            return ShiftLine.parse(body["lines"])
+            return body
         } catch let error as ScreenshotReadError {
             throw error
         } catch {
