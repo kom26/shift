@@ -31,6 +31,7 @@ struct TaskEditor: View {
     @State private var imageId: String?
     /// フォームのどこかをタップするたびに増やす(メモ・画像・URL の空の欄を閉じる合図)
     @State private var outsideTap = 0
+    @State private var attachments = AttachmentSession()
     @State private var hasStart: Bool
     @State private var startDay: Date
     @State private var startTimed: Bool
@@ -112,7 +113,7 @@ struct TaskEditor: View {
                             Text("開始も締切も指定がない場合は「タスク」として保存されます。")
                         }
                     }
-                    AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap)
+                    AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap, session: attachments)
                     if !isNew && onCommit == nil {
                         Section {
                             Button("削除", role: .destructive) { confirmDelete = true }
@@ -146,6 +147,7 @@ struct TaskEditor: View {
                 }
             }
             .keyboardDismissBar { closeTimePanel() }
+            .onDisappear { attachments.discardIfUncommitted() }
             .onChange(of: startDay) { _, new in
                 if hasDue, dueDay < new { dueDay = new }
             }
@@ -175,6 +177,7 @@ struct TaskEditor: View {
         t.startTime = hasStart && startTimed ? startTime : nil
         t.dueDate = dueText
         t.dueTime = hasDue && dueTimed ? dueTime : nil
+        attachments.commit(keeping: t.imageId)
         store.rememberColor(color)
         if let onCommit {
             onCommit(t)

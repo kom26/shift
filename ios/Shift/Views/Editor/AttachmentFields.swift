@@ -33,7 +33,90 @@ enum AttachmentStore {
 
     static func image(_ id: String) -> UIImage? { UIImage(contentsOfFile: fileURL(id).path) }
 
+    static func data(_ id: String) -> Data? { try? Data(contentsOf: fileURL(id)) }
+
+    static func exists(_ id: String) -> Bool { FileManager.default.fileExists(atPath: fileURL(id).path) }
+
+    /// クラウドから取ってきた画像を、端末に置く
+    static func write(_ data: Data, id: String) { try? data.write(to: fileURL(id), options: .atomic) }
+
     static func delete(_ id: String) { try? FileManager.default.removeItem(at: fileURL(id)) }
+
+    /// 端末にある画像の名前と、置いた日時(片づけに使う)
+    static func localFiles() -> [(id: String, created: Date)] {
+        let urls = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.creationDateKey])) ?? []
+        return urls.compactMap { url in
+            guard url.pathExtension == "jpg" else { return nil }
+            let created = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
+            return (url.deletingPathExtension().lastPathComponent, created)
+        }
+    }
+}
+
+/// 編集画面の間だけ、画像の追加と取り外しを覚えておく。保存したときに、外した画像を消し、
+/// キャンセルしたときは、その間に足した画像を消す(キャンセルで、元の画像が消えないように)
+final class AttachmentSession {
+    private(set) var added: [String] = []
+    private var removed: [String] = []
+    private var committed = false
+
+    func didAdd(_ id: String) { added.append(id) }
+
+    func didRemove(_ id: String) {
+        if let i = added.firstIndex(of: id) {
+            // この編集で足したものは、すぐ消してよい
+            added.remove(at: i)
+            Task { await AttachmentCloud.remove(id) }
+        } else {
+            removed.append(id)
+        }
+    }
+
+    /// 保存した。外した画像を消す(`keeping` は、いま付いている画像)
+    func commit(keeping: String?) {
+        committed = true
+        for id in removed where id != keeping { Task { await AttachmentCloud.remove(id) } }
+        removed = []
+    }
+
+    /// 画面を閉じた。保存していなければ、足した画像を消す
+    func discardIfUncommitted() {
+        guard !committed else { return }
+        for id in added { Task { await AttachmentCloud.remove(id) } }
+        added = []
+    }
+}
+
+/// 画像 1 枚の表示。端末になければ、クラウドから取ってくる
+struct AttachmentImageView: View {
+    let imageId: String
+    var fill = false
+    @State private var image: UIImage?
+    @State private var loading = false
+
+    var body: some View {
+        Group {
+            if let image {
+                if fill { Image(uiImage: image).resizable().scaledToFill() } else { Image(uiImage: image).resizable().scaledToFit() }
+            } else {
+                ZStack {
+                    Color(.secondarySystemFill)
+                    if loading {
+                        ProgressView()
+                    } else {
+                        Text("画像を読み込めません").font(.app(11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    }
+                }
+            }
+        }
+        .task(id: imageId) {
+            image = AttachmentStore.image(imageId)
+            guard image == nil else { return }
+            loading = true
+            if await AttachmentCloud.download(imageId) { image = AttachmentStore.image(imageId) }
+            loading = false
+        }
+    }
 }
 
 enum AttachmentLink {
@@ -55,17 +138,8 @@ struct AttachmentImageViewer: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Color.black.ignoresSafeArea()
-            if let image = AttachmentStore.image(imageId) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                Text("この端末には画像がありません")
-                    .font(.app(14))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            AttachmentImageView(imageId: imageId)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 15, weight: .bold))
@@ -90,6 +164,8 @@ struct AttachmentFields: View {
     @Binding var imageId: String?
     /// 親の Form が、タップのたびに増やす数。増えたら「欄の外をタップした」として、空の欄を閉じる
     var outsideTap: Int
+    /// 画像の追加と取り外しを覚えておく(保存・キャンセルで、あとから片づける)
+    var session: AttachmentSession
 
     private enum Kind: Hashable { case memo, image, url }
 
@@ -102,7 +178,8 @@ struct AttachmentFields: View {
     @State private var lastTouch: (kind: Kind, at: Date)?
     @FocusState private var focus: Kind?
 
-    init(memo: Binding<String>, url: Binding<String>, imageId: Binding<String?>, outsideTap: Int) {
+    init(memo: Binding<String>, url: Binding<String>, imageId: Binding<String?>, outsideTap: Int, session: AttachmentSession) {
+        self.session = session
         _memo = memo
         _url = url
         _imageId = imageId
@@ -210,16 +287,7 @@ struct AttachmentFields: View {
                 touch(.image)
                 if !imageEditing { showViewer = true }
             } label: {
-                Group {
-                    if let image = AttachmentStore.image(id) {
-                        Image(uiImage: image).resizable().scaledToFill()
-                    } else {
-                        ZStack {
-                            Color(.secondarySystemFill)
-                            Text("この端末には\nありません").font(.app(11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        }
-                    }
-                }
+                AttachmentImageView(imageId: id, fill: true)
                 .frame(width: 120, height: 120)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
@@ -228,6 +296,7 @@ struct AttachmentFields: View {
             if imageEditing {
                 Button {
                     touch(.image)
+                    if let old = imageId { session.didRemove(old) }
                     imageId = nil
                     imageEditing = false
                     withAnimation { _ = openKinds.remove(.image) }
@@ -250,8 +319,10 @@ struct AttachmentFields: View {
         defer { photoItem = nil }
         guard let data = try? await item.loadTransferable(type: Data.self),
               let id = AttachmentStore.save(data) else { return }
-        if let old = imageId { AttachmentStore.delete(old) }
+        if let old = imageId { session.didRemove(old) }
+        session.didAdd(id)
         imageId = id
+        Task { await AttachmentCloud.upload(id) }
         imageEditing = false
     }
 

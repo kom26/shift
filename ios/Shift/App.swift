@@ -95,6 +95,9 @@ struct ShiftApp: App {
                         await sync.start(uid: uid)
                         await shared
                         await WidgetSharedFeed.refresh(store: store, calendars: calendars.calendars, sharedView: sharedView)
+                        // 付けた画像の片づけ(使われていない古い画像を消し、送れていない画像を送る)
+                        let used = Set((store.events + store.favorites).compactMap(\.imageId) + store.tasks.compactMap(\.imageId))
+                        await AttachmentCloud.sweep(referenced: used)
                     } else {
                         sync.stop()
                         sharedView.close()

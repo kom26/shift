@@ -21,6 +21,7 @@ struct EventEditor: View {
     @State private var imageId: String?
     /// フォームのどこかをタップするたびに増やす(メモ・画像・URL の空の欄を閉じる合図)
     @State private var outsideTap = 0
+    @State private var attachments = AttachmentSession()
     @State private var color: String
     @State private var start: Date
     @State private var end: Date
@@ -187,7 +188,7 @@ struct EventEditor: View {
                         paySection(p)
                     }
                 }
-                AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap)
+                AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap, session: attachments)
                 if !favoriteMode && onCommit == nil {
                     Section {
                         Toggle("よく使う予定にも登録", isOn: $registerFavorite)
@@ -235,6 +236,7 @@ struct EventEditor: View {
                 }
             }
             .keyboardDismissBar { closeTimePanel() }
+            .onDisappear { attachments.discardIfUncommitted() }
             .onAppear {
                 guard !didSetup else { return }
                 didSetup = true
@@ -817,6 +819,7 @@ struct EventEditor: View {
 
     private func commit() {
         let e = build()
+        attachments.commit(keeping: e.imageId)
         store.rememberColor(e.color)
         if let onCommit {
             // 画像取り込みの確認画面へ、直した予定を返す(まだ保存しない)
