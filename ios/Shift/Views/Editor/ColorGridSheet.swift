@@ -3,6 +3,8 @@ import SwiftUI
 /// 「カスタム色」の行。タップすると、色のグリッドの画面が開く
 struct CustomColorButton: View {
     @Binding var color: String
+    /// アイコンの色を選ぶときは、そのアイコンの記号の名前(下のプレビューを、バーではなくアイコンにする)
+    var iconName: String?
     @State private var open = false
 
     var body: some View {
@@ -15,7 +17,7 @@ struct CustomColorButton: View {
             }
             .contentShape(Rectangle())
         }
-        .sheet(isPresented: $open) { ColorGridSheet(color: $color) }
+        .sheet(isPresented: $open) { ColorGridSheet(color: $color, iconName: iconName) }
     }
 }
 
@@ -24,11 +26,13 @@ struct CustomColorButton: View {
 /// 選んだ色は、そのまま「元の色」になり、実際のバーでの見え方は、下のプレビューで確かめられる
 struct ColorGridSheet: View {
     @Binding var color: String
+    let iconName: String?
     @Environment(\.dismiss) private var dismiss
     @State private var picked: String
 
-    init(color: Binding<String>) {
+    init(color: Binding<String>, iconName: String? = nil) {
         _color = color
+        self.iconName = iconName
         _picked = State(initialValue: color.wrappedValue)
     }
 
@@ -102,15 +106,26 @@ struct ColorGridSheet: View {
                 Text("選択中").font(.app(10)).foregroundStyle(.secondary)
             }
             VStack(spacing: 4) {
-                Text("22:00-06:30")
-                    .font(.bar(13, weight: .bold))
-                    .foregroundStyle(EventColor.text(picked))
-                    .padding(.horizontal, 10)
-                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
-                    .background(EventColor.fill(picked), in: RoundedRectangle(cornerRadius: 6))
-                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(.separator), lineWidth: 1))
-                Text("バーの見え方").font(.app(10)).foregroundStyle(.secondary)
+                if let iconName {
+                    // アイコンの色を選んでいるときは、そのアイコンの見た目を出す
+                    Image(systemName: iconName)
+                        .font(.system(size: 20))
+                        .foregroundStyle(Color(hex: picked))
+                        .frame(width: 44, height: 44)
+                        .background(Color(hex: picked).opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
+                        .frame(maxWidth: .infinity, minHeight: 30)
+                    Text("アイコンの見た目").font(.app(10)).foregroundStyle(.secondary)
+                } else {
+                    Text("22:00-06:30")
+                        .font(.bar(13, weight: .bold))
+                        .foregroundStyle(EventColor.text(picked))
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+                        .background(EventColor.fill(picked), in: RoundedRectangle(cornerRadius: 6))
+                        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(.separator), lineWidth: 1))
+                    Text("バーの見え方").font(.app(10)).foregroundStyle(.secondary)
+                }
             }
             Button {
                 color = picked

@@ -12,15 +12,18 @@ struct CalendarIconPicker: View {
         LazyVGrid(columns: columns, spacing: 8) {
             ForEach(CalendarIcon.choices, id: \.name) { item in
                 let on = CalendarIcon.split(selection).name == item.name
+                let tint = CalendarIcon.split(selection).color.map { Color(hex: $0) } ?? Theme.accent
                 Button {
                     selection = CalendarIcon.join(name: item.name, color: CalendarIcon.split(selection).color)
                     onPick()
                 } label: {
+                    // 選んだ色が、その場で、アイコンの一覧にも出る(選んでいるアイコンは、色の下地つき)
                     Image(systemName: item.name)
                         .font(.system(size: 20))
-                        .foregroundStyle(on ? Theme.onAccent : Color.primary)
+                        .foregroundStyle(tint)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(on ? Theme.accent : Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+                        .background(on ? tint.opacity(0.25) : Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(tint, lineWidth: on ? 2 : 0))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(item.label)
@@ -255,7 +258,8 @@ struct CalendarNameField: View {
                     CalendarIconPicker(selection: $icon) { picking = false }
                     if !CalendarIcon.isPhoto(icon) {
                         // アイコンの色(参加者全員に同じ色で見える)。予定の色と同じ、決まった色と好きな色
-                        ColorRow(color: iconColor, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
+                        ColorRow(color: iconColor, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) },
+                                 iconName: CalendarIcon.split(icon).name)
                     }
                     Button {
                         picking = false

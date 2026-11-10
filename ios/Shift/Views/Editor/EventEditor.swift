@@ -833,6 +833,8 @@ struct ColorRow: View {
     @Binding var color: String
     let recent: [String]
     var onDeleteRecent: (String) -> Void = { _ in }
+    /// アイコンの色を選ぶときの、そのアイコンの記号の名前(カスタム色の下のプレビューが、アイコンになる)
+    var iconName: String?
     /// 最近の色でタップした色。右にゴミ箱を出す
     @State private var trashColor: String?
 
@@ -859,7 +861,7 @@ struct ColorRow: View {
                     }
                 }
             }
-            CustomColorButton(color: $color)
+            CustomColorButton(color: $color, iconName: iconName)
         }
     }
 
