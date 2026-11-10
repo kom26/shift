@@ -70,8 +70,8 @@ struct SharedAttachmentTests {
     }
 
     @Test func sharedEventCarriesMemoUrlAndImageToTheCalendarView() {
-        var e = SharedEvent.newInCalendar(uid: "u", date: "2026-12-08")
-        e.title = "会議"
+        var e = SharedEvent(id: "cal_x", ownerUid: "u", sourceKey: SharedEvent.calendarKey, title: "会議", startDate: "2026-12-08",
+                            endDate: "2026-12-08", startTime: nil, endTime: nil, allDay: true, name: "", color: "#bec1cc")
         e.memo = "資料は前日まで"
         e.url = "https://example.com"
         e.imageId = "cal~c~x"
