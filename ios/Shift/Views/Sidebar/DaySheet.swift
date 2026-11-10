@@ -100,7 +100,12 @@ struct DaySheet: View {
 
     private func delete(_ ev: ShiftEvent) {
         if shared.isOpen {
-            Task { _ = await shared.delete(id: ev.id) }
+            // 共有に出した自分の予定は、自分のカレンダーの予定として消す
+            if shared.ownEventId(for: ev.id) != nil {
+                shared.deleteOwn(id: ev.id)
+            } else {
+                Task { _ = await shared.delete(id: ev.id) }
+            }
         } else {
             store.delete(id: ev.id)
         }

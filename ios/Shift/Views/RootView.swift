@@ -104,6 +104,8 @@ struct RootView: View {
     @State private var toast: String?
     /// 日付なし予定の作成を始めたときの未配置の数。保存で増えたら未配置ページを開く
     @State private var unplacedCountOnCreate: Int?
+    /// 共有カレンダーを開いたまま、共有に出した自分の予定を直している(保存したあとも、その共有カレンダーに残る)
+    @State private var ownEditFromShared = false
     @State private var revealToken = 0
     @Environment(\.scenePhase) private var scenePhase
 
@@ -875,6 +877,11 @@ struct RootView: View {
 
     /// 予定一覧で予定を押したとき。一覧は閉じずに、その上に重ねて開く(edit と同じ分け方)
     private func dayEditTarget(_ event: ShiftEvent) -> DayEditTarget? {
+        ownEditFromShared = false
+        if sharedView.isOpen, let own = sharedView.ownEvent(for: event.id) {
+            ownEditFromShared = true
+            return .own(EditorTarget(event: own, isNew: false))
+        }
         if sharedView.event(event.id) != nil { return .detail(SharedDetailTarget(eventId: event.id)) }
         if sharedView.isOpen { return nil }
         return .own(EditorTarget(event: event, isNew: false))
@@ -910,12 +917,17 @@ struct RootView: View {
     /// 予定を保存したあと。保存先のカレンダーで、その予定の月を開き、その日の予定一覧を開く
     private func eventSaved(date: String?, calendarId: String?) {
         guard let date else { return }
+        // 共有に出した自分の予定を直したときは、いま開いている共有カレンダーのまま
+        var calendarId = calendarId
+        if ownEditFromShared, calendarId == nil, sharedView.isOpen { calendarId = sharedView.calendar?.id }
+        ownEditFromShared = false
         // 予定一覧からの編集で、同じカレンダー・同じ日のままなら、一覧がそのまま残っている
         if dayTarget?.date == date, sharedView.calendar?.id == calendarId { return }
         sharedDetail = nil
         // 編集画面が閉じきってから開く
+        let target = calendarId
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            Task { await openDayFromWidget(date, sharedId: calendarId) }
+            Task { await openDayFromWidget(date, sharedId: target) }
         }
     }
 
@@ -953,7 +965,14 @@ struct RootView: View {
     }
 
     private func edit(_ event: ShiftEvent) {
-        // 共有カレンダーの予定は、自分の予定もほかの人の予定も、詳細を見せる(直せるのは共有カレンダーの中で作った予定だけ)
+        ownEditFromShared = false
+        // 共有に出した自分の予定は、共有カレンダーを開いたままでも、自分の予定として直せる
+        if sharedView.isOpen, let own = sharedView.ownEvent(for: event.id) {
+            ownEditFromShared = true
+            editing = EditorTarget(event: own, isNew: false)
+            return
+        }
+        // 共有カレンダーの予定は、ほかの人の予定は詳細を見せる(直せるのは共有カレンダーの中で作った予定だけ)
         if sharedView.event(event.id) != nil {
             sharedDetail = SharedDetailTarget(eventId: event.id)
             return
@@ -965,9 +984,9 @@ struct RootView: View {
     /// 予定をドラッグして日付で離した。移動するか、コピーするかを選んでもらう(よく使う予定は、いつもコピーして置く)
     private func drop(id: String, on date: String) {
         if sharedView.isOpen {
-            // 共有カレンダーでは、共有カレンダーの中で作った予定だけ動かせる
+            // 共有カレンダーでは、共有カレンダーの中で作った予定と、共有に出した自分の予定を動かせる
             guard !id.hasPrefix(Store.favoritePrefix), sharedView.canDrag(id) else { return }
-            // 未配置からは、選択を出さず、すぐ置く
+            // 未配置からは、選択を出さず、すぐ置く(共有に出した自分の予定は、いつも配置済み)
             if sharedView.event(id)?.placed == false {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 Task { await sharedView.place(id: id, on: date) }
@@ -1042,8 +1061,13 @@ struct RootView: View {
         DragState.shared.ended()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         if sharedView.isOpen {
-            Task {
-                if copy { await sharedView.copy(id: c.eventId, on: c.date) } else { await sharedView.place(id: c.eventId, on: c.date) }
+            if sharedView.ownEventId(for: c.eventId) != nil {
+                // 共有に出した自分の予定は、自分のカレンダーの予定として動かす(共有カレンダーへは、あとで反映される)
+                if copy { sharedView.copyOwn(id: c.eventId, on: c.date) } else { sharedView.placeOwn(id: c.eventId, on: c.date) }
+            } else {
+                Task {
+                    if copy { await sharedView.copy(id: c.eventId, on: c.date) } else { await sharedView.place(id: c.eventId, on: c.date) }
+                }
             }
         } else if copy {
             withAnimation(.snappy) { store.copy(id: c.eventId, to: [c.date]) }

@@ -364,8 +364,42 @@ final class SharedViewState {
 
     func isEditable(_ id: String) -> Bool { event(id)?.isCalendarOwned == true && canWrite(in: calendarOf(id)) }
 
-    /// ドラッグで動かせるか。共有カレンダーの中で作った予定だけ(ほかの人の予定や、共有に出した自分の予定は動かせない)
-    func canDrag(_ id: String) -> Bool { isEditable(id) }
+    /// ドラッグで動かせるか。共有カレンダーの中で作った予定と、共有に出した自分の予定(ほかの人の予定は動かせない)
+    func canDrag(_ id: String) -> Bool { isEditable(id) || ownEventId(for: id) != nil }
+
+    // MARK: 共有に出した自分の予定(共有カレンダーの中でも、自分の予定として直せる・動かせる)
+
+    /// 共有に出した自分の予定の、自分のカレンダーでの ID。そうでなければ nil
+    /// (共有カレンダー上の ID は、"<自分の uid>_<予定の ID>")
+    func ownEventId(for id: String) -> String? {
+        guard let e = event(id), !e.isCalendarOwned, let uid = calendars.myUid, e.ownerUid == uid else { return nil }
+        let prefix = uid + "_"
+        guard id.hasPrefix(prefix) else { return nil }
+        let own = String(id.dropFirst(prefix.count))
+        return mainStore?.events.contains { $0.id == own } == true ? own : nil
+    }
+
+    /// 共有に出した自分の予定の、自分のカレンダーでの予定
+    func ownEvent(for id: String) -> ShiftEvent? {
+        guard let own = ownEventId(for: id) else { return nil }
+        return mainStore?.events.first { $0.id == own }
+    }
+
+    func placeOwn(id: String, on date: String) {
+        if let own = ownEventId(for: id) { mainStore?.place(id: own, on: date) }
+    }
+
+    func copyOwn(id: String, on date: String) {
+        if let own = ownEventId(for: id) { mainStore?.copy(id: own, to: [date]) }
+    }
+
+    func unplaceOwn(id: String) {
+        if let own = ownEventId(for: id) { mainStore?.unplace(id: own) }
+    }
+
+    func deleteOwn(id: String) {
+        if let own = ownEventId(for: id) { mainStore?.delete(id: own) }
+    }
 
     /// その日へ動かす(未配置の予定は、その日に置く)
     @discardableResult

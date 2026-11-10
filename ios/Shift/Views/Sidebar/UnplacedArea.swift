@@ -23,6 +23,8 @@ struct UnplacedArea: View {
     @State private var showPayBasis = false
     @State private var favFilter: String?
     @State private var pendingDeleteId: String?
+    /// 共有カレンダーの中で、共有に出した自分の予定を未配置に入れる確認待ち(自分のカレンダーの未配置に入る)
+    @State private var pendingUnplaceOwnId: String?
     /// 0..5。1〜4が実ページ、0と5は端から端へ循環するための複製(止まったら実ページへ瞬間移動)
     @State private var tab = 1
     private static let pageCount = 4
@@ -45,6 +47,11 @@ struct UnplacedArea: View {
         UnplaceDropDelegate(onDrop: { id in
             if inShared {
                 guard shared.canDrag(id) else { return }
+                // 共有に出した自分の予定は、自分のカレンダーの未配置に入るので、確認してから入れる
+                if shared.ownEventId(for: id) != nil {
+                    pendingUnplaceOwnId = id
+                    return
+                }
                 Task { await shared.unplace(id: id) }
             } else {
                 withAnimation(.snappy) { store.unplace(id: id) }
@@ -168,7 +175,11 @@ struct UnplacedArea: View {
             Button("削除", role: .destructive) {
                 if let id = pendingDeleteId {
                 if inShared {
-                    Task { await shared.delete(id: id) }
+                    if shared.ownEventId(for: id) != nil {
+                        shared.deleteOwn(id: id)
+                    } else {
+                        Task { await shared.delete(id: id) }
+                    }
                 } else {
                     withAnimation(.snappy) { store.delete(id: id) }
                 }
@@ -176,6 +187,19 @@ struct UnplacedArea: View {
                 pendingDeleteId = nil
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
+        }
+        .alert("自分のカレンダーの未配置に入れますか?",
+               isPresented: Binding(get: { pendingUnplaceOwnId != nil }, set: { if !$0 { pendingUnplaceOwnId = nil } })) {
+            Button("キャンセル", role: .cancel) {}
+            Button("未配置に入れる") {
+                if let id = pendingUnplaceOwnId {
+                    withAnimation(.snappy) { shared.unplaceOwn(id: id) }
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+                pendingUnplaceOwnId = nil
+            }
+        } message: {
+            Text("「\(shared.event(pendingUnplaceOwnId ?? "")?.title ?? "")」は、自分のカレンダーの予定です。自分のカレンダーの未配置に入ります。")
         }
         .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置予定に入れますか?",
                             isPresented: $confirmRecall, titleVisibility: .visible) {
