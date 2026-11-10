@@ -123,3 +123,18 @@ struct TaskDateOrderTests {
         #expect(TaskItem.orderedDates(start: "2026-11-10", due: nil).start == "2026-11-10")
     }
 }
+
+struct TaskTimeOrderTests {
+    @Test func sameDayDueTimeBeforeStartIsAlignedToStart() {
+        #expect(TaskItem.orderedDueTime(startDate: "2026-11-11", startTime: "14:00", dueDate: "2026-11-11", dueTime: "10:00") == "14:00")
+    }
+
+    @Test func otherCasesKeepTheDueTime() {
+        // 別の日、同じ時刻、後の時刻、片方が時刻なし
+        #expect(TaskItem.orderedDueTime(startDate: "2026-11-10", startTime: "14:00", dueDate: "2026-11-11", dueTime: "10:00") == "10:00")
+        #expect(TaskItem.orderedDueTime(startDate: "2026-11-11", startTime: "14:00", dueDate: "2026-11-11", dueTime: "14:00") == "14:00")
+        #expect(TaskItem.orderedDueTime(startDate: "2026-11-11", startTime: "14:00", dueDate: "2026-11-11", dueTime: "18:00") == "18:00")
+        #expect(TaskItem.orderedDueTime(startDate: "2026-11-11", startTime: nil, dueDate: "2026-11-11", dueTime: "10:00") == "10:00")
+        #expect(TaskItem.orderedDueTime(startDate: "2026-11-11", startTime: "14:00", dueDate: "2026-11-11", dueTime: nil) == nil)
+    }
+}

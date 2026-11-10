@@ -43,6 +43,9 @@ struct TaskEditor: View {
     @State private var confirmDelete = false
     @State private var openPanel: TimePanel?
     @State private var typed = ""
+    /// 締切の時刻を、開始に合わせたことを、少しのあいだ知らせる
+    @State private var timeWarning = false
+    @State private var timeWarningTask: Task<Void, Never>?
     @FocusState private var focusedField: Field?
     /// キーボードが出たあとに見せたい行。出るのが遅れても、出た時点でもう一度スクロールする
     @State private var scrollTarget: String?
@@ -96,7 +99,6 @@ struct TaskEditor: View {
                     Section {
                         Toggle("開始", isOn: $hasStart.animation())
                         if hasStart {
-                            Toggle("時間も設定", isOn: $startTimed.animation())
                             dateRow(.start)
                             timePanelRows(.start)
                         }
@@ -104,12 +106,13 @@ struct TaskEditor: View {
                     Section {
                         Toggle("締切", isOn: $hasDue.animation())
                         if hasDue {
-                            Toggle("時間も設定", isOn: $dueTimed.animation())
                             dateRow(.due)
                             timePanelRows(.due)
                         }
                     } footer: {
-                        if !hasStart && !hasDue {
+                        if timeWarning {
+                            Text("締切が開始より前だったので、開始の時刻に合わせました。").foregroundStyle(.orange)
+                        } else if !hasStart && !hasDue {
                             Text("開始も締切も指定がない場合は「タスク」として保存されます。")
                         }
                     }
@@ -146,7 +149,8 @@ struct TaskEditor: View {
                     Button(isNew && onCommit == nil ? "追加" : "保存") { commit() }.disabled(!canSave)
                 }
             }
-            .keyboardDismissBar { closeTimePanel() }
+            // 時間の入力中は、キーボードの上の左に「指定なし」を出す(押すと、その時間は「指定なし」になる)
+            .keyboardDismissBar(leading: openPanel.map { p in (title: "指定なし", action: { clearTime(p) }) }) { closeTimePanel() }
             .onDisappear { attachments.discardIfUncommitted() }
             .onChange(of: startDay) { _, new in
                 if hasDue, dueDay < new { dueDay = new }
@@ -157,9 +161,14 @@ struct TaskEditor: View {
             .onChange(of: hasDue) { _, on in if on, hasStart, dueDay < startDay { dueDay = startDay } }
             // 時間や日付の入力を閉じてしまう操作(スイッチを切る)では、開いている時刻の入力も閉じる
             .onChange(of: hasStart) { _, on in if !on, openPanel == .start { closeTimePanel() } }
-            .onChange(of: startTimed) { _, on in if !on, openPanel == .start { closeTimePanel() } }
             .onChange(of: hasDue) { _, on in if !on, openPanel == .due { closeTimePanel() } }
-            .onChange(of: dueTimed) { _, on in if !on, openPanel == .due { closeTimePanel() } }
+            // 同じ日で、締切の時刻が開始より前になったら、開始の時刻に合わせる
+            .onChange(of: startTime) { _, _ in alignDueTime() }
+            .onChange(of: dueTime) { _, _ in alignDueTime() }
+            .onChange(of: startTimed) { _, _ in alignDueTime() }
+            .onChange(of: dueTimed) { _, _ in alignDueTime() }
+            .onChange(of: startDay) { _, _ in alignDueTime() }
+            .onChange(of: dueDay) { _, _ in alignDueTime() }
             .alert("この項目を削除しますか?", isPresented: $confirmDelete) {
                 Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
@@ -181,7 +190,8 @@ struct TaskEditor: View {
         t.startDate = dates.start
         t.startTime = hasStart && startTimed ? startTime : nil
         t.dueDate = dates.due
-        t.dueTime = hasDue && dueTimed ? dueTime : nil
+        t.dueTime = TaskItem.orderedDueTime(startDate: t.startDate, startTime: t.startTime, dueDate: t.dueDate,
+                                            dueTime: hasDue && dueTimed ? dueTime : nil)
         attachments.commit(keeping: t.imageId)
         store.rememberColor(color)
         if let onCommit {
@@ -204,7 +214,7 @@ struct TaskEditor: View {
             } else {
                 DatePicker("", selection: $dueDay, in: (hasStart ? startDay : Date.distantPast)..., displayedComponents: .date).labelsHidden()
             }
-            if timed(p) { timeChip(p) }
+            timeChip(p)
         }
     }
 
@@ -218,8 +228,30 @@ struct TaskEditor: View {
     private func timeValue(_ p: TimePanel) -> String { p == .start ? startTime : dueTime }
 
     private func setTime(_ p: TimePanel, _ t: String) {
-        if p == .start { startTime = t } else { dueTime = t }
+        if p == .start { startTime = t; startTimed = true } else { dueTime = t; dueTimed = true }
         typed = Self.digits(of: t)
+    }
+
+    /// その時間を「指定なし」にして、入力を閉じる(時間を入れ直すときは、チップをもう一度押す。前に入れた時間から始まる)
+    private func clearTime(_ p: TimePanel) {
+        if p == .start { startTimed = false } else { dueTimed = false }
+        closeTimePanel()
+    }
+
+    /// 同じ日で、締切の時刻が開始より前になったときは、開始の時刻に合わせて、そのことを少し知らせる
+    private func alignDueTime() {
+        let fixed = TaskItem.orderedDueTime(startDate: hasStart ? startText : nil, startTime: startTimed ? startTime : nil,
+                                            dueDate: hasDue ? dueText : nil, dueTime: dueTimed ? dueTime : nil)
+        guard let fixed, dueTimed, fixed != dueTime else { return }
+        dueTime = fixed
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        timeWarningTask?.cancel()
+        withAnimation { timeWarning = true }
+        timeWarningTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation { timeWarning = false }
+        }
     }
 
     private static func digits(of time: String) -> String { time.filter { $0.isASCII && $0.isNumber } }
@@ -272,7 +304,7 @@ struct TaskEditor: View {
 
     /// チップの表示。入力途中なら打鍵中の数字を時刻の形で見せる
     private func chipText(_ p: TimePanel) -> String {
-        guard openPanel == p, !typed.isEmpty, typed.count < 4 else { return timeValue(p) }
+        guard openPanel == p, !typed.isEmpty, typed.count < 4 else { return timed(p) ? timeValue(p) : "指定なし" }
         return typed.count <= 2 ? typed : String(typed.prefix(2)) + ":" + String(typed.dropFirst(2))
     }
 
@@ -306,7 +338,7 @@ struct TaskEditor: View {
         return Button { toggleTimePanel(p) } label: {
             Text(chipText(p))
                 .font(.app(17).monospacedDigit())
-                .foregroundStyle(open ? Theme.onAccent : Color.primary)
+                .foregroundStyle(open ? Theme.onAccent : (timed(p) ? Color.primary : Color.secondary))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(RoundedRectangle(cornerRadius: 8).fill(open ? Theme.accent : Color(.secondarySystemFill)))
@@ -317,7 +349,7 @@ struct TaskEditor: View {
     /// 時刻のチップを押したときに開く、ホイールと、数字キーボードの受け口
     @ViewBuilder
     private func timePanelRows(_ p: TimePanel) -> some View {
-        if openPanel == p, timed(p) {
+        if openPanel == p {
             VStack(spacing: 0) {
                 wheelPanel(p)
                 TextField("", text: typedBinding)

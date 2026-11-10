@@ -32,6 +32,13 @@ struct TaskItem: Codable, Identifiable, Equatable {
         return (s, s)
     }
 
+    /// 開始と締切が同じ日で、締切の時刻が開始より前のときは、締切の時刻を開始の時刻に合わせる(時刻が片方でもなければ、そのまま)
+    static func orderedDueTime(startDate: String?, startTime: String?, dueDate: String?, dueTime: String?) -> String? {
+        guard let sd = startDate, sd == dueDate, let st = startTime, let dt = dueTime,
+              let s = Rules.minutes(st), let d = Rules.minutes(dt), d < s else { return dueTime }
+        return startTime
+    }
+
     var hasStart: Bool { startDate != nil }
     var hasDue: Bool { dueDate != nil }
     /// 開始も締切もない「タスク」
