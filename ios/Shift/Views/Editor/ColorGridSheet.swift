@@ -162,7 +162,7 @@ struct ColorGridSheet: View {
                     .font(.app(16, weight: .bold))
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, 22)
-                    .frame(minHeight: 52)
+                    .frame(height: 52)
                     .background(Theme.accent, in: RoundedRectangle(cornerRadius: 14))
             }
             .buttonStyle(.plain)
