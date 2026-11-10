@@ -7,7 +7,8 @@ struct TaskEditTarget: Identifiable {
     var id: String { task.id }
 }
 
-/// 開始・締切・タスクの追加と編集。開始と締切のそれぞれを入れる・入れないが選べて、どちらも入れないと「タスク」になる
+/// 開始・締切・タスクの追加と編集。開始と締切のそれぞれを入れる・入れないが選べて、どちらも入れないと「タスク」になる。
+/// 時刻の入力(ホイール・数字キーボード・キーボードを閉じるボタン)は、通常の予定の編集画面と同じ
 struct TaskEditor: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -19,12 +20,20 @@ struct TaskEditor: View {
     @State private var hasStart: Bool
     @State private var startDay: Date
     @State private var startTimed: Bool
-    @State private var startClock: Date
+    @State private var startTime: String
     @State private var hasDue: Bool
     @State private var dueDay: Date
     @State private var dueTimed: Bool
-    @State private var dueClock: Date
+    @State private var dueTime: String
     @State private var confirmDelete = false
+    @State private var openPanel: TimePanel?
+    @State private var typed = ""
+    @FocusState private var focusedField: Field?
+    /// キーボードが出たあとに見せたい行。出るのが遅れても、出た時点でもう一度スクロールする
+    @State private var scrollTarget: String?
+
+    enum Field: Hashable { case title, startTime, dueTime }
+    enum TimePanel: Hashable { case start, due }
 
     init(original: TaskItem, isNew: Bool) {
         self.original = original
@@ -35,22 +44,11 @@ struct TaskEditor: View {
         _startDay = State(initialValue: original.startDate.flatMap(Rules.parse) ?? Rules.parse(Rules.today()) ?? Date())
         // 最初は、開始オフ・時間オフ、締切オン・時間オン(すでにある項目は、その通り)
         _startTimed = State(initialValue: isNew ? false : original.startTime != nil)
-        _startClock = State(initialValue: Self.clock(original.startTime, fallback: (9, 0)))
+        _startTime = State(initialValue: original.startTime ?? "09:00")
         _hasDue = State(initialValue: original.hasDue)
         _dueDay = State(initialValue: original.dueDate.flatMap(Rules.parse) ?? original.startDate.flatMap(Rules.parse) ?? Rules.parse(Rules.today()) ?? Date())
         _dueTimed = State(initialValue: isNew ? true : original.dueTime != nil)
-        _dueClock = State(initialValue: Self.clock(original.dueTime, fallback: (18, 0)))
-    }
-
-    private static func clock(_ text: String?, fallback: (Int, Int)) -> Date {
-        let p = (text ?? "").split(separator: ":").compactMap { Int($0) }
-        let (h, m) = p.count == 2 ? (p[0], p[1]) : fallback
-        return Calendar.current.date(bySettingHour: h, minute: m, second: 0, of: Date()) ?? Date()
-    }
-
-    private static func timeText(_ d: Date) -> String {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: d)
-        return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
+        _dueTime = State(initialValue: original.dueTime ?? "18:00")
     }
 
     private var canSave: Bool { !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -58,52 +56,65 @@ struct TaskEditor: View {
     private var startText: String? { hasStart ? Rules.format(startDay) : nil }
     private var dueText: String? { hasDue ? Rules.format(dueDay) : nil }
 
+    private static let titleRowId = "titleRow"
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("タイトル(必須)", text: $title)
-                    ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) }, taskLook: true)
-                    // 予定バーの見た目。色の下に出す
-                    HStack(alignment: .center, spacing: 8) {
-                        Text("予定バーの見た目").lineLimit(1).fixedSize()
-                        Spacer(minLength: 0)
-                        TaskLookPreview(title: title.isEmpty ? "タイトル" : title, color: color, start: startText, due: dueText)
-                    }
-                }
-                Section {
-                    Toggle("開始", isOn: $hasStart.animation())
-                    if hasStart {
-                        Toggle("時間も設定", isOn: $startTimed.animation())
-                        // 時間をオンにしたときは、別の行にせず、日付の行に並べる(通常の予定の「開始」の行と同じ)
-                        HStack(spacing: 8) {
-                            Text("日付")
-                            Spacer()
-                            DatePicker("", selection: $startDay, displayedComponents: .date).labelsHidden()
-                            if startTimed { DatePicker("", selection: $startClock, displayedComponents: .hourAndMinute).labelsHidden() }
-                        }
-                    }
-                }
-                Section {
-                    Toggle("締切", isOn: $hasDue.animation())
-                    if hasDue {
-                        Toggle("時間も設定", isOn: $dueTimed.animation())
-                        HStack(spacing: 8) {
-                            Text("日付")
-                            Spacer()
-                            DatePicker("", selection: $dueDay, in: (hasStart ? startDay : Date.distantPast)..., displayedComponents: .date).labelsHidden()
-                            if dueTimed { DatePicker("", selection: $dueClock, displayedComponents: .hourAndMinute).labelsHidden() }
-                        }
-                    }
-                } footer: {
-                    if !hasStart && !hasDue {
-                        Text("開始も締切も指定がない場合は「タスク」として保存されます。")
-                    }
-                }
-                if !isNew {
+            ScrollViewReader { proxy in
+                Form {
                     Section {
-                        Button("削除", role: .destructive) { confirmDelete = true }
+                        TextField("タイトル(必須)", text: $title)
+                            .focused($focusedField, equals: .title)
+                            .id(Self.titleRowId)
+                        ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) }, taskLook: true)
+                        // 予定バーの見た目。色の下に出す
+                        HStack(alignment: .center, spacing: 8) {
+                            Text("予定バーの見た目").lineLimit(1).fixedSize()
+                            Spacer(minLength: 0)
+                            TaskLookPreview(title: title.isEmpty ? "タイトル" : title, color: color, start: startText, due: dueText)
+                        }
                     }
+                    Section {
+                        Toggle("開始", isOn: $hasStart.animation())
+                        if hasStart {
+                            Toggle("時間も設定", isOn: $startTimed.animation())
+                            dateRow(.start)
+                            timePanelRows(.start)
+                        }
+                    }
+                    Section {
+                        Toggle("締切", isOn: $hasDue.animation())
+                        if hasDue {
+                            Toggle("時間も設定", isOn: $dueTimed.animation())
+                            dateRow(.due)
+                            timePanelRows(.due)
+                        }
+                    } footer: {
+                        if !hasStart && !hasDue {
+                            Text("開始も締切も指定がない場合は「タスク」として保存されます。")
+                        }
+                    }
+                    if !isNew {
+                        Section {
+                            Button("削除", role: .destructive) { confirmDelete = true }
+                        }
+                    }
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .onChange(of: openPanel) { _, new in
+                    guard let new else { return }
+                    scrollToBottom(panelBottomId(new), proxy: proxy)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                    guard let id = scrollTarget else { return }
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+                    scrollTarget = nil
+                }
+                .onChange(of: focusedField) { old, new in
+                    if new == nil { scrollTarget = nil }
+                    if new == .title { scrollToBottom(Self.titleRowId, proxy: proxy) }
+                    guard let old, let oldPanel = panel(for: old), openPanel == oldPanel else { return }
+                    if new == nil || panel(for: new!) == nil { closeTimePanel() }
                 }
             }
             .navigationTitle(isNew ? "開始・締切予定を追加" : "開始・締切予定を編集")
@@ -114,9 +125,15 @@ struct TaskEditor: View {
                     Button(isNew ? "追加" : "保存") { commit() }.disabled(!canSave)
                 }
             }
+            .keyboardDismissBar { closeTimePanel() }
             .onChange(of: startDay) { _, new in
                 if hasDue, dueDay < new { dueDay = new }
             }
+            // 時間や日付の入力を閉じてしまう操作(スイッチを切る)では、開いている時刻の入力も閉じる
+            .onChange(of: hasStart) { _, on in if !on, openPanel == .start { closeTimePanel() } }
+            .onChange(of: startTimed) { _, on in if !on, openPanel == .start { closeTimePanel() } }
+            .onChange(of: hasDue) { _, on in if !on, openPanel == .due { closeTimePanel() } }
+            .onChange(of: dueTimed) { _, on in if !on, openPanel == .due { closeTimePanel() } }
             .alert("この項目を削除しますか?", isPresented: $confirmDelete) {
                 Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
@@ -132,12 +149,191 @@ struct TaskEditor: View {
         t.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         t.color = color
         t.startDate = startText
-        t.startTime = hasStart && startTimed ? Self.timeText(startClock) : nil
+        t.startTime = hasStart && startTimed ? startTime : nil
         t.dueDate = dueText
-        t.dueTime = hasDue && dueTimed ? Self.timeText(dueClock) : nil
+        t.dueTime = hasDue && dueTimed ? dueTime : nil
         store.rememberColor(color)
         store.saveTask(t)
         dismiss()
+    }
+
+    // MARK: 日付の行
+
+    /// 「日付」の行。時間をオンにしたときは、同じ行に、日付と時刻を並べる(通常の予定の「開始」の行と同じ)
+    private func dateRow(_ p: TimePanel) -> some View {
+        HStack(spacing: 8) {
+            Text("日付")
+            Spacer()
+            if p == .start {
+                DatePicker("", selection: $startDay, displayedComponents: .date).labelsHidden()
+            } else {
+                DatePicker("", selection: $dueDay, in: (hasStart ? startDay : Date.distantPast)..., displayedComponents: .date).labelsHidden()
+            }
+            if timed(p) { timeChip(p) }
+        }
+    }
+
+    private func timed(_ p: TimePanel) -> Bool { p == .start ? startTimed : dueTimed }
+
+    // MARK: 時刻入力(通常の予定の編集画面と同じ)
+
+    /// 開始・締切は、その日のうちの時刻(24:00 まで)
+    private static let maxMinutes = 24 * 60
+
+    private func timeValue(_ p: TimePanel) -> String { p == .start ? startTime : dueTime }
+
+    private func setTime(_ p: TimePanel, _ t: String) {
+        if p == .start { startTime = t } else { dueTime = t }
+        typed = Self.digits(of: t)
+    }
+
+    private static func digits(of time: String) -> String { time.filter { $0.isASCII && $0.isNumber } }
+
+    /// Form の行の出入りをアニメーションさせるとキーボードの表示と重なってカクつくので、即時に切り替える
+    private func noAnimation(_ body: () -> Void) {
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t, body)
+    }
+
+    private func closeTimePanel() {
+        scrollTarget = nil
+        typed = ""
+        focusedField = nil
+        noAnimation { openPanel = nil }
+    }
+
+    private func toggleTimePanel(_ p: TimePanel) {
+        let next: TimePanel? = openPanel == p ? nil : p
+        typed = next == nil ? "" : Self.digits(of: timeValue(p))
+        noAnimation { openPanel = next }
+        focusedField = next.map(field(for:))
+    }
+
+    private func field(for p: TimePanel) -> Field { p == .start ? .startTime : .dueTime }
+
+    private func panel(for f: Field) -> TimePanel? {
+        switch f {
+        case .startTime: return .start
+        case .dueTime: return .due
+        default: return nil
+        }
+    }
+
+    private func panelBottomId(_ p: TimePanel) -> String { p == .start ? "startPanelBottom" : "duePanelBottom" }
+
+    /// 行の展開とキーボードの表示が落ち着いてから、1回だけスクロールして下端を見せる
+    /// (展開・キーボード・スクロールのアニメーションが重なるとカクつく)
+    private func scrollToBottom(_ id: String, proxy: ScrollViewProxy) {
+        scrollTarget = id
+        for (n, delay) in [0.25, 0.6].enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard scrollTarget == id else { return }
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+                if n == 1 { scrollTarget = nil }
+            }
+        }
+    }
+
+    /// チップの表示。入力途中なら打鍵中の数字を時刻の形で見せる
+    private func chipText(_ p: TimePanel) -> String {
+        guard openPanel == p, !typed.isEmpty, typed.count < 4 else { return timeValue(p) }
+        return typed.count <= 2 ? typed : String(typed.prefix(2)) + ":" + String(typed.dropFirst(2))
+    }
+
+    private var typedBinding: Binding<String> {
+        Binding(
+            get: { typed },
+            set: { input in
+                guard let p = openPanel else { return }
+                var digits = Self.digits(of: input)
+                // 4桁そろった後の打鍵は、次の4桁の入力開始として受け付ける
+                if digits.count > 4 { digits = String(digits.dropFirst(4).prefix(4)) }
+                if digits.isEmpty {
+                    setTime(p, "00:00")
+                    typed = ""
+                } else if digits.count == 4 {
+                    if let t = Rules.parseTimeDigits(digits, maxMinutes: Self.maxMinutes) {
+                        setTime(p, t)
+                    } else {
+                        UINotificationFeedbackGenerator().notificationOccurred(.error)
+                        typed = Self.digits(of: timeValue(p))
+                    }
+                } else {
+                    typed = digits
+                }
+            }
+        )
+    }
+
+    private func timeChip(_ p: TimePanel) -> some View {
+        let open = openPanel == p
+        return Button { toggleTimePanel(p) } label: {
+            Text(chipText(p))
+                .font(.app(17).monospacedDigit())
+                .foregroundStyle(open ? Theme.onAccent : Color.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8).fill(open ? Theme.accent : Color(.secondarySystemFill)))
+        }
+        .buttonStyle(.borderless)
+    }
+
+    /// 時刻のチップを押したときに開く、ホイールと、数字キーボードの受け口
+    @ViewBuilder
+    private func timePanelRows(_ p: TimePanel) -> some View {
+        if openPanel == p, timed(p) {
+            VStack(spacing: 0) {
+                wheelPanel(p)
+                TextField("", text: typedBinding)
+                    .keyboardType(.numberPad)
+                    .focused($focusedField, equals: field(for: p))
+                    .frame(width: 1, height: 1)
+                    .opacity(0.02)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            .id(panelBottomId(p))
+        }
+    }
+
+    private func wheelPanel(_ p: TimePanel) -> some View {
+        let maxHour = Self.maxMinutes / 60
+        let cur = Rules.minutes(timeValue(p)) ?? 0
+        let curH = min(cur / 60, maxHour), curM = cur % 60
+        var minuteItems = Rules.minuteOptions
+        if !minuteItems.contains(curM) { minuteItems.append(curM); minuteItems.sort() }
+        if curH >= maxHour { minuteItems = [0] }
+        let hourBinding = Binding<Int>(
+            get: { curH },
+            set: { h in
+                let m = h >= maxHour ? 0 : curM
+                setTime(p, String(format: "%02d:%02d", h, m))
+            })
+        let minuteBinding = Binding<Int>(
+            get: { curH >= maxHour ? 0 : curM },
+            set: { m in setTime(p, String(format: "%02d:%02d", curH, m)) })
+        return HStack(spacing: 0) {
+            Picker("時", selection: hourBinding) {
+                ForEach(Rules.hourOptions(maxHour: maxHour), id: \.self) { h in
+                    Text(String(format: "%02d", h)).frame(maxWidth: .infinity, alignment: .trailing)
+                        .tag(h)
+                }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            Text(":").font(.app(20).monospacedDigit())
+            Picker("分", selection: minuteBinding) {
+                ForEach(minuteItems, id: \.self) { m in
+                    Text(String(format: "%02d", m)).frame(maxWidth: .infinity, alignment: .leading)
+                        .tag(m)
+                }
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+        }
+        .frame(height: 140)
+        .clipped()
     }
 }
 
