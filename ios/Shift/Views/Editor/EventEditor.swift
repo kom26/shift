@@ -186,20 +186,17 @@ struct EventEditor: View {
                         Toggle("よく使う予定にも登録", isOn: $registerFavorite)
                     }
                 }
-                // 最後に変えた人と時刻(画像取り込みで作った予定には、その印も)。削除の上に出す
-                if !isNew, let line = original.lastModifiedText() {
-                    Section {
-                        Text(line).font(.app(12)).foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                            .listRowBackground(Color.clear)
-                    }
-                }
-                if onCommit == nil {
-                    if !isNew {
+                // 最後に変えた人と時刻(画像取り込みで作った予定には、その印も)は、削除の見出しにして、行を取らないようにする。
+                // 削除を出さない画面(画像取り込みの確認)では、見出しだけの区切りにする
+                if !isNew {
+                    if onCommit == nil {
                         Section {
                             Button("削除", role: .destructive) { confirmDelete = true }
+                        } header: {
+                            LastModifiedHeader(line: original.lastModifiedText())
                         }
+                    } else if original.lastModifiedText() != nil {
+                        Section {} header: { LastModifiedHeader(line: original.lastModifiedText()) }
                     }
                 }
             }

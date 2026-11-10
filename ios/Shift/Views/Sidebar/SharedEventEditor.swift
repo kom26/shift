@@ -7,6 +7,22 @@ struct SharedEditTarget: Identifiable {
     let isNew: Bool
 }
 
+/// 「- 最終変更… -」を、1 行の小さな文字で出す(行を取らないよう、削除の見出しとして置く)
+struct LastModifiedHeader: View {
+    let line: String?
+
+    var body: some View {
+        if let line {
+            Text(line)
+                .font(.app(12))
+                .foregroundStyle(.secondary)
+                .textCase(nil)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+        }
+    }
+}
+
 /// 共有カレンダーの中で作る予定の編集。参加者全員が見られて、直せる。給料やメモは持たない
 struct SharedEventEditor: View {
     @Environment(SharedViewState.self) private var shared
@@ -403,18 +419,12 @@ struct SharedEventEditor: View {
                 if failed {
                     Section { Text("保存できませんでした。通信を確認してください。").foregroundStyle(.red) }
                 }
-                // 最後に変えた人と時刻。削除の上に出す
-                if !target.isNew, let line = target.event.lastModifiedText() {
-                    Section {
-                        Text(line).font(.app(12)).foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                            .listRowBackground(Color.clear)
-                    }
-                }
+                // 最後に変えた人と時刻は、削除の見出しにして、行を取らないようにする
                 if !target.isNew {
                     Section {
                         Button("削除", role: .destructive) { confirmDelete = true }
+                    } header: {
+                        LastModifiedHeader(line: target.event.lastModifiedText())
                     }
                 }
             }

@@ -43,7 +43,7 @@ struct WorkplaceManageView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { EditButton() }
+                ToolbarItem(placement: .primaryAction) { EditButton() }
             }
             .confirmationDialog("この職場を削除しますか?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
                                 titleVisibility: .visible, presenting: pendingDelete) { w in

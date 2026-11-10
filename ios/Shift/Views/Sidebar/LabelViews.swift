@@ -108,7 +108,7 @@ struct WorkLabelSheet: View {
                 if !editing {
                     ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .primaryAction) {
                     Button(editing ? "完了" : "編集") { withAnimation { editing.toggle() } }
                         .disabled(!editing && store.workplaces.isEmpty && store.labels.isEmpty)
                 }
@@ -243,7 +243,7 @@ struct LabelManageView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { EditButton() }
+                ToolbarItem(placement: .primaryAction) { EditButton() }
             }
             .sheet(item: $target) { LabelEditor(label: $0.label, isNew: $0.isNew) }
             .environment(\.editMode, $editMode)
