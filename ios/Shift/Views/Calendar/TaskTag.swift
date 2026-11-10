@@ -60,3 +60,44 @@ struct TaskKindMark: View {
         Image(systemName: isStart ? "play.fill" : "flag.fill")
     }
 }
+
+/// 月表示で、開始から締切までを 1 本につないだもの。両端が矢印のタグ(開始は右向き・締切は左向き)で、間は点線。
+/// 週をまたぐときは、その週の中の端だけタグを出す
+struct TaskLinkBar: View {
+    let title: String
+    let color: String
+    /// 何マスぶんの幅か
+    let span: Int
+    let showsStart: Bool
+    let showsDue: Bool
+    let height: CGFloat
+    var fontSize: CGFloat = 10
+
+    var body: some View {
+        GeometryReader { geo in
+            let cellW = max(1, (geo.size.width + 2) / CGFloat(max(1, span)))
+            let tagW = max(0, cellW - 2)
+            let x1 = showsStart ? cellW : 0
+            let x2 = showsDue ? geo.size.width - cellW : geo.size.width
+            ZStack(alignment: .topLeading) {
+                if x2 > x1 {
+                    Path { p in
+                        p.move(to: CGPoint(x: x1 + 2, y: geo.size.height / 2))
+                        p.addLine(to: CGPoint(x: x2 - 2, y: geo.size.height / 2))
+                    }
+                    .stroke(Color(hex: color), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0.1, 3.5]))
+                }
+                if showsStart {
+                    TaskTagBar(title: title, color: color, isStart: true, height: height, fontSize: fontSize)
+                        .frame(width: tagW, height: height)
+                }
+                if showsDue {
+                    TaskTagBar(title: title, color: color, isStart: false, height: height, fontSize: fontSize)
+                        .frame(width: tagW, height: height)
+                        .offset(x: geo.size.width - tagW)
+                }
+            }
+        }
+        .frame(height: height)
+    }
+}

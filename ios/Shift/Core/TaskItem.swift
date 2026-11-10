@@ -56,18 +56,21 @@ struct TaskItem: Codable, Identifiable, Equatable {
 struct TaskMarker: Equatable {
     let taskId: String
     let isStart: Bool
+    /// 開始から締切までを 1 本につないだ印(月表示。両端がタグで、間は点線)
+    var isLink = false
 }
 
 extension ShiftEvent {
     static let taskStartSource = "task-start"
     static let taskDueSource = "task-due"
+    static let taskLinkSource = "task-link"
 
     /// 開始・締切の印として作った見かけの予定か(カレンダーの行の詰め方を、予定と同じにするために使う)
     var taskMarker: TaskMarker? {
-        guard source == Self.taskStartSource || source == Self.taskDueSource else { return nil }
+        guard source == Self.taskStartSource || source == Self.taskDueSource || source == Self.taskLinkSource else { return nil }
         let parts = id.split(separator: ":", omittingEmptySubsequences: false)
         guard parts.count == 3, parts[0] == "task" else { return nil }
-        return TaskMarker(taskId: String(parts[1]), isStart: source == Self.taskStartSource)
+        return TaskMarker(taskId: String(parts[1]), isStart: source != Self.taskDueSource, isLink: source == Self.taskLinkSource)
     }
 }
 
@@ -123,9 +126,16 @@ extension Store {
 
     /// カレンダーに出す開始・締切の印。チェックを付けたものは出さない。
     /// 月表示と、週表示の終日の場所には、時刻の有無にかかわらず出す(週表示の時刻つきは線なので、timeless で分ける)
-    func taskMarkers(timelessOnly: Bool = false) -> [ShiftEvent] {
+    func taskMarkers(timelessOnly: Bool = false, linked: Bool = false) -> [ShiftEvent] {
         var list: [ShiftEvent] = []
         for t in tasks where !t.done {
+            // 月表示: 開始と締切が別の日なら、1 本につなぐ(間は点線)
+            if linked, let s = t.startDate, let d = t.dueDate, s < d {
+                list.append(ShiftEvent(id: "task:\(t.id):link", title: t.title, memo: "", color: t.color,
+                                       startDate: s, endDate: d, placed: true, allDay: true,
+                                       startTime: nil, endTime: nil, workHours: nil, source: ShiftEvent.taskLinkSource))
+                continue
+            }
             if let d = t.startDate, !timelessOnly || t.startTime == nil {
                 list.append(marker(t, date: d, time: t.startTime, isStart: true))
             }

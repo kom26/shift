@@ -397,6 +397,16 @@ struct TaskLookPreview: View {
             }
             ZStack(alignment: .topLeading) {
                 Color.clear.frame(width: total, height: CGFloat(lanes) * (barH + 2))
+                if let s = start, let d = due, s != d {
+                    // 開始と締切をつなぐ点線
+                    let xs = x(of: s, widths: widths, columns: columns) + colW
+                    let xd = x(of: d, widths: widths, columns: columns)
+                    Path { p in
+                        p.move(to: CGPoint(x: xs + 2, y: barH / 2))
+                        p.addLine(to: CGPoint(x: xd - 2, y: barH / 2))
+                    }
+                    .stroke(Color(hex: color), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0.1, 3.5]))
+                }
                 if let s = start {
                     tag(isStart: true, at: x(of: s, widths: widths, columns: columns), width: colW, lane: 0, fontSize: fontSize)
                 }

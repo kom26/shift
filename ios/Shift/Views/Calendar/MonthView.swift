@@ -61,7 +61,7 @@ struct MonthView: View {
             Divider()
             GeometryReader { geo in
                 // 開始・締切の印も、予定と同じ決まりで行に詰める
-                let calEvents = store.visibleEvents + store.taskMarkers()
+                let calEvents = store.visibleEvents + store.taskMarkers(linked: true)
                 let fullRows = weeks.map { SpanLayout.rows(events: calEvents, weekCells: $0.map { Optional($0) }) }
                 let lay = monthLayout(weeks: weeks, fullRows: fullRows, size: geo.size, annivMap: annivMap)
                 ScrollView(.vertical, showsIndicators: false) {
