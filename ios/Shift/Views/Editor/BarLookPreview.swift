@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// 予定編集画面のプレビュー。月カレンダーでこの予定のバーがどう見えるかを、予定の日付で見せる
-/// 1日: 1マス / 2日: 2マスにまたぐ / 3日以上: 最初と最後の日だけ見せて、間は「〜〜」で省略する
+/// 1日: 1マス / 2日: 2マス / 3日: 3マス(真ん中の日も見せる) / 4日以上: 最初と最後の日だけ見せて、間は「〜〜」で省略する
 struct BarLookPreview: View {
     let event: ShiftEvent
     @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
@@ -50,6 +50,7 @@ struct BarLookPreview: View {
         switch days {
         case 1: return [.day(s)]
         case 2: return [.day(s), .day(e)]
+        case 3: return [.day(s), .day(Rules.addDays(s, 1)), .day(e)]
         default: return [.day(s), .omitted, .day(e)]
         }
     }
