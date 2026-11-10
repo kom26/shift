@@ -99,17 +99,22 @@ struct ColorGridSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
+    /// 「選択中」の文字は、選んだ色の上で読める色(明るい色なら濃く、暗い色なら白)
+    private var pickedTextColor: Color {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(Color(hex: picked)).getRed(&r, green: &g, blue: &b, alpha: &a)
+        return 0.299 * r + 0.587 * g + 0.114 * b > 0.6 ? Color.black.opacity(0.7) : Color.white
+    }
+
     /// 左: 選んだ色 / 真ん中: バーの見え方 / 右: 確定
     private var bottomBar: some View {
         // 「選択中」の四角・バーの見え方・「確定」は、同じ高さ(52)の帯の真ん中にそろえる。「選択中」の文字は、四角の下にはみ出す
         HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(hex: picked))
-                    .frame(width: 52, height: 52)
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(.separator), lineWidth: 1))
-                Text("選択中").font(.app(10)).foregroundStyle(.secondary)
-            }
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(hex: picked))
+                .frame(width: 52, height: 52)
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(.separator), lineWidth: 1))
+                .overlay { Text("選択中").font(.app(10, weight: .semibold)).foregroundStyle(pickedTextColor) }
             VStack(spacing: 4) {
                 if let iconName {
                     // アイコンの色を選んでいるときは、そのアイコンの見た目を出す
