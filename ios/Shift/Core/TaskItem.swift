@@ -13,8 +13,11 @@ struct TaskItem: Codable, Identifiable, Equatable {
     var dueTime: String?
     var done: Bool
 
+    /// 最初に選ばれている色。カスタム色の並びの、赤(3 行目・色相 4°の列)
+    static var defaultColor: String { ColorGridSheet.cells[12 + 2 * 12 + 5] }
+
     static func new(startDate: String? = nil, dueDate: String? = nil) -> TaskItem {
-        TaskItem(id: UUID().uuidString, title: "", color: Store.defaultColors[1],
+        TaskItem(id: UUID().uuidString, title: "", color: defaultColor,
                  startDate: startDate, startTime: nil, dueDate: dueDate, dueTime: nil, done: false)
     }
 
@@ -43,7 +46,7 @@ struct TaskItem: Codable, Identifiable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
-        color = try c.decodeIfPresent(String.self, forKey: .color) ?? Store.defaultColors[1]
+        color = try c.decodeIfPresent(String.self, forKey: .color) ?? TaskItem.defaultColor
         startDate = try c.decodeIfPresent(String.self, forKey: .startDate).nonEmpty
         startTime = try c.decodeIfPresent(String.self, forKey: .startTime).nonEmpty
         dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate).nonEmpty
