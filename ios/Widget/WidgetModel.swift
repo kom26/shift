@@ -117,6 +117,10 @@ struct WeekBar: Identifiable, Equatable {
     let showsTime: Bool
     /// 開始・締切のタグのとき、開始(true)か締切(false)か。予定は nil。カレンダーと同じ矢印形で出す
     var taskStart: Bool? = nil
+    /// 開始と締切を点線でつないだ 1 本のとき true。この週の中に、開始・締切のタグがあるか(なければ、その側は週の端まで点線)
+    var link = false
+    var showsStart = false
+    var showsDue = false
 }
 
 struct WeekContent: Equatable {
@@ -215,7 +219,7 @@ extension WidgetSource {
         let start = Rules.weekStart(of: ds, startMonday: startMonday)
         let days = (0..<7).map { Rules.addDays(start, $0) }
         // 開始・締切も、バーとして並べる(自分のカレンダーだけ)
-        let taskBars = sharedCal != nil ? [] : store.taskMarkers()
+        let taskBars = sharedCal != nil ? [] : store.taskMarkers(linked: true)
         let rows = SpanLayout.rows(events: store.visibleEvents + taskBars, weekCells: days.map { Optional($0) })
         var bars: [WeekBar] = []
         for (lane, row) in rows.enumerated() where lane < 3 {
@@ -223,10 +227,12 @@ extension WidgetSource {
                 let ev = s.event
                 let mark = ev.taskMarker
                 // 開始・締切は、カレンダーと同じ矢印形のタグで、タイトルを出す
-                let text = s.isStart ? (mark != nil ? ev.title : (ev.barShowsTime ? Rules.timeLabel(ev) : ev.title)) : "…"
+                let isLink = mark?.isLink == true
+                let text = (s.isStart || isLink) ? (mark != nil ? ev.title : (ev.barShowsTime ? Rules.timeLabel(ev) : ev.title)) : "…"
                 bars.append(WeekBar(id: ev.id + "-\(s.col)", col: s.col, span: s.span, lane: lane,
                                     text: text, color: ev.color, showsTime: mark == nil && s.isStart && ev.barShowsTime,
-                                    taskStart: mark?.isStart))
+                                    taskStart: isLink ? nil : mark?.isStart,
+                                    link: isLink, showsStart: isLink && s.isStart, showsDue: isLink && s.isEnd))
             }
         }
         let totals = (workStore ?? store).totals(from: days[0], to: days[6], isHoliday: isHoliday)

@@ -87,12 +87,3 @@ struct TaskLinkBar: View {
         .frame(height: height)
     }
 }
-
-/// 開始と締切をつなぐ点線。長さに合わせて点の間隔を決めて、両端に点が来るようにする
-enum TaskDots {
-    static func style(length: CGFloat) -> StrokeStyle {
-        let n = max(1, Int((length / 3.6).rounded()))
-        let step = length / CGFloat(n)
-        return StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0.1, max(0.1, step - 0.1)])
-    }
-}

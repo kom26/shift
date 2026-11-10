@@ -94,7 +94,8 @@ struct MediumWeekView: View {
         // 「00:00-00:00」が1日分の幅に収まる大きさ。月表示のバーと同じ考え方
         let size = min(9, FixedWidthTime.fitSize(width: colW - 2 - 4))
         return ZStack(alignment: .topLeading) {
-            ForEach(content.bars) { b in
+            ForEach(content.bars.filter(\.link)) { b in linkBar(b, colW: colW, size: size) }
+            ForEach(content.bars.filter { !$0.link }) { b in
                 Group {
                     if b.showsTime {
                         FixedWidthTimeText(text: b.text, size: size)
@@ -111,6 +112,40 @@ struct MediumWeekView: View {
                 .offset(x: colW * CGFloat(b.col) + 1, y: CGFloat(b.lane) * (barH + laneGap))
             }
         }
+    }
+
+    /// 開始から締切までを 1 本につないだもの(カレンダーの月表示と同じ)。両端が矢印形のタグで、間は点線。
+    /// 週をまたぐときは、この週にある側のタグだけを出して、点線は、週の端まで続ける
+    private func linkBar(_ b: WeekBar, colW: CGFloat, size: CGFloat) -> some View {
+        let width = max(0, colW * CGFloat(b.span) - 2)
+        let tagW = max(0, colW - 2)
+        let gap: CGFloat = 4
+        let x1 = b.showsStart ? tagW + gap : 2
+        let x2 = b.showsDue ? width - tagW - gap : width - 2
+        return ZStack(alignment: .topLeading) {
+            if x2 > x1 {
+                Path { p in
+                    p.move(to: CGPoint(x: x1, y: barH / 2))
+                    p.addLine(to: CGPoint(x: x2, y: barH / 2))
+                }
+                .stroke(Color(hex: b.color), style: TaskDots.style(length: x2 - x1))
+            }
+            if b.showsStart { tag(b, isStart: true, width: tagW, size: size) }
+            if b.showsDue { tag(b, isStart: false, width: tagW, size: size).offset(x: width - tagW) }
+        }
+        .frame(width: width, height: barH, alignment: .topLeading)
+        .offset(x: colW * CGFloat(b.col) + 1, y: CGFloat(b.lane) * (barH + laneGap))
+    }
+
+    private func tag(_ b: WeekBar, isStart: Bool, width: CGFloat, size: CGFloat) -> some View {
+        Text(b.text).font(.bar(size, weight: .bold)).lineLimit(1)
+            .padding(.leading, isStart ? 2 : 6)
+            .padding(.trailing, isStart ? 6 : 2)
+            .frame(width: width, height: barH, alignment: .leading)
+            .clipped()
+            .foregroundStyle(EventColor.text(b.color))
+            .background { barBackground(WeekBar(id: b.id, col: b.col, span: 1, lane: b.lane, text: b.text, color: b.color,
+                                                showsTime: false, taskStart: isStart)) }
     }
 
     /// 予定は角丸の帯。開始・締切は、カレンダーと同じ矢印形(開始は白抜きで右向き、締切は塗りで左向き)
