@@ -649,7 +649,7 @@ final class Store {
         persist()
     }
 
-    func persist() {
+    private func persist() {
         guard let data = try? JSONEncoder().encode(events) else { return }
         try? data.write(to: fileURL, options: .atomic)
         notifyChanged()
@@ -704,5 +704,30 @@ final class Store {
         defaults.set(customColors, forKey: Keys.custom)
         defaults.set(Array(hiddenSuggestions), forKey: Keys.hiddenSuggestions)
         if let prefs = snap.prefs { SyncedPrefs.write(prefs, to: defaults) }
+    }
+}
+
+/// ラベルの予定の一覧からの、まとめての付け替え・削除(events の書き込みは、この型の中だけ)
+extension Store {
+    /// 選んだ予定のラベルをまとめて変える(nil は「指定なし」)。個別カラーでない予定は、新しいラベルの色に付いていく
+    func setLabel(eventIds: Set<String>, to labelId: String?) {
+        let newColor = label(for: labelId)?.color ?? EventLabel.noneColor
+        var touched = false
+        for i in events.indices where eventIds.contains(events[i].id) && workplace(for: events[i]) == nil {
+            let oldColor = label(for: events[i].labelId)?.color ?? EventLabel.noneColor
+            var e = events[i]
+            if e.ownColor != true, e.color == oldColor { e.color = newColor }
+            e.labelId = labelId
+            events[i] = stamped(e)
+            touched = true
+        }
+        if touched { persist() }
+    }
+
+    /// 選んだ予定をまとめて消す
+    func deleteEvents(ids: Set<String>) {
+        guard events.contains(where: { ids.contains($0.id) }) else { return }
+        events.removeAll { ids.contains($0.id) }
+        persist()
     }
 }
