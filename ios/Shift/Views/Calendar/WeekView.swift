@@ -22,6 +22,8 @@ struct WeekView: View {
     @Environment(\.isSharedView) private var isSharedView
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @AppStorage(BarFontSize.weekKey) private var fontDelta = 0.0
+    @AppStorage(BarFontSize.weekTitleKey) private var titleDelta = 0.0
+    @AppStorage(BarFontChoice.key) private var barFont = BarFontChoice.zen.rawValue
     @State private var dropTarget: String?
     @Environment(\.isStamping) private var isStamping
 
@@ -29,6 +31,7 @@ struct WeekView: View {
     private let barH: CGFloat = 20
 
     var body: some View {
+        let _ = barFont
         let start = Rules.weekStart(of: anchor, startMonday: startMonday)
         let days = (0..<7).map { Rules.addDays(start, $0) }
         let conflictDays: Set<String> = conflictWarningOn && !isSharedView ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
@@ -328,7 +331,7 @@ struct WeekView: View {
         let time = Rules.timeLabel(ev)
         return VStack(alignment: .leading, spacing: 0) {
             Text(ev.title)
-                .font(.bar(10 + CGFloat(fontDelta), weight: .bold))
+                .font(.bar(10 + CGFloat(titleDelta), weight: .bold))
                 .lineLimit(1)
                 .fixedSize()
             if !time.isEmpty {
@@ -350,7 +353,7 @@ struct WeekView: View {
     private func block(_ ev: ShiftEvent, h: CGFloat) -> some View {
         return VStack(alignment: .leading, spacing: 0) {
             Text(ev.title)
-                .font(.bar(10 + CGFloat(fontDelta), weight: .bold))
+                .font(.bar(10 + CGFloat(titleDelta), weight: .bold))
                 .lineLimit(2)
             if h > 30 {
                 Text(Rules.timeLabel(ev))

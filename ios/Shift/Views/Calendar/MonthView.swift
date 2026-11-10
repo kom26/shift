@@ -24,6 +24,8 @@ struct MonthView: View {
     @Environment(\.isSharedView) private var isSharedView
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
+    @AppStorage(BarFontSize.monthTitleKey) private var monthTitleDelta = 0.0
+    @AppStorage(BarFontChoice.key) private var barFont = BarFontChoice.zen.rawValue
     @AppStorage(BarFontSize.thicknessKey) private var thickness = 0.0
     @AppStorage(BarFontSize.scrollKey) private var scrollOnOverflow = false
     @State private var dropTarget: String?
@@ -37,6 +39,7 @@ struct MonthView: View {
     private let monthStripH = LayoutMath.monthStripH
 
     var body: some View {
+        let _ = barFont
         let ym = Rules.ymd(anchor)
         let weeks = Rules.monthGrid(year: ym.year, month: ym.month, startMonday: startMonday)
         let monthBounds = Rules.monthBounds(of: anchor)
@@ -207,7 +210,8 @@ struct MonthView: View {
         let avail = size.height - (n - 1) * divH
         let colW = size.width / 7
         // バーの太さ: 設定があればそれ。なければ、予定3本ぶんが入る太さ。どちらも、文字が入る太さより細くはしない
-        let fontPx = max(5, FixedWidthTime.fitSize(width: colW - 2 - BarFontSize.sidePadding) + CGFloat(monthDelta))
+        let baseFit = FixedWidthTime.fitSize(width: colW - 2 - BarFontSize.sidePadding)
+        let fontPx = max(5, baseFit + CGFloat(max(monthDelta, monthTitleDelta)))
         let minBar = BarFontSize.minBar(font: fontPx)
         let minRow = avail / n
         let autoBar = min(20, max(11, floor((minRow - stripH - numH - bottomPad) / 3) - 1))

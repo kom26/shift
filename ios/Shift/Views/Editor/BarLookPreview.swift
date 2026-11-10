@@ -6,6 +6,7 @@ import UIKit
 struct BarLookPreview: View {
     let event: ShiftEvent
     @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
+    @AppStorage(BarFontSize.monthTitleKey) private var monthTitleDelta = 0.0
 
     private let barH: CGFloat = 18
 
@@ -20,7 +21,9 @@ struct BarLookPreview: View {
         let omittedW = (colW * 0.7).rounded()
         let columns = self.columns
         let total = columns.reduce(CGFloat(0)) { $0 + width(of: $1, colW: colW, omittedW: omittedW) }
-        let fontSize = max(5, FixedWidthTime.fitSize(width: colW - 2 - BarFontSize.sidePadding) + CGFloat(monthDelta))
+        let baseFit = FixedWidthTime.fitSize(width: colW - 2 - BarFontSize.sidePadding)
+        let fontSize = max(5, baseFit + CGFloat(monthDelta))
+        let titleSize = max(5, baseFit + CGFloat(monthTitleDelta))
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 0) {
                 ForEach(columns.indices, id: \.self) { i in
@@ -31,7 +34,7 @@ struct BarLookPreview: View {
                         }
                 }
             }
-            EventBar(span: BarSpan(event: event, col: 0, span: 1, isStart: true, isEnd: true), height: barH, fontSize: fontSize)
+            EventBar(span: BarSpan(event: event, col: 0, span: 1, isStart: true, isEnd: true), height: barH, fontSize: fontSize, titleSize: titleSize)
                 .frame(width: max(0, total - 2), height: barH)
                 .padding(.leading, 1)
         }

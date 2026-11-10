@@ -374,6 +374,7 @@ struct TaskLookPreview: View {
     let start: String?
     let due: String?
     @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
+    @AppStorage(BarFontSize.monthTitleKey) private var monthTitleDelta = 0.0
 
     private let barH: CGFloat = 18
 
@@ -411,7 +412,7 @@ struct TaskLookPreview: View {
         let columns = self.columns
         let widths = columns.map { c -> CGFloat in if case .omitted = c { return omittedW } else { return colW } }
         let total = widths.reduce(0, +)
-        let fontSize = max(5, FixedWidthTime.fitSize(width: colW - 2 - BarFontSize.sidePadding) + CGFloat(monthDelta))
+        let fontSize = max(5, FixedWidthTime.fitSize(width: colW - 2 - BarFontSize.sidePadding) + CGFloat(monthTitleDelta))
         // 開始と締切が同じ日なら、同じマスに 2 本、重ねずに並べる
         let sameDay = start != nil && start == due
         let lanes = sameDay ? 2 : 1

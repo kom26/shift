@@ -1,17 +1,24 @@
 import SwiftUI
 
-/// 予定バーの文字サイズを、実際のカレンダーを見ながらスライダーで調整する(カレンダーは操作できない)
+/// 予定バーのフォント・文字サイズ(タイトルと時間を別々に)・太さを、実際のカレンダーを見ながら調整する(カレンダーは操作できない)
 struct BarFontSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("mode") private var calendarMode: CalendarMode = .week
     @AppStorage("startMonday") private var startMonday = false
+    /// 時間の文字サイズ
     @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
     @AppStorage(BarFontSize.weekKey) private var weekDelta = 0.0
+    /// タイトルの文字サイズ
+    @AppStorage(BarFontSize.monthTitleKey) private var monthTitleDelta = 0.0
+    @AppStorage(BarFontSize.weekTitleKey) private var weekTitleDelta = 0.0
+    @AppStorage(BarFontChoice.key) private var barFont = BarFontChoice.zen.rawValue
     @AppStorage(BarFontSize.thicknessKey) private var thickness = 0.0
     @AppStorage(BarFontSize.scrollKey) private var scrollOnOverflow = false
     @State private var target: CalendarMode = .week
 
-    private var delta: Binding<Double> { target == .month ? $monthDelta : $weekDelta }
+    private var timeDelta: Binding<Double> { target == .month ? $monthDelta : $weekDelta }
+    private var titleDelta: Binding<Double> { target == .month ? $monthTitleDelta : $weekTitleDelta }
+    private var choice: BarFontChoice { BarFontChoice(rawValue: barFont) ?? .zen }
 
     var body: some View {
         NavigationStack {
@@ -24,25 +31,16 @@ struct BarFontSheet: View {
                     .allowsHitTesting(false)
                     .frame(maxHeight: .infinity)
                 Divider()
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("文字サイズ").font(.app(14))
-                        Spacer()
-                        Text(label(delta.wrappedValue))
-                            .font(.app(14, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(Theme.accent)
-                        Button("標準に戻す") { delta.wrappedValue = 0 }
-                            .font(.app(13))
-                            .disabled(delta.wrappedValue == 0)
+                ScrollView {
+                    VStack(spacing: 14) {
+                        fontPicker
+                        slider("タイトルの文字サイズ", value: titleDelta)
+                        slider("時間の文字サイズ", value: timeDelta)
+                        if target == .month { monthControls }
                     }
-                    HStack(spacing: 10) {
-                        Text("小").font(.app(11)).foregroundStyle(.secondary)
-                        Slider(value: delta, in: BarFontSize.range, step: 0.1)
-                        Text("大").font(.app(15)).foregroundStyle(.secondary)
-                    }
-                    if target == .month { monthControls }
+                    .padding(16)
                 }
-                .padding(16)
+                .frame(maxHeight: 330)
             }
             .navigationTitle("予定バーの文字と太さ")
             .navigationBarTitleDisplayMode(.inline)
@@ -50,14 +48,54 @@ struct BarFontSheet: View {
         }
         .onAppear { target = calendarMode }
         // 文字を大きくして、いまのバーに入らなくなったら、バーも太くする
-        .onChange(of: monthDelta) { _, _ in
-            if thickness > 0, thickness < Double(minThickness) { thickness = Double(minThickness) }
+        .onChange(of: monthDelta) { _, _ in raiseThicknessIfNeeded() }
+        .onChange(of: monthTitleDelta) { _, _ in raiseThicknessIfNeeded() }
+    }
+
+    private func raiseThicknessIfNeeded() {
+        if thickness > 0, thickness < Double(minThickness) { thickness = Double(minThickness) }
+    }
+
+    /// フォント。プルダウンで選ぶ(予定バーの文字だけに効く)
+    private var fontPicker: some View {
+        HStack {
+            Text("フォント").font(.app(14))
+            Spacer()
+            Text("研修 9:00")
+                .font(.custom(choice.name(for: .bold), size: 14))
+                .foregroundStyle(.secondary)
+            Picker("フォント", selection: $barFont) {
+                ForEach(BarFontChoice.allCases) { Text($0.label).tag($0.rawValue) }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
         }
     }
 
-    /// 月表示の文字の大きさ(実際のバーと同じ計算)
+    private func slider(_ name: String, value: Binding<Double>) -> some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text(name).font(.app(14))
+                Spacer()
+                Text(label(value.wrappedValue))
+                    .font(.app(14, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Theme.accent)
+                Button("標準に戻す") { value.wrappedValue = 0 }
+                    .font(.app(13))
+                    .disabled(value.wrappedValue == 0)
+            }
+            HStack(spacing: 10) {
+                Text("小").font(.app(11)).foregroundStyle(.secondary)
+                Slider(value: value, in: BarFontSize.range, step: 0.1)
+                Text("大").font(.app(15)).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// 月表示の文字の大きさ(実際のバーと同じ計算)。タイトルと時間の大きいほう
     private var monthFont: CGFloat {
-        max(5, FixedWidthTime.fitSize(width: floor(UIScreen.main.bounds.width / 7) - 2 - BarFontSize.sidePadding) + CGFloat(monthDelta))
+        max(5, FixedWidthTime.fitSize(width: floor(UIScreen.main.bounds.width / 7) - 2 - BarFontSize.sidePadding)
+            + CGFloat(max(monthDelta, monthTitleDelta)))
     }
 
     /// 文字が入る、いちばん細いバーの太さ
@@ -84,6 +122,10 @@ struct BarFontSheet: View {
                        in: Double(minThickness)...Double(BarFontSize.thicknessMax), step: 1)
                 Text("太").font(.app(15)).foregroundStyle(.secondary)
             }
+            Text("文字が入る、いちばん細い太さは \(Int(minThickness))pt です。")
+                .font(.app(12))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Text("入りきらない予定").font(.app(14)).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
             TwoWayPicker("入りきらない予定", selection: $scrollOnOverflow, first: ("+件数で表示", false), second: ("縦にスクロール", true))
             Text(scrollOnOverflow ? "予定が多い週は、月の表示が縦にスクロールします。" : "入りきらない予定は「+件数」で表示します。")

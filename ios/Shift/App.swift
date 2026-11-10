@@ -20,6 +20,7 @@ struct ShiftApp: App {
 
     init() {
         AppFont.register()
+        BarFontSize.migrate()
         FirebaseApp.configure()
         let s = Store()
         s.seedDefaultLabelsIfNeeded()
