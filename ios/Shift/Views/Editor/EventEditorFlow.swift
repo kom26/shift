@@ -127,9 +127,8 @@ struct EventEditorFlow: View {
     }
 
     private var choices: [DestinationChoice] {
-        // 共有カレンダーの予定を自分のカレンダーに移せるのは、自分が作った予定だけ(新しい予定は、どちらにも)
-        let ownAllowed = isNew || originShared == nil || originShared?.ownerUid == sharedView.myUid
-        var list = [DestinationChoice(calendarId: nil, name: "自分のカレンダー", icon: "", enabled: ownAllowed)]
+        // 共有カレンダーの中で作った予定は、だれでも直せる・消せるので、自分のカレンダーへも移せる
+        var list = [DestinationChoice(calendarId: nil, name: "自分のカレンダー", icon: "")]
         for c in sharedView.writableCalendars() {
             list.append(DestinationChoice(calendarId: c.id, name: c.name, icon: c.icon))
         }

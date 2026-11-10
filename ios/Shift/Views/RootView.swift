@@ -154,7 +154,7 @@ struct RootView: View {
                     }
                     // 共有カレンダーでも、下に未配置エリアを出す(中身は、共有カレンダーの未配置の予定だけ)
                     UnplacedArea(anchor: anchor, selectedDate: selectedDate, startMonday: startMonday,
-                                 fillHeight: true, revealUnplaced: revealToken, stampId: $stampId, alarmStamp: $alarmStamp, onSelectEvent: edit,
+                                 fillHeight: true, revealUnplaced: revealToken, stampId: $stampId, alarmStamp: $alarmStamp, onSelectEvent: edit, onUnplacedOwn: { sharedView.close(); revealToken += 1 },
                                  onEditFavorite: { editing = EditorTarget(event: $0, isNew: false, favorite: true) },
                                  onNewFavorite: { editing = EditorTarget(event: .newUnplaced(), isNew: true, favorite: true) })
                         .environment(displayStore)
@@ -916,11 +916,24 @@ struct RootView: View {
 
     /// 予定を保存したあと。保存先のカレンダーで、その予定の月を開き、その日の予定一覧を開く
     private func eventSaved(date: String?, calendarId: String?) {
-        guard let date else { return }
         // 共有に出した自分の予定を直したときは、いま開いている共有カレンダーのまま
         var calendarId = calendarId
         if ownEditFromShared, calendarId == nil, sharedView.isOpen { calendarId = sharedView.calendar?.id }
         ownEditFromShared = false
+        guard let date else {
+            // 日付を決めない予定は、未配置エリアに入る。保存先のカレンダーを開いて、下の未配置エリアを出す
+            sharedDetail = nil
+            dayTarget = nil
+            let target = calendarId
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                Task {
+                    await showCalendar(target)
+                    revealToken += 1
+                    showToast("日付未定のため未配置エリアに保存しました")
+                }
+            }
+            return
+        }
         // 予定一覧からの編集で、同じカレンダー・同じ日のままなら、一覧がそのまま残っている
         if dayTarget?.date == date, sharedView.calendar?.id == calendarId { return }
         sharedDetail = nil
@@ -928,6 +941,15 @@ struct RootView: View {
         let target = calendarId
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             Task { await openDayFromWidget(date, sharedId: target) }
+        }
+    }
+
+    /// 自分のカレンダー(nil)か、その共有カレンダーを開く
+    private func showCalendar(_ id: String?) async {
+        if let id, let c = calendarService.calendars.first(where: { $0.id == id && $0.status == .active }) {
+            if sharedView.calendar?.id != id { await sharedView.open(c) }
+        } else {
+            sharedView.close()
         }
     }
 

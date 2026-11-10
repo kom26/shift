@@ -153,10 +153,12 @@ struct WidgetAvatar: View {
                 .frame(width: size, height: size)
                 .clipShape(Circle())
         } else {
-            // アイコンの名前に色("名前|#rrggbb")が付いていることがあるので、名前だけを使う
-            Image(systemName: icon.components(separatedBy: "|").first ?? icon)
+            // アイコンの名前に色("名前|#rrggbb")が付いていることがある。付いていれば、その色で出す
+            let parts = icon.components(separatedBy: "|")
+            let tint = parts.count > 1 && parts[1].hasPrefix("#") ? Color(hex: parts[1]) : color
+            Image(systemName: parts.first ?? icon)
                 .font(.system(size: size * 0.5, weight: .semibold))
-                .foregroundStyle(color)
+                .foregroundStyle(tint)
                 .frame(width: size, height: size)
                 .background(Circle().fill(Color.white.opacity(0.6)))
         }

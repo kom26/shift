@@ -15,6 +15,8 @@ struct UnplacedArea: View {
     @Binding var stampId: String?
     @Binding var alarmStamp: AlarmPreset?
     let onSelectEvent: (ShiftEvent) -> Void
+    /// 共有に出した自分の予定を、自分のカレンダーの未配置に入れた(自分のカレンダーを開いて、未配置エリアを出す)
+    var onUnplacedOwn: () -> Void = {}
     var onEditFavorite: (ShiftEvent) -> Void = { _ in }
     var onNewFavorite: () -> Void = {}
 
@@ -188,18 +190,19 @@ struct UnplacedArea: View {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
         }
-        .alert("自分のカレンダーの未配置に入れますか?",
+        .alert("自分のカレンダーの未配置エリアに入りますがよろしいですか?",
                isPresented: Binding(get: { pendingUnplaceOwnId != nil }, set: { if !$0 { pendingUnplaceOwnId = nil } })) {
             Button("キャンセル", role: .cancel) {}
-            Button("未配置に入れる") {
+            Button("入れる") {
                 if let id = pendingUnplaceOwnId {
-                    withAnimation(.snappy) { shared.unplaceOwn(id: id) }
+                    shared.unplaceOwn(id: id)
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    onUnplacedOwn()
                 }
                 pendingUnplaceOwnId = nil
             }
         } message: {
-            Text("「\(shared.event(pendingUnplaceOwnId ?? "")?.title ?? "")」は、自分のカレンダーの予定です。自分のカレンダーの未配置に入ります。")
+            Text("「\(shared.event(pendingUnplaceOwnId ?? "")?.title ?? "")」")
         }
         .confirmationDialog("\(anchorMonthText)の配置済み予定をすべて未配置予定に入れますか?",
                             isPresented: $confirmRecall, titleVisibility: .visible) {
