@@ -99,7 +99,8 @@ export function normalizeTasks(raw) {
     if (startDate && dueDate && dueDate < startDate) startDate = null;
     const startTime = startDate ? normalizeTaskTime(item.startTime) : null;
     const dueTime = dueDate ? normalizeTaskTime(item.dueTime) : null;
-    byKey.set([title, startDate, startTime, dueDate, dueTime].join("|"), { title, startDate, startTime, dueDate, dueTime });
+    const note = typeof item.note === "string" ? item.note.replace(/\s+/g, " ").trim().slice(0, 200) : "";
+    byKey.set([title, startDate, startTime, dueDate, dueTime].join("|"), { title, startDate, startTime, dueDate, dueTime, note });
   }
   const key = (t) => [t.dueDate ?? t.startDate ?? "9999-99-99", t.dueTime ?? t.startTime ?? "", t.title].join("|");
   return [...byKey.values()].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));

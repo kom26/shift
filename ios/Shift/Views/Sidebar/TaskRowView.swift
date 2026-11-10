@@ -28,6 +28,7 @@ struct TaskRowView: View {
                 }
             }
             Spacer(minLength: 0)
+            AttachmentIcons(imageId: t.imageId, url: t.url)
             checkbox
         }
         .padding(.vertical, 4)
@@ -42,16 +43,21 @@ struct TaskRowView: View {
                 Text(time)
                     .font(.app(16).monospacedDigit())
                     .foregroundStyle(t.done ? Color.secondary : Color.primary)
-                Text(label)
-                    .font(.app(11, weight: .semibold))
-                    .foregroundStyle(EventColor.text(t.color))
+                kindLabel(label, size: 11, icon: 9)
             } else {
-                Text(label)
-                    .font(.app(14, weight: .semibold))
-                    .foregroundStyle(EventColor.text(t.color))
+                kindLabel(label, size: 14, icon: 10)
             }
         }
         .opacity(t.done ? 0.5 : 1)
+    }
+
+    /// 「開始」「締切」の文字。左に、週表示のタグと同じ印(開始は再生、締切は旗)を付ける
+    private func kindLabel(_ label: String, size: CGFloat, icon: CGFloat) -> some View {
+        HStack(spacing: 3) {
+            TaskKindMark(isStart: row.isStart == true).font(.system(size: icon))
+            Text(label).font(.app(size, weight: .semibold))
+        }
+        .foregroundStyle(EventColor.text(row.task.color))
     }
 
     /// 名前の下の小さな文字: 期限切れ、または、もう片方の日付

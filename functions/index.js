@@ -44,9 +44,10 @@ const TASK_PROMPT = `これは課題の一覧、予定表、メール、チャ�
 - 時刻は "HH:MM"(24 時間表記)にしてください。「24:00」は、そのまま "24:00" と書いてください。時刻が無いときは null にしてください。
 - 「午前 9 時」「17 時まで」のような書き方も、"09:00" "17:00" にしてください。
 - タイトルは、画像に書かれている言葉を、そのまま短く使ってください(長い説明文は入れないでください)。
+- そのやることを見分けるのに役立つ補足(授業名、章や回の見出し、場所、科目名など)が画像にあれば、note に短く書いてください。なければ空文字にしてください。
 
 出力の形:
-[{"title": "…", "startDate": "YYYY-MM-DD" または null, "startTime": "HH:MM" または null, "dueDate": "YYYY-MM-DD" または null, "dueTime": "HH:MM" または null}]`;
+[{"title": "…", "note": "…", "startDate": "YYYY-MM-DD" または null, "startTime": "HH:MM" または null, "dueDate": "YYYY-MM-DD" または null, "dueTime": "HH:MM" または null}]`;
 
 /** アプリからの指定(年月・名前)を、AI への文章に足す。kind が tasks のときは、開始・締切を読み取る文章 */
 function buildPrompt({ yearMonth, name, kind }) {

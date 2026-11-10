@@ -19,6 +19,11 @@ struct TaskEditor: View {
 
     @State private var title: String
     @State private var color: String
+    @State private var memo: String
+    @State private var url: String
+    @State private var imageId: String?
+    /// フォームのどこかをタップするたびに増やす(メモ・画像・URL の空の欄を閉じる合図)
+    @State private var outsideTap = 0
     @State private var hasStart: Bool
     @State private var startDay: Date
     @State private var startTimed: Bool
@@ -43,6 +48,9 @@ struct TaskEditor: View {
         self.onCommit = onCommit
         _title = State(initialValue: original.title)
         _color = State(initialValue: original.color)
+        _memo = State(initialValue: original.memo)
+        _url = State(initialValue: original.url ?? "")
+        _imageId = State(initialValue: original.imageId)
         _hasStart = State(initialValue: original.hasStart)
         _startDay = State(initialValue: original.startDate.flatMap(Rules.parse) ?? Rules.parse(Rules.today()) ?? Date())
         // 最初は、開始オフ・時間オフ、締切オン・時間オン(すでにある項目は、その通り)
@@ -97,6 +105,7 @@ struct TaskEditor: View {
                             Text("開始も締切も指定がない場合は「タスク」として保存されます。")
                         }
                     }
+                    AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap)
                     if !isNew && onCommit == nil {
                         Section {
                             Button("削除", role: .destructive) { confirmDelete = true }
@@ -104,6 +113,7 @@ struct TaskEditor: View {
                     }
                 }
                 .scrollDismissesKeyboard(.interactively)
+                .simultaneousGesture(TapGesture().onEnded { outsideTap += 1 })
                 .onChange(of: openPanel) { _, new in
                     guard let new else { return }
                     scrollToBottom(panelBottomId(new), proxy: proxy)
@@ -151,6 +161,9 @@ struct TaskEditor: View {
         var t = original
         t.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         t.color = color
+        t.memo = memo
+        t.url = Optional(url.trimmingCharacters(in: .whitespacesAndNewlines)).nonEmpty
+        t.imageId = imageId
         t.startDate = startText
         t.startTime = hasStart && startTimed ? startTime : nil
         t.dueDate = dueText

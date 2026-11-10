@@ -42,3 +42,33 @@ struct TaskLineTests {
         #expect(t.dueDate == "2026-12-11" && t.dueTime == "17:00")
     }
 }
+
+struct AttachmentFieldTests {
+    @Test func noteBecomesTheMemoAndIsTrimmed() {
+        let raw: [[String: Any]] = [["title": "予習教材#02", "note": "  #02 倒産処理手続の開始要件 ", "dueDate": "2026-10-13"]]
+        let lines = TaskLine.parse(raw)
+        #expect(lines[0].note == "#02 倒産処理手続の開始要件")
+        #expect(lines[0].makeTask().memo == "#02 倒産処理手続の開始要件")
+    }
+
+    @Test func oldTasksAndEventsDecodeWithoutTheNewFields() throws {
+        let t = try JSONDecoder().decode(TaskItem.self, from: Data(##"{"id":"a","title":"x","color":"#fff","done":false}"##.utf8))
+        #expect(t.memo == "" && t.url == nil && t.imageId == nil)
+        let e = try JSONDecoder().decode(ShiftEvent.self, from: Data(##"{"id":"a","title":"x"}"##.utf8))
+        #expect(e.url == nil && e.imageId == nil)
+    }
+
+    @Test func urlAndImageRoundTrip() throws {
+        var t = TaskItem.new(dueDate: "2026-12-11")
+        t.url = "https://example.com"; t.imageId = "img1"; t.memo = "m"
+        let back = try JSONDecoder().decode(TaskItem.self, from: JSONEncoder().encode(t))
+        #expect(back == t)
+    }
+
+    @Test func linkDestinationAddsASchemeAndRejectsJunk() {
+        #expect(AttachmentLink.destination("example.com/a")?.absoluteString == "https://example.com/a")
+        #expect(AttachmentLink.destination("http://example.com")?.absoluteString == "http://example.com")
+        #expect(AttachmentLink.destination("あいう") == nil)
+        #expect(AttachmentLink.destination("  ") == nil)
+    }
+}

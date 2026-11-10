@@ -47,6 +47,8 @@ struct TaskLine: Identifiable, Equatable {
     var startTime: String?
     var dueDate: String?
     var dueTime: String?
+    /// タイトルの補足(見出しなど)。取り込むと、メモに入る
+    var note: String = ""
 
     var id: String { [title, startDate ?? "", startTime ?? "", dueDate ?? "", dueTime ?? ""].joined(separator: "|") }
 
@@ -69,8 +71,9 @@ struct TaskLine: Identifiable, Equatable {
             var start = date("startDate")
             let due = date("dueDate")
             if let s = start, let d = due, d < s { start = nil }
+            let note = (item["note"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let line = TaskLine(title: title, startDate: start, startTime: time("startTime", on: start),
-                                dueDate: due, dueTime: time("dueTime", on: due))
+                                dueDate: due, dueTime: time("dueTime", on: due), note: note.count <= 200 ? note : "")
             if seen.insert(line.id).inserted { out.append(line) }
         }
         return out
@@ -79,7 +82,7 @@ struct TaskLine: Identifiable, Equatable {
     /// 取り込む項目にする(色は、開始・締切の最初の色)
     func makeTask() -> TaskItem {
         TaskItem(id: UUID().uuidString, title: title, color: TaskItem.defaultColor,
-                 startDate: startDate, startTime: startTime, dueDate: dueDate, dueTime: dueTime, done: false)
+                 startDate: startDate, startTime: startTime, dueDate: dueDate, dueTime: dueTime, done: false, memo: note)
     }
 }
 

@@ -101,3 +101,13 @@ test("読み取りの種類: tasks 以外は、シフト", () => {
   assert.equal(cleanKind(undefined), "events");
   assert.equal(cleanKind("x"), "events");
 });
+
+test("開始・締切の読み取り: タイトルの補足(note)は整えて残し、長すぎるものは切る", () => {
+  const [a, b] = normalizeTasks([
+    { title: "予習教材#02", note: "  #02 倒産処理手続の開始要件 ", dueDate: "2026-10-13" },
+    { title: "復習テスト#02", note: "あ".repeat(300), dueDate: "2026-10-20" },
+  ]);
+  assert.equal(a.note, "#02 倒産処理手続の開始要件");
+  assert.equal(b.note.length, 200);
+  assert.equal(normalizeTasks([{ title: "C", dueDate: "2026-10-21" }])[0].note, "");
+});

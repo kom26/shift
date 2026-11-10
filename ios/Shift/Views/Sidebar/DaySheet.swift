@@ -288,6 +288,7 @@ struct DaySheet: View {
                 }
             }
             Spacer(minLength: 0)
+            AttachmentIcons(imageId: ev.imageId, url: ev.url)
             // 共有カレンダーでは、共有に出した予定は共有した人のアバター、共有カレンダーの中で作った予定は、そのカレンダーのアイコンをつける
             if shared.isOpen {
                 if shared.event(ev.id)?.isCalendarOwned == true {

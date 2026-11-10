@@ -29,11 +29,15 @@ struct ShiftEvent: Codable, Identifiable, Equatable {
     var updatedBy: String? = nil
     /// 作り方の印。"screenshot" は、画像取り込みで作った予定
     var source: String? = nil
+    /// メモの下に付ける URL。nil は無い
+    var url: String? = nil
+    /// 付けた画像の名前(この端末の `AttachmentStore` に入っている)。nil は無い
+    var imageId: String? = nil
 
     static let screenshotSource = "screenshot"
 
     enum CodingKeys: String, CodingKey {
-        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle, adjustment, dailyWage, labelId, ownColor, updatedAt, updatedBy, source
+        case id, title, memo, color, startDate, endDate, placed, allDay, startTime, endTime, workHours, workplaceId, breakInNight, barShowsTitle, adjustment, dailyWage, labelId, ownColor, updatedAt, updatedBy, source, url, imageId
     }
 
     /// 以前のレイヤー(複数)。読むだけで、書き出さない
@@ -92,6 +96,8 @@ extension ShiftEvent {
         updatedAt = try c.decodeIfPresent(Double.self, forKey: .updatedAt)
         updatedBy = try c.decodeIfPresent(String.self, forKey: .updatedBy)
         source = try c.decodeIfPresent(String.self, forKey: .source)
+        url = try c.decodeIfPresent(String.self, forKey: .url).nonEmpty
+        imageId = try c.decodeIfPresent(String.self, forKey: .imageId).nonEmpty
         if let l = try c.decodeIfPresent(String.self, forKey: .labelId) {
             labelId = l
         } else if workplaceId == nil {

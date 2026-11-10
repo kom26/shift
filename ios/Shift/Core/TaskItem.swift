@@ -12,6 +12,11 @@ struct TaskItem: Codable, Identifiable, Equatable {
     var dueDate: String?
     var dueTime: String?
     var done: Bool
+    /// メモ。画像から取り込んだときの、タイトルの補足もここに入る
+    var memo: String = ""
+    /// 付けた URL と、画像(この端末の `AttachmentStore` に入っている名前)。nil は無い
+    var url: String? = nil
+    var imageId: String? = nil
 
     /// 最初に選ばれている色。カスタム色の並びの、赤(3 行目・色相 4°の列)。ウィジェットでも使う Core なので、画面の部品は参照せず、値で持つ
     static let defaultColor = "#df3226"
@@ -27,11 +32,14 @@ struct TaskItem: Codable, Identifiable, Equatable {
     var isPlain: Bool { !hasStart && !hasDue }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, color, startDate, startTime, dueDate, dueTime, done
+        case id, title, color, startDate, startTime, dueDate, dueTime, done, memo, url, imageId
     }
 
     init(id: String, title: String, color: String, startDate: String?, startTime: String?,
-         dueDate: String?, dueTime: String?, done: Bool) {
+         dueDate: String?, dueTime: String?, done: Bool, memo: String = "", url: String? = nil, imageId: String? = nil) {
+        self.memo = memo
+        self.url = url
+        self.imageId = imageId
         self.id = id
         self.title = title
         self.color = color
@@ -52,6 +60,9 @@ struct TaskItem: Codable, Identifiable, Equatable {
         dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate).nonEmpty
         dueTime = try c.decodeIfPresent(String.self, forKey: .dueTime).nonEmpty
         done = try c.decodeIfPresent(Bool.self, forKey: .done) ?? false
+        memo = try c.decodeIfPresent(String.self, forKey: .memo) ?? ""
+        url = try c.decodeIfPresent(String.self, forKey: .url).nonEmpty
+        imageId = try c.decodeIfPresent(String.self, forKey: .imageId).nonEmpty
     }
 }
 

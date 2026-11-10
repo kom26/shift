@@ -17,6 +17,10 @@ struct EventEditor: View {
 
     @State private var title: String
     @State private var memo: String
+    @State private var url: String
+    @State private var imageId: String?
+    /// フォームのどこかをタップするたびに増やす(メモ・画像・URL の空の欄を閉じる合図)
+    @State private var outsideTap = 0
     @State private var color: String
     @State private var start: Date
     @State private var end: Date
@@ -62,6 +66,8 @@ struct EventEditor: View {
         self.flow = flow
         _title = State(initialValue: original.title)
         _memo = State(initialValue: original.memo)
+        _url = State(initialValue: original.url ?? "")
+        _imageId = State(initialValue: original.imageId)
         _color = State(initialValue: original.color)
         _start = State(initialValue: Rules.parse(original.startDate ?? "") ?? Date())
         let initialEnd = Rules.parse(original.endDate ?? original.startDate ?? "") ?? Date()
@@ -181,11 +187,7 @@ struct EventEditor: View {
                         paySection(p)
                     }
                 }
-                Section {
-                    TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
-                        .focused($focusedField, equals: .memo)
-                        .id(Self.memoRowId)
-                }
+                AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap)
                 if !favoriteMode && onCommit == nil {
                     Section {
                         Toggle("よく使う予定にも登録", isOn: $registerFavorite)
@@ -206,6 +208,7 @@ struct EventEditor: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(TapGesture().onEnded { outsideTap += 1 })
             .onChange(of: openPanel) { _, new in
                 guard let new else { return }
                 scrollToBottom(panelBottomId(new), proxy: proxy)
@@ -220,7 +223,6 @@ struct EventEditor: View {
                 if new == .breakMinutes { scrollToBottom(Self.breakRowId, proxy: proxy) }
                 if new == .adjustment { scrollToBottom(Self.adjustmentRowId, proxy: proxy) }
                 if new == .dailyWage { scrollToBottom(Self.dailyWageRowId, proxy: proxy) }
-                if new == .memo { scrollToBottom(Self.memoRowId, proxy: proxy) }
                 if new == .title { scrollToBottom(Self.titleRowId, proxy: proxy) }
             }
             }
@@ -786,6 +788,8 @@ struct EventEditor: View {
         let sd = Rules.format(start)
         e.title = title.trimmingCharacters(in: .whitespaces)
         e.memo = memo
+        e.url = Optional(url.trimmingCharacters(in: .whitespacesAndNewlines)).nonEmpty
+        e.imageId = imageId
         e.color = (noGroup || ownColor) ? color : currentGroupColor
         e.ownColor = noGroup ? (color != EventLabel.noneColor) : ownColor
         if hasDate {
