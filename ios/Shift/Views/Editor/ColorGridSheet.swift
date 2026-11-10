@@ -42,7 +42,7 @@ struct ColorGridSheet: View {
 
     private static let columns = 12
 
-    /// 1 行目は白から黒まで、残りの 9 行は 12 色の色相を、濃い色から薄い色へ
+    /// 1 行目は白から黒まで、残りの 9 行は 12 色の色相を、濃い色から薄い色へ(明度を等間隔に)
     static let cells: [String] = {
         var list: [String] = []
         for i in 0..<columns {
@@ -50,9 +50,11 @@ struct ColorGridSheet: View {
             list.append(Color(hue: 0, saturation: 0, brightness: v).toHex())
         }
         let hues: [Double] = [200, 218, 252, 282, 328, 4, 22, 38, 48, 60, 72, 110]
+        // 彩度 74% で固定して、明度を 38% から 90% まで等間隔に上げる(HSL。少しやわらかいパステル寄り)
         for row in 0..<9 {
-            let saturation = 0.9 - 0.08 * Double(row)
-            let brightness = 0.35 + 0.075 * Double(row)
+            let lightness = 0.38 + 0.065 * Double(row)
+            let brightness = lightness + 0.74 * min(lightness, 1 - lightness)
+            let saturation = brightness == 0 ? 0 : 2 * (1 - lightness / brightness)
             for h in hues {
                 list.append(Color(hue: h / 360, saturation: saturation, brightness: brightness).toHex())
             }
@@ -157,7 +159,7 @@ struct ColorGridSheet: View {
                     .font(.app(10))
                     .foregroundStyle(.secondary)
                     .fixedSize()
-                    .offset(y: 20)
+                    .offset(y: 14)
             }
             Button {
                 color = picked
