@@ -64,6 +64,7 @@ struct TaskKindMark: View {
 /// 月表示で、開始から締切までを 1 本につないだもの。両端が矢印のタグ(開始は右向き・締切は左向き)で、間は点線。
 /// 週をまたぐときは、その週の中の端だけタグを出す
 struct TaskLinkBar: View {
+    let taskId: String
     let title: String
     let color: String
     /// 何マスぶんの幅か
@@ -77,27 +78,47 @@ struct TaskLinkBar: View {
         GeometryReader { geo in
             let cellW = max(1, (geo.size.width + 2) / CGFloat(max(1, span)))
             let tagW = max(0, cellW - 2)
-            let x1 = showsStart ? cellW : 0
-            let x2 = showsDue ? geo.size.width - cellW : geo.size.width
+            // 点線は、両側のタグの先(矢印の先)から、同じだけ離す
+            let gap: CGFloat = 4
+            let x1 = showsStart ? tagW + gap : 2
+            let x2 = showsDue ? geo.size.width - tagW - gap : geo.size.width - 2
             ZStack(alignment: .topLeading) {
                 if x2 > x1 {
                     Path { p in
-                        p.move(to: CGPoint(x: x1 + 2, y: geo.size.height / 2))
-                        p.addLine(to: CGPoint(x: x2 - 2, y: geo.size.height / 2))
+                        p.move(to: CGPoint(x: x1, y: geo.size.height / 2))
+                        p.addLine(to: CGPoint(x: x2, y: geo.size.height / 2))
                     }
-                    .stroke(Color(hex: color), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0.1, 3.5]))
+                    .stroke(Color(hex: color), style: TaskDots.style(length: x2 - x1))
                 }
+                // 開始のタグ・締切のタグを、それぞれ長押しでつかんで、その日だけを動かせる
                 if showsStart {
                     TaskTagBar(title: title, color: color, isStart: true, height: height, fontSize: fontSize)
                         .frame(width: tagW, height: height)
+                        .draggable(DragState.shared.begin("task:\(taskId):start")) {
+                            TaskTagBar(title: title, color: color, isStart: true, height: height, fontSize: fontSize)
+                                .frame(width: tagW, height: height)
+                        }
                 }
                 if showsDue {
                     TaskTagBar(title: title, color: color, isStart: false, height: height, fontSize: fontSize)
                         .frame(width: tagW, height: height)
+                        .draggable(DragState.shared.begin("task:\(taskId):due")) {
+                            TaskTagBar(title: title, color: color, isStart: false, height: height, fontSize: fontSize)
+                                .frame(width: tagW, height: height)
+                        }
                         .offset(x: geo.size.width - tagW)
                 }
             }
         }
         .frame(height: height)
+    }
+}
+
+/// 開始と締切をつなぐ点線。長さに合わせて点の間隔を決めて、両端に点が来るようにする
+enum TaskDots {
+    static func style(length: CGFloat) -> StrokeStyle {
+        let n = max(1, Int((length / 3.6).rounded()))
+        let step = length / CGFloat(n)
+        return StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0.1, max(0.1, step - 0.1)])
     }
 }

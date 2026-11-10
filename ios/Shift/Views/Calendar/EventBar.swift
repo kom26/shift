@@ -9,7 +9,7 @@ struct EventBar: View {
     var body: some View {
         if let m = span.event.taskMarker {
             if m.isLink {
-                TaskLinkBar(title: span.event.title, color: span.event.color, span: span.span,
+                TaskLinkBar(taskId: m.taskId, title: span.event.title, color: span.event.color, span: span.span,
                             showsStart: span.isStart, showsDue: span.isEnd, height: height, fontSize: fontSize)
             } else {
                 TaskTagBar(title: span.event.title, color: span.event.color, isStart: m.isStart, height: height, fontSize: fontSize)

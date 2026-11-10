@@ -46,6 +46,18 @@ struct TaskItemTests {
         #expect(m.filter { $0.taskMarker?.taskId == "b" }.count == 2)
     }
 
+    @Test func movingOneEndKeepsTheOtherAndPushesWhenCrossing() {
+        let store = make()
+        store.saveTask(task("a", start: "2026-12-08", due: "2026-12-11"))
+        store.moveTask(id: "a", isStart: false, to: "2026-12-15")
+        #expect(store.task(id: "a")?.startDate == "2026-12-08" && store.task(id: "a")?.dueDate == "2026-12-15")
+        store.moveTask(id: "a", isStart: true, to: "2026-12-05")
+        #expect(store.task(id: "a")?.startDate == "2026-12-05" && store.task(id: "a")?.dueDate == "2026-12-15")
+        // 開始を締切より後ろへ動かすと、締切も同じ日まで動く
+        store.moveTask(id: "a", isStart: true, to: "2026-12-20")
+        #expect(store.task(id: "a")?.startDate == "2026-12-20" && store.task(id: "a")?.dueDate == "2026-12-20")
+    }
+
     @Test func timelessMarkersGoToAllDayAndTimedBecomeLines() {
         let store = make()
         store.saveTask(task("a", start: "2026-12-08", startTime: "14:00", due: "2026-12-08"))

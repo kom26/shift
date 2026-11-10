@@ -25,8 +25,9 @@ struct EventDragSource: ViewModifier {
     }
 
     private var allowed: Bool {
-        // 開始・締切の印は動かせない(長押しで、編集が開く)
-        event.taskMarker == nil && (shared.isOpen ? shared.canDrag(event.id) : !store.isOverlay(event.id))
+        // 開始・締切のタグは、自分のカレンダーでだけ動かせる(1 つずつ。つないだ 1 本は、中のタグが、それぞれつかまれる)
+        if let m = event.taskMarker { return !m.isLink && !shared.isOpen }
+        return shared.isOpen ? shared.canDrag(event.id) : !store.isOverlay(event.id)
     }
 
     @ViewBuilder
@@ -42,7 +43,9 @@ struct EventDragSource: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if allowed {
+        if event.taskMarker?.isLink == true {
+            content
+        } else if allowed {
             dragSource(content)
                 .opacity((DragState.shared.isDragging && DragState.shared.draggingId == event.id) || DragState.shared.pendingId == event.id ? 0.35 : 1)
         } else {

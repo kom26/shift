@@ -1022,6 +1022,14 @@ struct RootView: View {
 
     /// 予定をドラッグして日付で離した。移動するか、コピーするかを選んでもらう(よく使う予定は、いつもコピーして置く)
     private func drop(id: String, on date: String) {
+        // 開始・締切のタグ: 離した日に、その側だけを動かす(選択は出さない)
+        if id.hasPrefix("task:") {
+            let parts = id.split(separator: ":")
+            guard !sharedView.isOpen, parts.count == 3, store.task(id: String(parts[1])) != nil else { return }
+            withAnimation(.snappy) { store.moveTask(id: String(parts[1]), isStart: parts[2] == "start", to: date) }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            return
+        }
         if sharedView.isOpen {
             // 共有カレンダーでは、共有カレンダーの中で作った予定と、共有に出した自分の予定を動かせる
             guard !id.hasPrefix(Store.favoritePrefix), sharedView.canDrag(id) else { return }

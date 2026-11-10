@@ -118,6 +118,19 @@ extension Store {
         persistTasks()
     }
 
+    /// 開始か締切の、片方の日だけを動かす。開始が締切より後ろになるときは、もう片方も、同じ日まで動かす
+    func moveTask(id: String, isStart: Bool, to date: String) {
+        guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
+        if isStart {
+            tasks[i].startDate = date
+            if let d = tasks[i].dueDate, d < date { tasks[i].dueDate = date }
+        } else {
+            tasks[i].dueDate = date
+            if let s = tasks[i].startDate, s > date { tasks[i].startDate = date }
+        }
+        persistTasks()
+    }
+
     func toggleTaskDone(id: String) {
         guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[i].done.toggle()
