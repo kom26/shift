@@ -159,7 +159,7 @@ struct ColorGridSheet: View {
                     .font(.app(10))
                     .foregroundStyle(.secondary)
                     .fixedSize()
-                    .offset(y: 14)
+                    .offset(y: 10)
             }
             Button {
                 color = picked
