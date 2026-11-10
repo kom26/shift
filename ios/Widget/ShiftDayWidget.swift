@@ -153,7 +153,8 @@ struct WidgetAvatar: View {
                 .frame(width: size, height: size)
                 .clipShape(Circle())
         } else {
-            Image(systemName: icon)
+            // アイコンの名前に色("名前|#rrggbb")が付いていることがあるので、名前だけを使う
+            Image(systemName: icon.components(separatedBy: "|").first ?? icon)
                 .font(.system(size: size * 0.5, weight: .semibold))
                 .foregroundStyle(color)
                 .frame(width: size, height: size)

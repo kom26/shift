@@ -11,9 +11,9 @@ struct CalendarIconPicker: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 8) {
             ForEach(CalendarIcon.choices, id: \.name) { item in
-                let on = selection == item.name
+                let on = CalendarIcon.split(selection).name == item.name
                 Button {
-                    selection = item.name
+                    selection = CalendarIcon.join(name: item.name, color: CalendarIcon.split(selection).color)
                     onPick()
                 } label: {
                     Image(systemName: item.name)
@@ -180,7 +180,12 @@ struct CalendarIconView: View {
                 .frame(width: size, height: size)
                 .clipShape(Circle())
         } else {
-            Image(systemName: icon).frame(width: size)
+            let (name, color) = CalendarIcon.split(icon)
+            if let color {
+                Image(systemName: name).foregroundStyle(Color(hex: color)).frame(width: size)
+            } else {
+                Image(systemName: name).frame(width: size)
+            }
         }
     }
 }
@@ -198,11 +203,12 @@ struct CalendarBadge: View {
                 .frame(width: size, height: size)
                 .clipShape(Circle())
         } else {
-            Image(systemName: icon)
+            let (name, color) = CalendarIcon.split(icon)
+            Image(systemName: name)
                 .font(.system(size: size * 0.5, weight: .semibold))
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(color.map { Color(hex: $0) } ?? Theme.accent)
                 .frame(width: size, height: size)
-                .background(Circle().fill(Theme.accentSoft))
+                .background(Circle().fill(color.map { Color(hex: $0).opacity(0.2) } ?? Theme.accentSoft))
         }
     }
 }
@@ -216,6 +222,14 @@ struct CalendarNameField: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var cropTarget: AvatarCropTarget?
     @State private var loadFailed = false
+    @Environment(Store.self) private var store
+
+    /// アイコンの色。まだ決めていないときは、いつもの紫
+    private var iconColor: Binding<String> {
+        Binding(
+            get: { CalendarIcon.split(icon).color ?? "#7a62d9" },
+            set: { icon = CalendarIcon.join(name: CalendarIcon.split(icon).name, color: $0) })
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -224,11 +238,13 @@ struct CalendarNameField: View {
                     if CalendarIcon.isPhoto(icon) {
                         CalendarBadge(icon: icon, size: 44)
                     } else {
-                        Image(systemName: icon)
+                        let (name, color) = CalendarIcon.split(icon)
+                        let tint = color.map { Color(hex: $0) } ?? Theme.accent
+                        Image(systemName: name)
                             .font(.system(size: 20))
-                            .foregroundStyle(Theme.accent)
+                            .foregroundStyle(tint)
                             .frame(width: 44, height: 44)
-                            .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 12))
+                            .background(tint.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
                     }
                 }
             }
@@ -237,6 +253,10 @@ struct CalendarNameField: View {
             .popover(isPresented: $picking) {
                 VStack(alignment: .leading, spacing: 12) {
                     CalendarIconPicker(selection: $icon) { picking = false }
+                    if !CalendarIcon.isPhoto(icon) {
+                        // アイコンの色(参加者全員に同じ色で見える)。予定の色と同じ、決まった色と好きな色
+                        ColorRow(color: iconColor, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
+                    }
                     Button {
                         picking = false
                         // ポップオーバーが閉じてから、写真の選択を開く

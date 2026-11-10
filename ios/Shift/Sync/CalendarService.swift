@@ -128,10 +128,28 @@ enum CalendarIcon {
     /// 写真のアイコンか(プロフィールのアバターと同じ "img:" + base64)
     static func isPhoto(_ icon: String) -> Bool { icon.hasPrefix(AvatarStyle.photoPrefix) && icon.count > AvatarStyle.photoPrefix.count }
 
-    /// 保存してある名前が選択肢にないとき(古い版や別の版で作ったもの)は、標準のアイコンにする。写真はそのまま使う
-    static func resolved(_ name: String) -> String {
-        if isPhoto(name) { return name }
-        return choices.contains { $0.name == name } ? name : defaultName
+    /// 色は、アイコンの名前のあとに "|#rrggbb" を付けて持つ(例 "briefcase.fill|#3b82f6")。
+    /// 参加者全員に同じ色で見える。古い版では、名前が合わず標準のアイコンに見えるだけで、壊れない
+    static let colorSeparator = "|"
+
+    /// 記号の名前と、色(なければ nil)に分ける。写真は、色なし
+    static func split(_ icon: String) -> (name: String, color: String?) {
+        if isPhoto(icon) { return (icon, nil) }
+        let parts = icon.components(separatedBy: colorSeparator)
+        let color = parts.count > 1 ? parts[1] : nil
+        return (parts[0], color.flatMap { $0.hasPrefix("#") && $0.count == 7 ? $0 : nil })
+    }
+
+    static func join(name: String, color: String?) -> String {
+        guard let color, !isPhoto(name) else { return name }
+        return name + colorSeparator + color
+    }
+
+    /// 保存してある名前が選択肢にないとき(古い版や別の版で作ったもの)は、標準のアイコンにする。写真はそのまま使う。色は残す
+    static func resolved(_ icon: String) -> String {
+        if isPhoto(icon) { return icon }
+        let (name, color) = split(icon)
+        return join(name: choices.contains { $0.name == name } ? name : defaultName, color: color)
     }
 }
 
