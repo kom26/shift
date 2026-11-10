@@ -101,7 +101,8 @@ struct ColorGridSheet: View {
 
     /// 左: 選んだ色 / 真ん中: バーの見え方 / 右: 確定
     private var bottomBar: some View {
-        HStack(spacing: 12) {
+        // 「選択中」の四角・バーの見え方・「確定」は、同じ高さ(52)の帯の真ん中にそろえる。「選択中」の文字は、四角の下にはみ出す
+        HStack(alignment: .top, spacing: 12) {
             VStack(spacing: 4) {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(Color(hex: picked))
@@ -147,6 +148,7 @@ struct ColorGridSheet: View {
                     Text("バーの見え方").font(.app(10)).foregroundStyle(.secondary)
                 }
             }
+            .frame(height: 52)
             Button {
                 color = picked
                 dismiss()
