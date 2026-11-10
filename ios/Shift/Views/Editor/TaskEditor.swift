@@ -60,7 +60,7 @@ struct TaskEditor: View {
         _url = State(initialValue: original.url ?? "")
         _imageId = State(initialValue: original.imageId)
         _hasStart = State(initialValue: original.hasStart)
-        _startDay = State(initialValue: original.startDate.flatMap(Rules.parse) ?? Rules.parse(Rules.today()) ?? Date())
+        _startDay = State(initialValue: original.startDate.flatMap(Rules.parse) ?? original.dueDate.flatMap(Rules.parse) ?? Rules.parse(Rules.today()) ?? Date())
         // 最初は、開始オフ・時間オフ、締切オン・時間オン(すでにある項目は、その通り)
         _startTimed = State(initialValue: isNew && onCommit == nil ? false : original.startTime != nil)
         _startTime = State(initialValue: original.startTime ?? "09:00")
@@ -151,6 +151,10 @@ struct TaskEditor: View {
             .onChange(of: startDay) { _, new in
                 if hasDue, dueDay < new { dueDay = new }
             }
+            // 開始や締切を入れたときも、締切が開始より前にならないようにする
+            // (日付の選択欄は、範囲の外の日を、範囲の端の日として見せるだけで、中の値は変えないため)
+            .onChange(of: hasStart) { _, on in if on, hasDue, dueDay < startDay { dueDay = startDay } }
+            .onChange(of: hasDue) { _, on in if on, hasStart, dueDay < startDay { dueDay = startDay } }
             // 時間や日付の入力を閉じてしまう操作(スイッチを切る)では、開いている時刻の入力も閉じる
             .onChange(of: hasStart) { _, on in if !on, openPanel == .start { closeTimePanel() } }
             .onChange(of: startTimed) { _, on in if !on, openPanel == .start { closeTimePanel() } }
@@ -173,9 +177,10 @@ struct TaskEditor: View {
         t.memo = memo
         t.url = Optional(url.trimmingCharacters(in: .whitespacesAndNewlines)).nonEmpty
         t.imageId = imageId
-        t.startDate = startText
+        let dates = TaskItem.orderedDates(start: startText, due: dueText)
+        t.startDate = dates.start
         t.startTime = hasStart && startTimed ? startTime : nil
-        t.dueDate = dueText
+        t.dueDate = dates.due
         t.dueTime = hasDue && dueTimed ? dueTime : nil
         attachments.commit(keeping: t.imageId)
         store.rememberColor(color)

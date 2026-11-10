@@ -26,6 +26,12 @@ struct TaskItem: Codable, Identifiable, Equatable {
                  startDate: startDate, startTime: nil, dueDate: dueDate, dueTime: nil, done: false)
     }
 
+    /// 締切が開始より前にならないようにする。前のときは、締切を開始の日に合わせる
+    static func orderedDates(start: String?, due: String?) -> (start: String?, due: String?) {
+        guard let s = start, let d = due, d < s else { return (start, due) }
+        return (s, s)
+    }
+
     var hasStart: Bool { startDate != nil }
     var hasDue: Bool { dueDate != nil }
     /// 開始も締切もない「タスク」

@@ -110,3 +110,16 @@ struct TaskItemTests {
         #expect(!t.done && t.dueDate == "2026-12-11" && t.startDate == nil)
     }
 }
+
+struct TaskDateOrderTests {
+    @Test func dueBeforeStartIsPulledToTheStartDay() {
+        let r = TaskItem.orderedDates(start: "2026-11-11", due: "2026-11-10")
+        #expect(r.start == "2026-11-11" && r.due == "2026-11-11")
+    }
+
+    @Test func orderedOrMissingDatesAreKept() {
+        #expect(TaskItem.orderedDates(start: "2026-11-10", due: "2026-11-11").due == "2026-11-11")
+        #expect(TaskItem.orderedDates(start: nil, due: "2026-11-10").due == "2026-11-10")
+        #expect(TaskItem.orderedDates(start: "2026-11-10", due: nil).start == "2026-11-10")
+    }
+}
