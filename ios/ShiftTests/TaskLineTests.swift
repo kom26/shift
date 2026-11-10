@@ -1,3 +1,4 @@
+import UIKit
 import Foundation
 import Testing
 @testable import Shift
@@ -70,5 +71,32 @@ struct AttachmentFieldTests {
         #expect(AttachmentLink.destination("http://example.com")?.absoluteString == "http://example.com")
         #expect(AttachmentLink.destination("あいう") == nil)
         #expect(AttachmentLink.destination("  ") == nil)
+    }
+}
+
+struct AttachmentShrinkTests {
+    /// ノイズの多い大きな画像(圧縮しにくい)
+    private func noisyImage(_ side: CGFloat) -> UIImage {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { ctx in
+            var g = SystemRandomNumberGenerator()
+            for _ in 0..<4000 {
+                UIColor(red: .random(in: 0...1, using: &g), green: .random(in: 0...1, using: &g), blue: .random(in: 0...1, using: &g), alpha: 1).setFill()
+                ctx.fill(CGRect(x: .random(in: 0..<side, using: &g), y: .random(in: 0..<side, using: &g), width: 40, height: 40))
+            }
+        }
+    }
+
+    @Test func largePhotoIsShrunkToAboutThreeHundredKilobytes() throws {
+        let jpeg = try #require(AttachmentStore.shrink(noisyImage(3000)))
+        #expect(jpeg.count <= AttachmentStore.targetBytes)
+        let back = try #require(UIImage(data: jpeg))
+        #expect(max(back.size.width, back.size.height) <= 1600)
+    }
+
+    @Test func smallImageKeepsItsSize() throws {
+        let jpeg = try #require(AttachmentStore.shrink(noisyImage(300)))
+        #expect(UIImage(data: jpeg)?.size.width == 300)
     }
 }

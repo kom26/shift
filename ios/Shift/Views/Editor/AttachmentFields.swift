@@ -12,16 +12,35 @@ enum AttachmentStore {
 
     private static func fileURL(_ id: String) -> URL { directory.appending(path: "\(id).jpg") }
 
-    /// 長い辺 1600px までに縮めて保存し、名前を返す
-    static func save(_ data: Data) -> String? {
-        guard let image = UIImage(data: data) else { return nil }
+    /// 保存する画像の大きさの目安(300KB 前後)。元の写真は残さない
+    static let targetBytes = 300_000
+
+    /// 300KB 前後になるまで、画質と大きさを下げた JPEG にする。長い辺は、最初は 1600px まで。
+    /// 画質を 0.75 から 0.4 まで下げても収まらなければ、大きさを 8 割にして、やり直す(これ以上は縮めない下限は、長い辺 400px)
+    static func shrink(_ image: UIImage, maxBytes: Int = targetBytes) -> Data? {
         let longest = max(image.size.width, image.size.height)
-        let scale = longest > 1600 ? 1600 / longest : 1
-        let size = CGSize(width: (image.size.width * scale).rounded(), height: (image.size.height * scale).rounded())
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        let jpeg = UIGraphicsImageRenderer(size: size, format: format)
-            .jpegData(withCompressionQuality: 0.75) { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+        guard longest > 0 else { return nil }
+        var side = min(longest, 1600)
+        var best: Data?
+        while true {
+            let scale = side / longest
+            let size = CGSize(width: max(1, (image.size.width * scale).rounded()), height: max(1, (image.size.height * scale).rounded()))
+            let format = UIGraphicsImageRendererFormat.default()
+            format.scale = 1
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
+            for quality in stride(from: 0.75, through: 0.4, by: -0.05) {
+                let jpeg = renderer.jpegData(withCompressionQuality: quality) { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+                best = jpeg
+                if jpeg.count <= maxBytes { return jpeg }
+            }
+            if side <= 400 { return best }
+            side = max(400, (side * 0.8).rounded())
+        }
+    }
+
+    /// 300KB 前後に縮めて保存し、名前を返す
+    static func save(_ data: Data) -> String? {
+        guard let image = UIImage(data: data), let jpeg = shrink(image) else { return nil }
         let id = UUID().uuidString
         do {
             try jpeg.write(to: fileURL(id), options: .atomic)
