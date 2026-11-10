@@ -27,6 +27,7 @@ struct WorkplaceManageView: View {
                                     ColorDot(hex: w.color, size: 12)
                                     Text(w.name).foregroundStyle(.primary)
                                     Spacer(minLength: 0)
+                                    Text("\(store.workplaceEventCount(w.id))件").foregroundStyle(.secondary)
                                 }
                                 .contentShape(Rectangle())
                             }

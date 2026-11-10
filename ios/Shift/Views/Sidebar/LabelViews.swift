@@ -197,40 +197,58 @@ struct WorkLabelSheet: View {
     }
 }
 
-/// ラベルの管理(ドロワーから)。並べ替え・名前と色の編集・追加・削除
+/// ラベルの管理の中で、開く先の印。labelId が nil は「指定なし」
+struct LabelRoute: Hashable {
+    let labelId: String?
+}
+
+/// ラベルの管理(ドロワーから)。ラベルの行をタップすると、そのラベルの予定の一覧が開く。
+/// 右上の「編集」を押すと、並べ替え・追加・削除ができて、ラベル名が紫になる(タップで名前と色を直す。「指定なし」は固定)
 struct LabelManageView: View {
     @Environment(Store.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var target: LabelTarget?
     @State private var pendingDelete: EventLabel?
     @State private var editMode: EditMode = .inactive
+    @State private var path: [LabelRoute] = []
+
+    private var editing: Bool { editMode.isEditing }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 Section {
-                    HStack(spacing: 12) {
-                        ColorDot(hex: EventLabel.noneColor, size: 14)
-                        Text("指定なし")
-                        Spacer()
-                        Text("\(store.labelEventCount(nil))件").foregroundStyle(.secondary)
+                    Button { if !editing { path.append(LabelRoute(labelId: nil)) } } label: {
+                        HStack(spacing: 12) {
+                            ColorDot(hex: EventLabel.noneColor, size: 14)
+                            Text("指定なし")
+                            Spacer()
+                            Text("\(store.labelEventCount(nil))件").foregroundStyle(.secondary)
+                            if !editing { chevron }
+                        }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.primary)
                     .moveDisabled(true)
                     ForEach(store.labels) { l in
                         HStack(spacing: 12) {
                             // 削除したラベルの予定は「指定なし」に戻る(予定は消えない)。消す前に、確認を出す
-                            if editMode.isEditing { DeleteMinusButton { pendingDelete = l } }
-                            Button { target = LabelTarget(label: l, isNew: false) } label: {
+                            if editing { DeleteMinusButton { pendingDelete = l } }
+                            Button {
+                                if editing { target = LabelTarget(label: l, isNew: false) } else { path.append(LabelRoute(labelId: l.id)) }
+                            } label: {
                                 HStack(spacing: 12) {
                                     ColorDot(hex: l.color, size: 14)
-                                    Text(l.name)
+                                    // 編集中は、名前が紫になって、タップで直せることを示す
+                                    Text(l.name).foregroundStyle(editing ? Theme.accent : Color.primary)
                                     Spacer()
                                     Text("\(store.labelEventCount(l.id))件").foregroundStyle(.secondary)
+                                    if !editing { chevron }
                                 }
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.borderless)
-                            .foregroundStyle(.primary)
                         }
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
@@ -243,13 +261,14 @@ struct LabelManageView: View {
             }
             .navigationTitle("ラベルの管理")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: LabelRoute.self) { LabelEventsView(labelId: $0.labelId) }
             .toolbar {
-                if !editMode.isEditing {
+                if !editing {
                     ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button(editMode.isEditing ? "完了" : "編集") {
-                        withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+                    Button(editing ? "完了" : "編集") {
+                        withAnimation { editMode = editing ? .inactive : .active }
                     }
                 }
             }
@@ -263,6 +282,141 @@ struct LabelManageView: View {
                 Text("\(store.labelEventCount(l.id))件の予定は「指定なし」に変更されます。")
             }
         }
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+    }
+}
+
+/// ラベルの予定の一覧。日付で並べ替えられる(はじめは古い順)。「選択」で、予定を選んで、ラベルの付け替えと削除がまとめてできる
+struct LabelEventsView: View {
+    let labelId: String?
+    @Environment(Store.self) private var store
+    @State private var oldestFirst = true
+    @State private var selecting = false
+    @State private var selected: Set<String> = []
+    @State private var showMove = false
+    @State private var confirmDelete = false
+
+    private static let weekdays = ["日", "月", "火", "水", "木", "金", "土"]
+
+    private var events: [ShiftEvent] { store.labelEvents(labelId, oldestFirst: oldestFirst) }
+    private var title: String { store.label(for: labelId)?.name ?? "指定なし" }
+    private var chosenCount: Int { events.filter { selected.contains($0.id) }.count }
+
+    var body: some View {
+        let list = events
+        List {
+            if list.isEmpty {
+                Text("このラベルの予定はありません").foregroundStyle(.secondary)
+            }
+            ForEach(list) { e in row(e) }
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                HStack {
+                    Menu {
+                        Picker("並び順", selection: $oldestFirst) {
+                            Text("古い順").tag(true)
+                            Text("新しい順").tag(false)
+                        }
+                    } label: {
+                        Label(oldestFirst ? "古い順" : "新しい順", systemImage: "arrow.up.arrow.down")
+                    }
+                    Button(selecting ? "完了" : "選択") {
+                        selecting.toggle()
+                        selected = []
+                    }
+                    .disabled(!selecting && list.isEmpty)
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if selecting { selectionBar(list) }
+        }
+        .confirmationDialog("選んだ予定のラベルを変更", isPresented: $showMove, titleVisibility: .visible) {
+            if labelId != nil {
+                Button("指定なし") { move(to: nil) }
+            }
+            ForEach(store.labels.filter { $0.id != labelId }) { l in
+                Button(l.name) { move(to: l.id) }
+            }
+            Button("キャンセル", role: .cancel) {}
+        }
+        .alert("\(chosenCount)件の予定を削除しますか?", isPresented: $confirmDelete) {
+            Button("キャンセル", role: .cancel) {}
+            Button("削除", role: .destructive) {
+                store.deleteEvents(ids: selected)
+                finishSelection()
+            }
+        } message: {
+            Text("削除した予定は元に戻せません。")
+        }
+    }
+
+    private func row(_ e: ShiftEvent) -> some View {
+        let on = selected.contains(e.id)
+        return HStack(spacing: 8) {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(dateText(e)).font(.app(14)).foregroundStyle(Color.primary)
+                if let t = e.startTime, !e.allDay { Text(t).font(.app(12).monospacedDigit()).foregroundStyle(Color.secondary) }
+            }
+            .frame(width: 64, alignment: .trailing)
+            RoundedRectangle(cornerRadius: 2).fill(EventColor.fill(e.color)).frame(width: 4)
+            Text(e.title.isEmpty ? "(タイトルなし)" : e.title).font(.app(17)).lineLimit(1)
+            Spacer(minLength: 0)
+            // 選択中は、チェックを右端に出す
+            if selecting {
+                Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22))
+                    .foregroundStyle(on ? Theme.accent : Color.secondary.opacity(0.6))
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard selecting else { return }
+            if on { selected.remove(e.id) } else { selected.insert(e.id) }
+        }
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private func dateText(_ e: ShiftEvent) -> String {
+        guard let d = e.startDate else { return "日付なし" }
+        let p = Rules.ymd(d)
+        return "\(p.month)/\(p.day)(\(Self.weekdays[Rules.weekday(d)]))"
+    }
+
+    private func selectionBar(_ list: [ShiftEvent]) -> some View {
+        HStack(spacing: 10) {
+            Button(chosenCount == list.count ? "選択を外す" : "全て選択") {
+                selected = chosenCount == list.count ? [] : Set(list.map(\.id))
+            }
+            .buttonStyle(.bordered)
+            Spacer(minLength: 0)
+            Button("ラベルを変更") { showMove = true }
+                .buttonStyle(.borderedProminent)
+                .disabled(chosenCount == 0)
+            Button("削除", role: .destructive) { confirmDelete = true }
+                .buttonStyle(.bordered)
+                .disabled(chosenCount == 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+
+    private func move(to id: String?) {
+        store.setLabel(eventIds: selected, to: id)
+        finishSelection()
+    }
+
+    private func finishSelection() {
+        selected = []
+        selecting = false
     }
 }
 

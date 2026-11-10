@@ -649,7 +649,7 @@ final class Store {
         persist()
     }
 
-    private func persist() {
+    func persist() {
         guard let data = try? JSONEncoder().encode(events) else { return }
         try? data.write(to: fileURL, options: .atomic)
         notifyChanged()
