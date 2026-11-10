@@ -58,21 +58,7 @@ struct DaySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 右上の ⊕ で、この日に予定を追加する(閉じるのは、画面を下げる)
-                if canAdd {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            adding = makeAddTarget(date)
-                        } label: {
-                            // カレンダー右上の ⊕ と同じ、丸いボタン
-                            Image(systemName: "plus")
-                                .font(.system(size: 17, weight: .bold))
-                                .foregroundStyle(Theme.onAccent)
-                                .frame(width: 36, height: 36)
-                                .background(Theme.accent, in: Circle())
-                        }
-                        .accessibilityLabel("この日に予定を追加")
-                    }
-                }
+                if canAdd { addToolbarItem }
             }
         }
         .presentationDetents([.medium, .large])
@@ -80,6 +66,31 @@ struct DaySheet: View {
         // 半分の高さのあいだは、後ろのカレンダーにも触れる(予定をつかんで、カレンダーへ運べるように)
         .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         .presentationDragIndicator(.visible)
+    }
+
+    /// カレンダー右上の ⊕ と同じ、丸いボタン
+    private var addButton: some View {
+        Button {
+            adding = makeAddTarget(date)
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Theme.onAccent)
+                .frame(width: 36, height: 36)
+                .background(Theme.accent, in: Circle())
+        }
+        .accessibilityLabel("この日に予定を追加")
+    }
+
+    /// iOS 26 では、ツールバーのボタンに、システムの丸い下地が付くので、外す(自前の丸だけにする)
+    @ToolbarContentBuilder
+    private var addToolbarItem: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .primaryAction) { addButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .primaryAction) { addButton }
+        }
     }
 
     /// 左へスワイプして出す「削除」を出せる予定か(動かせる予定と同じ。ほかの人の予定は、出さない)
@@ -150,6 +161,7 @@ struct DaySheet: View {
                                         Button(role: .destructive) { delete(row.event) } label: {
                                             swipeDeleteLabel
                                         }
+                                        .tint(.red)
                                     }
                                 }
                         }
