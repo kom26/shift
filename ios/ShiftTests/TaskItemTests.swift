@@ -33,6 +33,19 @@ struct TaskItemTests {
         #expect(m[0].startDate == "2026-12-08" && m[0].endDate == "2026-12-08")
     }
 
+    @Test func monthLinksStartAndDueIntoOneBar() {
+        let store = make()
+        store.saveTask(task("a", start: "2026-12-08", due: "2026-12-11"))
+        store.saveTask(task("b", start: "2026-12-08", due: "2026-12-08"))
+        let m = store.taskMarkers(linked: true)
+        let link = m.first { $0.taskMarker?.taskId == "a" }
+        #expect(m.filter { $0.taskMarker?.taskId == "a" }.count == 1)
+        #expect(link?.taskMarker?.isLink == true)
+        #expect(link?.startDate == "2026-12-08" && link?.endDate == "2026-12-11")
+        // 同じ日の開始と締切は、つながずに 2 つのタグ
+        #expect(m.filter { $0.taskMarker?.taskId == "b" }.count == 2)
+    }
+
     @Test func timelessMarkersGoToAllDayAndTimedBecomeLines() {
         let store = make()
         store.saveTask(task("a", start: "2026-12-08", startTime: "14:00", due: "2026-12-08"))
