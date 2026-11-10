@@ -115,7 +115,7 @@ struct ColorGridSheet: View {
                 .frame(width: 52, height: 52)
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(.separator), lineWidth: 1))
                 .overlay { Text("選択中").font(.app(10, weight: .semibold)).foregroundStyle(pickedTextColor) }
-            VStack(spacing: 4) {
+            VStack(spacing: 0) {
                 if let iconName {
                     // アイコンの色を選んでいるときは、そのアイコンの見た目を出す
                     Image(systemName: iconName)
@@ -124,7 +124,6 @@ struct ColorGridSheet: View {
                         .frame(width: 44, height: 44)
                         .background(Color(hex: picked).opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
                         .frame(maxWidth: .infinity, minHeight: 30)
-                    Text("アイコンの見た目").font(.app(10)).foregroundStyle(.secondary)
                 } else if taskLook {
                     // 開始(右向きの白抜き)と締切(左向きの塗り)を、点線でつないだ、3日以上の見え方
                     HStack(spacing: 0) {
@@ -140,7 +139,6 @@ struct ColorGridSheet: View {
                     }
                     .frame(minHeight: 30)
                     .environment(\.calendarBackground, Color(.systemBackground))
-                    Text("バーの見え方").font(.app(10)).foregroundStyle(.secondary)
                 } else {
                     Text("22:00-06:30")
                         .font(.bar(13, weight: .bold))
@@ -150,10 +148,17 @@ struct ColorGridSheet: View {
                         .background(EventColor.fill(picked), in: RoundedRectangle(cornerRadius: 6))
                         .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 6))
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(.separator), lineWidth: 1))
-                    Text("バーの見え方").font(.app(10)).foregroundStyle(.secondary)
                 }
             }
             .frame(height: 52)
+            // 見た目は、四角・確定と同じ高さの真ん中に置き、説明の文字は、その下に離して出す
+            .overlay(alignment: .bottom) {
+                Text(iconName != nil ? "アイコンの見た目" : "バーの見え方")
+                    .font(.app(10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                    .offset(y: 20)
+            }
             Button {
                 color = picked
                 dismiss()
