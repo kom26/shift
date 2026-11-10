@@ -2,7 +2,7 @@ import Foundation
 
 /// アカウントに保存するデータの種類。1 件ずつ別のドキュメントとして置く
 enum SyncCollection: String, CaseIterable {
-    case events, workplaces, favorites, anniversaries, labels, alarms, settings
+    case events, workplaces, favorites, anniversaries, labels, tasks, alarms, settings
 }
 
 /// クラウド上の 1 件。中身(payload)は JSON 文字列のまま持つ

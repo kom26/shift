@@ -67,6 +67,9 @@ struct RootView: View {
     @State private var showDrawer = false
     @State private var showLabels = false
     @State private var showWorkplaces = false
+    /// 開始・締切・タスクの管理画面と、追加・編集の画面
+    @State private var showTasks = false
+    @State private var taskEditing: TaskEditTarget?
     /// 予定をドラッグして日付で離したときの「移動 / コピー」の選択
     @State private var dropChoice: DropChoice?
     /// 招待リンクから開いたが、アカウント登録がまだのとき、案内を出す
@@ -119,6 +122,8 @@ struct RootView: View {
             // 開いた共有カレンダーで、まだ見ていない退会のお知らせがあれば出す
             .onChange(of: sharedView.calendar?.id) { _, id in showNotices(for: id) }
             .environment(\.eventSaved, eventSaved)
+            .sheet(item: $taskEditing) { TaskEditor(original: $0.task, isNew: $0.isNew) }
+            .sheet(isPresented: $showTasks) { TaskManageView() }
             // カレンダーを切り替えたり、ドロワーを開いたり、週表示にしたりしたら、その日の予定一覧は閉じる
             // (長い式で型の検査が終わらなくなるので、mainBody の外に置く)
             .onChange(of: sharedView.calendar?.id) { _, _ in dayTarget = nil }
@@ -419,6 +424,7 @@ struct RootView: View {
                 Divider().padding(.vertical, 8)
                 drawerRow(title: "職場の管理", icon: "briefcase") { closeDrawer { showWorkplaces = true } }
                 drawerRow(title: "ラベルの管理", icon: "tag") { closeDrawer { showLabels = true } }
+                drawerRow(title: "タスク・開始・締切管理", icon: "checklist") { closeDrawer { showTasks = true } }
                 drawerRow(title: "設定", icon: "gearshape") { closeDrawer { showSettings = true } }
                 Spacer(minLength: 0)
             }
@@ -801,6 +807,12 @@ struct RootView: View {
                         showShotImport = true
                     }
                 }
+                Divider()
+                addMenuRow(icon: "flag", title: "開始・締切予定追加") {
+                    closeAddMenu()
+                    let d = selectedDate ?? Rules.today()
+                    taskEditing = TaskEditTarget(task: .new(startDate: d, dueDate: d), isNew: true)
+                }
             }
             .frame(width: 230)
             .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
@@ -987,6 +999,11 @@ struct RootView: View {
     }
 
     private func edit(_ event: ShiftEvent) {
+        // 開始・締切の印は、その項目の編集を開く
+        if let m = event.taskMarker {
+            if let t = store.task(id: m.taskId) { taskEditing = TaskEditTarget(task: t, isNew: false) }
+            return
+        }
         ownEditFromShared = false
         // 共有に出した自分の予定は、共有カレンダーを開いたままでも、自分の予定として直せる
         if sharedView.isOpen, let own = sharedView.ownEvent(for: event.id) {

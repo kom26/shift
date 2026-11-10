@@ -25,7 +25,8 @@ struct EventDragSource: ViewModifier {
     }
 
     private var allowed: Bool {
-        shared.isOpen ? shared.canDrag(event.id) : !store.isOverlay(event.id)
+        // 開始・締切の印は動かせない(長押しで、編集が開く)
+        event.taskMarker == nil && (shared.isOpen ? shared.canDrag(event.id) : !store.isOverlay(event.id))
     }
 
     @ViewBuilder

@@ -20,6 +20,8 @@ struct DaySheet: View {
     let makeEditTarget: (ShiftEvent) -> DayEditTarget?
     let addEditor: (DayEditTarget) -> AnyView
     @State private var adding: DayEditTarget?
+    /// 編集を開いている開始・締切・タスク
+    @State private var taskEdit: TaskEditTarget?
 
     init(date: String, canAdd: Bool = true,
          onSelectPayday: @escaping (String) -> Void = { _ in },
@@ -55,6 +57,7 @@ struct DaySheet: View {
             .navigationDestination(item: $annivId) { AnniversaryDetail(id: $0, asOf: date) }
             .sheet(item: $editingAlarm) { AlarmEditSheet(entry: $0) }
             .sheet(item: $adding) { addEditor($0) }
+            .sheet(item: $taskEdit) { TaskEditor(original: $0.task, isNew: $0.isNew) }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // 右上の ⊕ で、この日に予定を追加する(閉じるのは、画面を下げる)
@@ -113,6 +116,7 @@ struct DaySheet: View {
 
     @ViewBuilder
     private func dayContent(summary: DaySummary, annivs: [Anniversary]) -> some View {
+        let taskRows = store.taskRows(on: date)
         VStack(spacing: 0) {
                 Text(dateText)
                     .font(.app(14))
@@ -122,7 +126,7 @@ struct DaySheet: View {
                     .padding(.vertical, 6)
                     .background(Color(.secondarySystemBackground))
                 badges(summary)
-                if summary.events.isEmpty && annivs.isEmpty {
+                if summary.events.isEmpty && annivs.isEmpty && taskRows.isEmpty {
                     Spacer()
                     Text("予定はありません")
                         .foregroundStyle(Color.secondary)
@@ -169,6 +173,21 @@ struct DaySheet: View {
                                         .tint(swipeDeleteTint)
                                     }
                                 }
+                        }
+                        // 開始・締切(チェックを付けたものは、取消線のまま残る)
+                        ForEach(taskRows) { row in
+                            TaskRowView(row: row) {
+                                withAnimation(.snappy) { store.toggleTaskDone(id: row.task.id) }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture { taskEdit = TaskEditTarget(task: row.task, isNew: false) }
+                            .accessibilityAddTraits(.isButton)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) { store.deleteTask(id: row.task.id) } label: {
+                                    swipeDeleteLabel
+                                }
+                                .tint(swipeDeleteTint)
+                            }
                         }
                     }
                     .listStyle(.plain)

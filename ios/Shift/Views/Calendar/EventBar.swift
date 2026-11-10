@@ -7,6 +7,14 @@ struct EventBar: View {
     var fontSize: CGFloat = 10
 
     var body: some View {
+        if let m = span.event.taskMarker {
+            TaskTagBar(title: span.event.title, color: span.event.color, isStart: m.isStart, height: height, fontSize: fontSize)
+        } else {
+            bar
+        }
+    }
+
+    private var bar: some View {
         let ev = span.event
         let r: CGFloat = 4
         let lead: CGFloat = span.isStart ? 5 : 3

@@ -35,6 +35,8 @@ final class Store {
     /// よく使う予定(日付なしのテンプレート)
     var favorites: [ShiftEvent] = []
     var anniversaries: [Anniversary] = []
+    /// 開始・締切・タスク
+    var tasks: [TaskItem] = []
     /// セット済みのアラーム
     var alarmEntries: [AlarmEntry] = []
     /// 自動候補から非表示にした予定のキー
@@ -76,6 +78,7 @@ final class Store {
             alarmEntries = list
         }
         loadAnniversaries()
+        loadTasks()
         if let data = try? Data(contentsOf: Self.favoritesURL(for: fileURL)),
            let list = try? JSONDecoder().decode([ShiftEvent].self, from: data) {
             favorites = list
@@ -499,7 +502,7 @@ final class Store {
 
     /// まだ何も入れていない端末(初回に入るラベルだけは、あってもよい)。アカウントのデータを、そのまま入れてよい状態
     var isPristine: Bool {
-        guard events.isEmpty, workplaces.isEmpty, favorites.isEmpty, anniversaries.isEmpty, alarmEntries.isEmpty else { return false }
+        guard events.isEmpty, workplaces.isEmpty, favorites.isEmpty, anniversaries.isEmpty, tasks.isEmpty, alarmEntries.isEmpty else { return false }
         let seeds = Set(Self.defaultLabelSeeds.map { "\($0.name)|\($0.color)" })
         return labels.allSatisfy { seeds.contains("\($0.name)|\($0.color)") }
     }
@@ -512,6 +515,7 @@ final class Store {
         workplaces = []
         favorites = []
         anniversaries = []
+        tasks = []
         alarmEntries = []
         labels = []
         customColors = []
@@ -522,6 +526,7 @@ final class Store {
         persistWorkplaces()
         persistFavorites()
         persistAnniversaries()
+        persistTasks()
         persistAlarms()
         persistLabels()
         for key in [Keys.custom, Keys.hiddenSuggestions, Keys.checked, Keys.checkedLabels, Keys.seededLabels] {
@@ -659,7 +664,7 @@ final class Store {
     func syncSnapshot() -> SyncSnapshot {
         SyncSnapshot(events: events, workplaces: workplaces, favorites: favorites,
                      customColors: customColors, hiddenSuggestions: Array(hiddenSuggestions).sorted(),
-                     alarms: alarmEntries, anniversaries: anniversaries, labels: labels,
+                     alarms: alarmEntries, anniversaries: anniversaries, labels: labels, tasks: tasks,
                      prefs: SyncedPrefs.read(defaults))
     }
 
@@ -678,6 +683,10 @@ final class Store {
         if let list = snap.anniversaries {
             anniversaries = list
             persistAnniversaries()
+        }
+        if let list = snap.tasks {
+            tasks = list
+            persistTasks()
         }
         if let alarms = snap.alarms {
             alarmEntries = alarms

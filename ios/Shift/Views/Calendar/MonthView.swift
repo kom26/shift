@@ -60,7 +60,9 @@ struct MonthView: View {
             .frame(height: LayoutMath.weekdayHeaderH - 1)
             Divider()
             GeometryReader { geo in
-                let fullRows = weeks.map { SpanLayout.rows(events: store.visibleEvents, weekCells: $0.map { Optional($0) }) }
+                // 開始・締切の印も、予定と同じ決まりで行に詰める
+                let calEvents = store.visibleEvents + store.taskMarkers()
+                let fullRows = weeks.map { SpanLayout.rows(events: calEvents, weekCells: $0.map { Optional($0) }) }
                 let lay = monthLayout(weeks: weeks, fullRows: fullRows, size: geo.size, annivMap: annivMap)
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {

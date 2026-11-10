@@ -32,7 +32,7 @@ struct WeekView: View {
         let start = Rules.weekStart(of: anchor, startMonday: startMonday)
         let days = (0..<7).map { Rules.addDays(start, $0) }
         let conflictDays: Set<String> = conflictWarningOn && !isSharedView ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
-        let allDayRows = SpanLayout.rows(events: store.visibleEvents.filter(\.allDay), weekCells: days.map { Optional($0) })
+        let allDayRows = SpanLayout.rows(events: store.visibleEvents.filter(\.allDay) + store.taskMarkers(timelessOnly: true), weekCells: days.map { Optional($0) })
         VStack(spacing: 0) {
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
@@ -273,6 +273,10 @@ struct WeekView: View {
                 .offset(y: H * CGFloat(m) / 1440 - 1)
                 .allowsHitTesting(false)
             }
+            // 時刻つきの開始・締切は、アラームのように、その時刻に線で出す
+            ForEach(Array(store.taskLines(on: ds).enumerated()), id: \.offset) { _, line in
+                taskLine(line.task, isStart: line.isStart, minutes: line.minutes, colW: colW, H: H)
+            }
             if ds == Rules.today() {
                 TimelineView(.everyMinute) { ctx in
                     let c = Calendar.current.dateComponents([.hour, .minute], from: ctx.date)
@@ -286,6 +290,21 @@ struct WeekView: View {
                 .allowsHitTesting(false)
             }
         }
+    }
+
+    private func taskLine(_ t: TaskItem, isStart: Bool, minutes: Int, colW: CGFloat, H: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle().fill(Color(hex: t.color)).frame(width: colW, height: 2)
+            HStack(spacing: 2) {
+                TaskKindMark(isStart: isStart).font(.app(7))
+                Text(t.title).font(.bar(9 + CGFloat(fontDelta), weight: .bold)).lineLimit(1)
+            }
+            .foregroundStyle(EventColor.text(t.color))
+            .frame(width: max(0, colW - 2), alignment: .leading)
+            .offset(x: 1, y: -11)
+        }
+        .offset(y: H * CGFloat(minutes) / 1440 - 1)
+        .allowsHitTesting(false)
     }
 
     private func blockPreview(_ ev: ShiftEvent, w: CGFloat, h: CGFloat) -> some View {

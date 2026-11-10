@@ -210,6 +210,7 @@ final class AccountSync {
         case .favorites: snap.favorites.removeAll { $0.id == id }
         case .anniversaries: snap.anniversaries?.removeAll { $0.id == id }
         case .labels: snap.labels?.removeAll { $0.id == id }
+        case .tasks: snap.tasks?.removeAll { $0.id == id }
         case .alarms: snap.alarms?.removeAll { $0.id == id }
         case .settings: break
         }
@@ -288,7 +289,7 @@ final class AccountSync {
         let snap = store.syncSnapshot()
         // 初回に入るラベルだけの端末(新しい端末、ログアウトで消した端末)は、まだ何も入れていないのと同じ
         let localCount = store.isPristine ? 0 : snap.events.count + snap.workplaces.count + snap.favorites.count
-            + (snap.anniversaries?.count ?? 0) + (snap.labels?.count ?? 0)
+            + (snap.anniversaries?.count ?? 0) + (snap.labels?.count ?? 0) + (snap.tasks?.count ?? 0)
         let remoteCount = liveCount(fetched)
         if localCount == 0, remoteCount == 0, (fetched[.settings] ?? []).isEmpty, (fetched[.alarms] ?? []).isEmpty {
             seed(fetched)
@@ -324,6 +325,7 @@ final class AccountSync {
         snap.workplaces = []
         snap.favorites = []
         snap.anniversaries = []
+        snap.tasks = []
         snap.alarms = []
         // 初回に入るラベルだけの端末で、アカウントにラベルが無いときは、そのラベルを残す
         if !(store.isPristine && (fetched[.labels] ?? []).allSatisfy(\.deleted)) { snap.labels = [] }
@@ -384,6 +386,11 @@ final class AccountSync {
                 if d.deleted { list.removeAll { $0.id == d.id } }
                 else if let v: EventLabel = decode(d.payload) { upsert(&list, v) }
                 snap.labels = list
+            case .tasks:
+                var list = snap.tasks ?? []
+                if d.deleted { list.removeAll { $0.id == d.id } }
+                else if let v: TaskItem = decode(d.payload) { upsert(&list, v) }
+                snap.tasks = list
             case .alarms:
                 var list = snap.alarms ?? []
                 if d.deleted { list.removeAll { $0.id == d.id } }
@@ -538,6 +545,7 @@ final class AccountSync {
         case .favorites: return snap.favorites.enumerated().map { LocalItem(id: $1.id, payload: encode($1), order: $0) }
         case .anniversaries: return (snap.anniversaries ?? []).map { LocalItem(id: $0.id, payload: encode($0), order: 0) }
         case .labels: return (snap.labels ?? []).enumerated().map { LocalItem(id: $1.id, payload: encode($1), order: $0) }
+        case .tasks: return (snap.tasks ?? []).map { LocalItem(id: $0.id, payload: encode($0), order: 0) }
         case .alarms: return (snap.alarms ?? []).map { LocalItem(id: $0.id, payload: encode($0), order: 0) }
         case .settings:
             let s = SettingsPayload(customColors: snap.customColors, hiddenSuggestions: snap.hiddenSuggestions.sorted(),
