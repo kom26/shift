@@ -74,6 +74,8 @@ struct DayEventLine: Identifiable, Equatable {
     var owner: DayOwner?
     /// 共有カレンダーの中で作った予定の、共有カレンダーのアイコン(記号の名前、または "img:" + base64 の写真)
     var icon: String?
+    /// 開始・締切の行のとき、開始(true)か締切(false)か。予定は nil
+    var taskStart: Bool?
 }
 
 struct DayOwner: Equatable {
@@ -153,6 +155,11 @@ extension WidgetSource {
                                 isAllDay: row.isAllDay, showsTime: !row.isAllDay && !isCarried && ev.startTime != nil,
                                 owner: owner(of: ev.id), icon: calendarIcon(of: ev.id))
         }
+        // 開始・締切(自分のカレンダーだけ。チェックを付けたものは出さない)。時刻のあるものは時刻順
+        let taskLines = sharedCal != nil ? [] : store.taskRows(on: ds).filter { !$0.task.done }.map { row in
+            DayEventLine(id: "task:" + row.id, title: row.task.title, color: row.task.color, label: row.time ?? "",
+                         isAllDay: false, showsTime: row.time != nil, owner: nil, icon: nil, taskStart: row.isStart)
+        }
         let paid = summary.paydays.reduce(0) { $0 + $1.amount }
         let pay = (summary.paydays.isEmpty || !prefs.showPayday) ? nil : "給料日 " + Money.yen(paid)
         let fires = prefs.showAlarms ? alarms.filter { $0.date == ds }.map(\.fireTime).sorted() : []
@@ -164,7 +171,7 @@ extension WidgetSource {
         let wd = Rules.weekday(ds)
         var content = DayContent(date: ds, weekday: Self.weekdays[wd],
                           weekdayType: Rules.dayType(ds, isHoliday: isHoliday(ds)),
-                          pay: pay, alarm: alarm, events: lines,
+                          pay: pay, alarm: alarm, events: lines + taskLines,
                           annivs: store.anniversaries(on: ds)
                               .filter { $0.kind == .birthday ? prefs.showBirthdays : prefs.showAnniversaries }
                               .prefix(DayContent.maxAnnivIcons).map {
@@ -205,14 +212,18 @@ extension WidgetSource {
     func weekContent(containing ds: String, today: String) -> WeekContent {
         let start = Rules.weekStart(of: ds, startMonday: startMonday)
         let days = (0..<7).map { Rules.addDays(start, $0) }
-        let rows = SpanLayout.rows(events: store.visibleEvents, weekCells: days.map { Optional($0) })
+        // 開始・締切も、バーとして並べる(自分のカレンダーだけ)
+        let taskBars = sharedCal != nil ? [] : store.taskMarkers()
+        let rows = SpanLayout.rows(events: store.visibleEvents + taskBars, weekCells: days.map { Optional($0) })
         var bars: [WeekBar] = []
         for (lane, row) in rows.enumerated() where lane < 3 {
             for s in row {
                 let ev = s.event
-                let text = s.isStart ? (ev.barShowsTime ? Rules.timeLabel(ev) : ev.title) : "…"
+                let mark = ev.taskMarker
+                // 開始・締切は、印(▶ 開始 / ⚑ 締切)を付けて、予定名を出す
+                let text = s.isStart ? (mark != nil ? (mark!.isStart ? "▶ " : "⚑ ") + ev.title : (ev.barShowsTime ? Rules.timeLabel(ev) : ev.title)) : "…"
                 bars.append(WeekBar(id: ev.id + "-\(s.col)", col: s.col, span: s.span, lane: lane,
-                                    text: text, color: ev.color, showsTime: s.isStart && ev.barShowsTime))
+                                    text: text, color: ev.color, showsTime: mark == nil && s.isStart && ev.barShowsTime))
             }
         }
         let totals = (workStore ?? store).totals(from: days[0], to: days[6], isHoliday: isHoliday)

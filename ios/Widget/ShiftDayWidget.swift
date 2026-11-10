@@ -176,6 +176,10 @@ struct EventLineView: View {
             // 共有した人(共有カレンダーの中で作った予定は、共有カレンダー)のアイコンは、バーの一番左に、バーに収まる大きさで出す
             if let owner = line.owner { WidgetOwnerAvatar(owner: owner, size: compact ? 14 : 22) }
             else if let icon = line.icon { WidgetAvatar(icon: icon, color: color, size: compact ? 14 : 22) }
+            // 開始・締切は、予定一覧と同じ印(開始は再生、締切は旗)
+            if let isStart = line.taskStart {
+                Image(systemName: isStart ? "play.fill" : "flag.fill").font(.system(size: compact ? 8 : 10))
+            }
             Group {
             if compact {
                 HStack(spacing: 6) {
