@@ -63,7 +63,7 @@ struct TaskEditor: View {
             Form {
                 Section {
                     TextField("タイトル(必須)", text: $title)
-                    ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
+                    ColorRow(color: $color, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) }, taskLook: true)
                     // 予定バーの見た目。色の下に出す
                     HStack(alignment: .center, spacing: 8) {
                         Text("予定バーの見た目").lineLimit(1).fixedSize()

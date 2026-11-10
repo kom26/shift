@@ -5,6 +5,8 @@ struct CustomColorButton: View {
     @Binding var color: String
     /// アイコンの色を選ぶときは、そのアイコンの記号の名前(下のプレビューを、バーではなくアイコンにする)
     var iconName: String?
+    /// 開始・締切の色を選ぶときは、バーの見え方を矢印形のタグにする
+    var taskLook = false
     @State private var open = false
 
     var body: some View {
@@ -17,7 +19,7 @@ struct CustomColorButton: View {
             }
             .contentShape(Rectangle())
         }
-        .sheet(isPresented: $open) { ColorGridSheet(color: $color, iconName: iconName) }
+        .sheet(isPresented: $open) { ColorGridSheet(color: $color, iconName: iconName, taskLook: taskLook) }
     }
 }
 
@@ -27,12 +29,14 @@ struct CustomColorButton: View {
 struct ColorGridSheet: View {
     @Binding var color: String
     let iconName: String?
+    let taskLook: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var picked: String
 
-    init(color: Binding<String>, iconName: String? = nil) {
+    init(color: Binding<String>, iconName: String? = nil, taskLook: Bool = false) {
         _color = color
         self.iconName = iconName
+        self.taskLook = taskLook
         _picked = State(initialValue: color.wrappedValue)
     }
 
@@ -115,6 +119,22 @@ struct ColorGridSheet: View {
                         .background(Color(hex: picked).opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
                         .frame(maxWidth: .infinity, minHeight: 30)
                     Text("アイコンの見た目").font(.app(10)).foregroundStyle(.secondary)
+                } else if taskLook {
+                    // 開始(右向きの白抜き)と締切(左向きの塗り)を、点線でつないだ、3日以上の見え方
+                    HStack(spacing: 0) {
+                        TaskTagBar(title: "開始", color: picked, isStart: true, height: 24, fontSize: 12)
+                            .frame(width: 58)
+                        Line()
+                            .stroke(Color(hex: picked), style: StrokeStyle(lineWidth: 1.5, dash: [1.5, 3.5], dashPhase: 0))
+                            .frame(height: 1.5)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 4)
+                        TaskTagBar(title: "締切", color: picked, isStart: false, height: 24, fontSize: 12)
+                            .frame(width: 58)
+                    }
+                    .frame(minHeight: 30)
+                    .environment(\.calendarBackground, Color(.systemBackground))
+                    Text("バーの見え方").font(.app(10)).foregroundStyle(.secondary)
                 } else {
                     Text("22:00-06:30")
                         .font(.bar(13, weight: .bold))
@@ -140,5 +160,15 @@ struct ColorGridSheet: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+/// 横一直線(点線の下書き)
+private struct Line: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        return p
     }
 }
