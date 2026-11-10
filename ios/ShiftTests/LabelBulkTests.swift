@@ -60,3 +60,24 @@ struct LabelBulkTests {
         #expect(s.events.map(\.id) == ["b"])
     }
 }
+
+struct SharedAttachmentTests {
+    @Test func calendarImageIdsCarryTheirCalendar() {
+        let id = AttachmentStore.calendarImageId(calendarId: "cal123")
+        #expect(id.hasPrefix(AttachmentStore.calendarPrefix))
+        #expect(AttachmentStore.calendarId(of: id) == "cal123")
+        #expect(AttachmentStore.calendarId(of: UUID().uuidString) == nil)
+    }
+
+    @Test func sharedEventCarriesMemoUrlAndImageToTheCalendarView() {
+        var e = SharedEvent.newInCalendar(uid: "u", date: "2026-12-08")
+        e.title = "会議"
+        e.memo = "資料は前日まで"
+        e.url = "https://example.com"
+        e.imageId = "cal~c~x"
+        let shown = e.shiftEvent()
+        #expect(shown.memo == "資料は前日まで" && shown.url == "https://example.com" && shown.imageId == "cal~c~x")
+        let moved = e.moved(to: "2026-12-09")
+        #expect(moved.memo == e.memo && moved.url == e.url && moved.imageId == e.imageId)
+    }
+}
