@@ -34,13 +34,17 @@ struct WeekView: View {
         let conflictDays: Set<String> = conflictWarningOn && !isSharedView ? Conflicts.days(events: store.events, minGapMinutes: conflictGapMinutes) : []
         let allDayRows = SpanLayout.rows(events: store.visibleEvents.filter(\.allDay), weekCells: days.map { Optional($0) })
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                Color.clear.frame(width: timeW, height: 0)
-                ForEach(days, id: \.self) { header($0, conflict: conflictDays.contains($0)) }
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Color.clear.frame(width: timeW, height: 0)
+                    ForEach(days, id: \.self) { header($0, conflict: conflictDays.contains($0)) }
+                }
+                allDayRow(days: days, rows: allDayRows)
+                Divider()
+                grid(days, conflictDays: conflictDays)
             }
-            allDayRow(days: days, rows: allDayRows)
-            Divider()
-            grid(days, conflictDays: conflictDays)
+            // 選んだ日の紫の枠は、日付から 24 時のところまで、縦長に囲む
+            .overlay { selectionFrame(days) }
             let b = Rules.monthBounds(of: anchor)
             let monthTotals = store.totals(from: b.first, to: b.last, isHoliday: { holidays.name(on: $0) != nil })
             if summaryOn && !isSharedView {
@@ -99,11 +103,23 @@ struct WeekView: View {
             }
         }
         .background(conflict ? Color.red.opacity(0.16) : (isToday ? Theme.accentSoft : Color.clear))
-        .overlay {
-            if selectedDate == ds {
-                Rectangle().strokeBorder(Theme.accent, lineWidth: 1.5)
+        // 日付の部分を押しても、その日を選べる
+        .contentShape(Rectangle())
+        .onTapGesture { onSelectDay(ds) }
+    }
+
+    /// 選んだ日の列を、日付から 24 時のところまで囲む枠
+    private func selectionFrame(_ days: [String]) -> some View {
+        GeometryReader { geo in
+            if let sel = selectedDate, let i = days.firstIndex(of: sel) {
+                let colW = (geo.size.width - timeW) / 7
+                Rectangle()
+                    .strokeBorder(Theme.accent, lineWidth: 1.5)
+                    .frame(width: colW, height: geo.size.height)
+                    .offset(x: timeW + colW * CGFloat(i))
             }
         }
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
