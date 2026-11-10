@@ -16,13 +16,13 @@ struct WeekMarkerLayoutTests {
         #expect(s.map(\.slot) == [0, 1, 2] && s.allSatisfy { $0.count == 3 })
     }
 
-    @Test func exactlyThirtyMinutesIsNearAndThirtyOneIsNot() {
-        #expect(L.layout([item(.bell, 17, 0), item(.due, 17, 30)]).allSatisfy { $0.count == 2 })
-        #expect(L.layout([item(.bell, 17, 0), item(.due, 17, 31)]).allSatisfy { $0.count == 1 })
+    @Test func exactlyOneHourIsNearAndOneHourOneMinuteIsNot() {
+        #expect(L.layout([item(.bell, 17, 0), item(.due, 18, 0)]).allSatisfy { $0.count == 2 })
+        #expect(L.layout([item(.bell, 17, 0), item(.due, 18, 1)]).allSatisfy { $0.count == 1 })
     }
 
     @Test func chainedNeighboursFormOneGroup() {
-        let s = L.layout([item(.bell, 17, 0), item(.start, 17, 25), item(.due, 17, 50)])
+        let s = L.layout([item(.bell, 17, 0), item(.start, 17, 50), item(.due, 18, 40)])
         #expect(s.allSatisfy { $0.count == 3 })
     }
 

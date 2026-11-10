@@ -26,6 +26,13 @@ struct TaskRowView: View {
                         .font(.app(12))
                         .foregroundStyle(sub.late ? Theme.sunday : Color.secondary)
                 }
+                // メモ(AIで読み取ったタイトルの補足もここに出る)。期限切れや日付の下に、1 行で
+                if !t.memo.isEmpty {
+                    Text(t.memo)
+                        .font(.app(12))
+                        .foregroundStyle(Color.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
             AttachmentIcons(imageId: t.imageId, url: t.url)

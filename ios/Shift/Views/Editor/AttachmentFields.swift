@@ -281,6 +281,8 @@ struct AttachmentFields: View {
                 Section {
                     TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
                         .focused($focus, equals: .memo)
+                        // この欄の中のタップは、「欄の外をタップした」には数えない
+                        .simultaneousGesture(TapGesture().onEnded { touch(.memo) })
                 } header: { Text("メモ").textCase(nil) }
             }
             if openKinds.contains(.image) { imageSection }
@@ -380,6 +382,7 @@ struct AttachmentFields: View {
                     .autocorrectionDisabled()
                     .submitLabel(.done)
                     .focused($focus, equals: .url)
+                    .simultaneousGesture(TapGesture().onEnded { touch(.url) })
                     .onSubmit { focus = nil }
             }
         } header: {
@@ -430,9 +433,11 @@ struct AttachmentFields: View {
         }
     }
 
-    /// 空で、いま入力中でもない欄を閉じる(`keeping` は閉じない)
+    /// 空の欄を閉じる(`keeping` は閉じない)。入力中(キーボードが出ている)の空の欄も閉じて、入力を終える。
+    /// 文字を打っていなくても「入力中」のままになって、ほかのチップを押しても閉じない、ということがないように
     private func closeEmpty(keeping: Kind?) {
-        for kind in openKinds where kind != keeping && !has(kind) && focus != kind {
+        for kind in openKinds where kind != keeping && !has(kind) {
+            if focus == kind { focus = nil }
             withAnimation(.easeOut(duration: 0.2)) { _ = openKinds.remove(kind) }
         }
     }

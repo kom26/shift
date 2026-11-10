@@ -9,6 +9,8 @@ struct WidgetSource {
     let prefs: WidgetPrefs
     /// 共有カレンダーを見ているときの、その中身(予定者のアイコンに使う)
     var sharedCal: WidgetSharedCalendar?
+    /// 開始と締切を点線でつなぐか(アプリの設定)
+    var linkTasks = false
 
     /// 労働時間・見込み給料の集計に使う入れ物。共有カレンダーを見ているときだけ、自分の職場(共有している分)で作る
     let workStore: Store?
@@ -49,7 +51,8 @@ struct WidgetSource {
             prefs.labelIds.forEach { store.toggleLabelFilter($0) }
         }
         return WidgetSource(store: store, holidays: Holidays(defaults: defaults),
-                            startMonday: data?.startMonday ?? false, alarms: alarms, prefs: prefs, sharedCal: sharedCal, workStore: workStore)
+                            startMonday: data?.startMonday ?? false, alarms: alarms, prefs: prefs, sharedCal: sharedCal,
+                            linkTasks: data?.linkTasks ?? false, workStore: workStore)
     }
 
     /// 労働時間・見込み給料を出せるか。自分のカレンダーなら職場が登録されているとき、共有カレンダーなら職場を共有しているとき
@@ -219,7 +222,7 @@ extension WidgetSource {
         let start = Rules.weekStart(of: ds, startMonday: startMonday)
         let days = (0..<7).map { Rules.addDays(start, $0) }
         // 開始・締切も、バーとして並べる(自分のカレンダーだけ)
-        let taskBars = sharedCal != nil ? [] : store.taskMarkers(linked: true)
+        let taskBars = sharedCal != nil ? [] : store.taskMarkers(linked: linkTasks)
         let rows = SpanLayout.rows(events: store.visibleEvents + taskBars, weekCells: days.map { Optional($0) })
         var bars: [WeekBar] = []
         for (lane, row) in rows.enumerated() where lane < 3 {

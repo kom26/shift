@@ -16,7 +16,8 @@ enum WidgetSync {
         }
         kept = kept.filter { wanted.contains($0.id) }
         WidgetBridge.write(WidgetData(snapshot: store.syncSnapshot(), startMonday: startMonday,
-                                      small: small, medium: medium, shared: kept))
+                                      small: small, medium: medium, shared: kept,
+                                      linkTasks: UserDefaults.standard.bool(forKey: "taskLinkDots")))
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// 週表示の列に出す、時刻の印(アラーム・開始・締切)の並べ方。
-/// 近い印(前の印との差が 30 分以内)は 1 つの組にして、通常の予定と同じように、列の幅を分け合う。
+/// 近い印(前の印との差が 1 時間以内)は 1 つの組にして、通常の予定と同じように、列の幅を分け合う。
 /// 同じ種類の印は 1 つにまとめて、数を「+n」で添える。なので、1 つの組は最大 3 分割
 enum WeekMarkerLayout {
     /// 並びは、左から アラーム・開始・締切
@@ -27,7 +27,7 @@ enum WeekMarkerLayout {
     }
 
     /// 近いとみなす差(分。この値ちょうどを含む)
-    static let nearMinutes = 30
+    static let nearMinutes = 60
 
     static func layout(_ items: [Item]) -> [Slot] {
         let sorted = items.sorted { ($0.minutes, $0.kind.rawValue) < ($1.minutes, $1.kind.rawValue) }

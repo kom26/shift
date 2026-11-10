@@ -9,6 +9,8 @@ struct WidgetData: Codable, Equatable {
     var medium: WidgetPrefs?
     /// ウィジェットで見る共有カレンダーの中身(アプリを開いたときに取ってくる)
     var shared: [WidgetSharedCalendar]?
+    /// 開始と締切を点線でつなぐか(設定。古いデータには無いので省略可。なければ、つながない)
+    var linkTasks: Bool?
 }
 
 /// ウィジェットに渡す、共有カレンダー 1 つぶんの予定と誕生日・記念日

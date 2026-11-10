@@ -20,7 +20,11 @@ private struct KeyboardDismissBar: ViewModifier {
                                 .padding(.horizontal, 8)
                         }
                         Spacer()
-                        Button(action: onClose) {
+                        Button {
+                            onClose()
+                            // 画面が持っていない入力欄(メモ・URL など、部品の中で管理している欄)も、閉じる
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        } label: {
                             Image(systemName: "keyboard.chevron.compact.down")
                                 .font(.title3)
                                 .frame(minWidth: 44, minHeight: 40)
