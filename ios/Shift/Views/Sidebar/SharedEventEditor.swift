@@ -30,6 +30,8 @@ struct SharedEventEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     let target: SharedEditTarget
+    /// 保存先を切り替えられるとき(自分のカレンダーと共有カレンダーのあいだで、予定を移せる)
+    var flow: EditorFlow?
     @State private var title: String
     @State private var allDay: Bool
     /// 日付を決めるか。決めないと「未配置」になり、あとで、カレンダーの日にドラッグして置く
@@ -54,8 +56,9 @@ struct SharedEventEditor: View {
     enum Field: Hashable { case title, startTime, endTime }
     enum TimePanel: Hashable { case start, end }
 
-    init(target: SharedEditTarget) {
+    init(target: SharedEditTarget, flow: EditorFlow? = nil) {
         self.target = target
+        self.flow = flow
         let e = target.event
         _title = State(initialValue: e.title)
         _allDay = State(initialValue: e.allDay)
@@ -398,6 +401,7 @@ struct SharedEventEditor: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let flow { DestinationSection(flow: flow, draft: { .shared(built()) }) }
                 Section {
                     TextField("タイトル(必須)", text: $title)
                         .focused($focusedField, equals: .title)
@@ -420,7 +424,7 @@ struct SharedEventEditor: View {
                     Section { Text("保存できませんでした。通信を確認してください。").foregroundStyle(.red) }
                 }
                 // 最後に変えた人と時刻は、削除の見出しにして、行を取らないようにする
-                if !target.isNew {
+                if !target.isNew, flow?.isAtOrigin ?? true {
                     Section {
                         Button("削除", role: .destructive) { confirmDelete = true }
                     } header: {
@@ -438,9 +442,18 @@ struct SharedEventEditor: View {
                         Task {
                             saving = true
                             failed = false
-                            if await shared.save(built()) {
+                            let e = built()
+                            // 保存先を変えたときは、その共有カレンダーに新しく保存する(開いているカレンダーとは限らない)
+                            let ok: Bool
+                            if let flow, !flow.isAtOrigin, let cid = flow.destination {
+                                ok = await shared.save(e, inCalendar: cid)
+                            } else {
+                                ok = await shared.save(e)
+                            }
+                            if ok {
                                 store.rememberColor(color)
                                 dismiss()
+                                flow?.saved(e.placed ? e.startDate : nil)
                             } else {
                                 failed = true
                             }

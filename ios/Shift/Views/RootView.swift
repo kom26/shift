@@ -116,6 +116,7 @@ struct RootView: View {
         mainBody
             // 開いた共有カレンダーで、まだ見ていない退会のお知らせがあれば出す
             .onChange(of: sharedView.calendar?.id) { _, id in showNotices(for: id) }
+            .environment(\.eventSaved, eventSaved)
             // カレンダーを切り替えたり、ドロワーを開いたり、週表示にしたりしたら、その日の予定一覧は閉じる
             // (長い式で型の検査が終わらなくなるので、mainBody の外に置く)
             .onChange(of: sharedView.calendar?.id) { _, _ in dayTarget = nil }
@@ -243,7 +244,7 @@ struct RootView: View {
         .sheet(item: $editing, onDismiss: {
             if let n = unplacedCountOnCreate, store.unplacedEvents.count > n { revealToken += 1 }
             unplacedCountOnCreate = nil
-        }) { EventEditor(original: $0.event, isNew: $0.isNew, favoriteMode: $0.favorite) }
+        }) { ownEditor($0) }
         .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
         .sheet(item: $dayTarget) { t in
             DaySheet(date: t.date, canAdd: !sharedView.isOpen || sharedView.canCreate, onSelectPayday: { date in
@@ -261,7 +262,7 @@ struct RootView: View {
         .sheet(isPresented: $showFilter) { FilterSheet() }
         .sheet(isPresented: $showLabels) { LabelManageView() }
         .sheet(isPresented: $showWorkplaces) { WorkplaceManageView() }
-        .sheet(item: $sharedEditing) { SharedEventEditor(target: $0) }
+        .sheet(item: $sharedEditing) { sharedEditor($0) }
         .sheet(item: $sharedDetail) { SharedEventDetail(eventId: $0.eventId) }
         .sheet(isPresented: $showCreateCalendar) { CalendarCreateSheet() }
         .sheet(item: $joinTarget, onDismiss: {
@@ -884,11 +885,37 @@ struct RootView: View {
         switch target {
         case .own(let t):
             // 一覧には表示用のストアが入っているので、編集画面には本物のストアを渡す
-            EventEditor(original: t.event, isNew: t.isNew, favoriteMode: t.favorite).environment(store)
+            ownEditor(t).environment(store)
         case .shared(let t):
-            SharedEventEditor(target: t)
+            sharedEditor(t)
         case .detail(let t):
             SharedEventDetail(eventId: t.eventId)
+        }
+    }
+
+    /// 自分の予定の編集(よく使う予定は、保存先を切り替えない)
+    @ViewBuilder
+    private func ownEditor(_ t: EditorTarget) -> some View {
+        if t.favorite {
+            EventEditor(original: t.event, isNew: t.isNew, favoriteMode: true)
+        } else {
+            EventEditorFlow(ownEvent: t.event, isNew: t.isNew)
+        }
+    }
+
+    private func sharedEditor(_ t: SharedEditTarget) -> some View {
+        EventEditorFlow(sharedEvent: t.event, calendarId: sharedView.calendar?.id ?? "", isNew: t.isNew)
+    }
+
+    /// 予定を保存したあと。保存先のカレンダーで、その予定の月を開き、その日の予定一覧を開く
+    private func eventSaved(date: String?, calendarId: String?) {
+        guard let date else { return }
+        // 予定一覧からの編集で、同じカレンダー・同じ日のままなら、一覧がそのまま残っている
+        if dayTarget?.date == date, sharedView.calendar?.id == calendarId { return }
+        sharedDetail = nil
+        // 編集画面が閉じきってから開く
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            Task { await openDayFromWidget(date, sharedId: calendarId) }
         }
     }
 

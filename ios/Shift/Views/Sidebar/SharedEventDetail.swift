@@ -124,7 +124,7 @@ struct SharedEventDetail: View {
                 }
             }
             .sheet(item: $editing, onDismiss: { if shared.event(eventId) == nil { dismiss() } }) {
-                SharedEventEditor(target: $0)
+                EventEditorFlow(sharedEvent: $0.event, calendarId: shared.calendarId(of: $0.event.id) ?? "", isNew: $0.isNew)
             }
         }
         .presentationDetents([.medium, .large])

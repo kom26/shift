@@ -12,6 +12,8 @@ struct EventEditor: View {
     var favoriteMode = false
     /// 指定すると、保存の代わりに、直した予定を返す(画像取り込みの確認画面から開いたとき。削除・よく使う予定の登録は出さない)
     var onCommit: ((ShiftEvent) -> Void)?
+    /// 保存先を切り替えられるとき(自分のカレンダーと共有カレンダーのあいだで、予定を移せる)
+    var flow: EditorFlow?
 
     @State private var title: String
     @State private var memo: String
@@ -51,11 +53,13 @@ struct EventEditor: View {
     enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime, adjustment, dailyWage }
     enum TimePanel: Hashable { case start, end }
 
-    init(original: ShiftEvent, isNew: Bool, favoriteMode: Bool = false, onCommit: ((ShiftEvent) -> Void)? = nil) {
+    init(original: ShiftEvent, isNew: Bool, favoriteMode: Bool = false, onCommit: ((ShiftEvent) -> Void)? = nil,
+         flow: EditorFlow? = nil) {
         self.original = original
         self.isNew = isNew
         self.favoriteMode = favoriteMode
         self.onCommit = onCommit
+        self.flow = flow
         _title = State(initialValue: original.title)
         _memo = State(initialValue: original.memo)
         _color = State(initialValue: original.color)
@@ -127,6 +131,7 @@ struct EventEditor: View {
         NavigationStack {
             ScrollViewReader { proxy in
             Form {
+                if let flow { DestinationSection(flow: flow, draft: { .own(build()) }) }
                 Section {
                     TextField("タイトル(必須)", text: $title)
                         .focused($focusedField, equals: .title)
@@ -188,7 +193,7 @@ struct EventEditor: View {
                 }
                 // 最後に変えた人と時刻(画像取り込みで作った予定には、その印も)は、削除の見出しにして、行を取らないようにする。
                 // 削除を出さない画面(画像取り込みの確認)では、見出しだけの区切りにする
-                if !isNew {
+                if !isNew, flow?.isAtOrigin ?? true {
                     if onCommit == nil {
                         Section {
                             Button("削除", role: .destructive) { confirmDelete = true }
@@ -820,6 +825,7 @@ struct EventEditor: View {
         }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         dismiss()
+        flow?.saved(e.placed ? e.startDate : nil)
     }
 }
 

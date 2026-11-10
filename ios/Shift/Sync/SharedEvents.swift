@@ -392,6 +392,23 @@ final class SharedViewState {
         return await save(made.moved(to: date))
     }
 
+    /// 自分の uid(ログインしていなければ nil)
+    var myUid: String? { calendars.myUid }
+
+    /// 予定を作れる共有カレンダー(予定の保存先に選べるもの)
+    func writableCalendars() -> [SharedCalendar] {
+        calendars.calendars.filter { canWrite(in: $0) }
+    }
+
+    /// その予定がある共有カレンダーの ID(開いているものか、重ねているもの)
+    func calendarId(of eventId: String) -> String? { calendarOf(eventId)?.id }
+
+    /// 保存先を切り替えるときの、共有の予定の下書き(新しい ID。中身は、あとで入れる)
+    func newDraft() -> SharedEvent? {
+        guard let uid = calendars.myUid else { return nil }
+        return SharedEvent.newUnplacedInCalendar(uid: uid)
+    }
+
     /// 日付を決めない予定の下書き
     func newUnplacedEvent() -> SharedEvent? {
         guard canCreate, let uid = calendars.myUid else { return nil }
@@ -471,7 +488,16 @@ final class SharedViewState {
 
     /// 共有カレンダーの中の予定を保存する(表示は自動で更新される)
     func save(_ e: SharedEvent) async -> Bool {
-        guard let cal = calendarOf(e.id) ?? calendar, canWrite(in: cal), e.isCalendarOwned else { return false }
+        await save(e, in: calendarOf(e.id) ?? calendar)
+    }
+
+    /// 開いていない共有カレンダーにも、予定を保存する(自分のカレンダーや別の共有カレンダーから、移すとき)
+    func save(_ e: SharedEvent, inCalendar id: String) async -> Bool {
+        await save(e, in: calendars.calendars.first { $0.id == id })
+    }
+
+    private func save(_ e: SharedEvent, in target: SharedCalendar?) async -> Bool {
+        guard let cal = target, canWrite(in: cal), e.isCalendarOwned else { return false }
         // 変えた人と時刻を記録する(編集画面の下の「最終変更」)
         var stamped = e
         stamped.updatedAt = Date().timeIntervalSince1970 * 1000
