@@ -65,12 +65,25 @@ struct UnplacedArea: View {
     private var trashDelegate: UnplaceDropDelegate {
         UnplaceDropDelegate(trash: true, onDrop: { id in
             if inShared && !shared.canDrag(id) { return }
-            if store.events.contains(where: { $0.id == id }) { pendingDeleteId = id }
+            // 開始・締切のタグ("task:<ID>:start" など)は、開始も締切もまとめて、その項目を消す
+            if let taskId = Self.taskId(of: id) {
+                if store.task(id: taskId) != nil { pendingDeleteId = id }
+            } else if store.events.contains(where: { $0.id == id }) {
+                pendingDeleteId = id
+            }
         })
     }
 
+    /// 開始・締切のタグの ID("task:<項目の ID>:start|due|link")から、項目の ID を取り出す。予定の ID なら nil
+    static func taskId(of dragId: String) -> String? {
+        let parts = dragId.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts[0] == "task" else { return nil }
+        return String(parts[1])
+    }
+
     private var pendingDeleteTitle: String {
-        store.events.first { $0.id == pendingDeleteId }?.title ?? ""
+        if let id = pendingDeleteId, let taskId = Self.taskId(of: id) { return store.task(id: taskId)?.title ?? "" }
+        return store.events.first { $0.id == pendingDeleteId }?.title ?? ""
     }
 
     var body: some View {
@@ -176,7 +189,9 @@ struct UnplacedArea: View {
             Button("キャンセル", role: .cancel) {}
             Button("削除", role: .destructive) {
                 if let id = pendingDeleteId {
-                if inShared {
+                if let taskId = Self.taskId(of: id) {
+                    withAnimation(.snappy) { store.deleteTask(id: taskId) }
+                } else if inShared {
                     if shared.ownEventId(for: id) != nil {
                         shared.deleteOwn(id: id)
                     } else {

@@ -138,3 +138,16 @@ struct TaskTimeOrderTests {
         #expect(TaskItem.orderedDueTime(startDate: "2026-11-11", startTime: "14:00", dueDate: "2026-11-11", dueTime: nil) == nil)
     }
 }
+
+struct TrashTaskIdTests {
+    @Test func taskTagIdsGiveTheTaskId() {
+        #expect(UnplacedArea.taskId(of: "task:ABC-123:start") == "ABC-123")
+        #expect(UnplacedArea.taskId(of: "task:ABC-123:due") == "ABC-123")
+        #expect(UnplacedArea.taskId(of: "task:ABC-123:link") == "ABC-123")
+    }
+
+    @Test func eventIdsAreNotTaskIds() {
+        #expect(UnplacedArea.taskId(of: "6E1F-aaaa") == nil)
+        #expect(UnplacedArea.taskId(of: "cal_1234") == nil)
+    }
+}
