@@ -461,7 +461,8 @@ struct SharedEventEditor: View {
             .onChange(of: endTime) { validateEndEdit() }
             .onChange(of: hasDate) { normalizeEnd() }
             .onChange(of: allDay) { normalizeEnd() }
-            .confirmationDialog("この予定を削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            .alert("この予定を削除しますか?", isPresented: $confirmDelete) {
+                Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
                     Task {
                         if await shared.delete(id: target.event.id) { dismiss() } else { failed = true }

@@ -487,7 +487,8 @@ struct CalendarDetailSheet: View {
             } message: {
                 Text(actionError ?? "")
             }
-            .confirmationDialog("退出しますか?", isPresented: $confirmLeave, titleVisibility: .visible) {
+            .alert("退出しますか?", isPresented: $confirmLeave) {
+                Button("キャンセル", role: .cancel) {}
                 Button("退出", role: .destructive) {
                     Task {
                         if sharedView.calendar?.id == calendar.id { sharedView.close() }
@@ -499,8 +500,9 @@ struct CalendarDetailSheet: View {
             } message: {
                 Text("もう一度参加するには、招待が必要です。")
             }
-            .confirmationDialog("\(removing?.displayName ?? "")さんを削除しますか?", isPresented: Binding(
-                get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
+            .alert("\(removing?.displayName ?? "")さんを削除しますか?", isPresented: Binding(
+                get: { removing != nil }, set: { if !$0 { removing = nil } })) {
+                Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
                     if let m = removing {
                         Task {

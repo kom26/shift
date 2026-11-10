@@ -250,7 +250,8 @@ struct EventEditor: View {
             .onChange(of: endTime) { validateEndEdit() }
             .onChange(of: hasDate) { normalizeEnd() }
             .onChange(of: allDay) { normalizeEnd() }
-            .confirmationDialog("この予定を削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            .alert("この予定を削除しますか?", isPresented: $confirmDelete) {
+                Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
                     if favoriteMode { store.removeFavorite(id: original.id) } else { store.delete(id: original.id) }
                     dismiss()

@@ -113,14 +113,16 @@ struct WorkLabelSheet: View {
                         .disabled(!editing && store.workplaces.isEmpty && store.labels.isEmpty)
                 }
             }
-            .confirmationDialog("この職場を削除しますか?", isPresented: Binding(get: { pendingWorkplace != nil }, set: { if !$0 { pendingWorkplace = nil } }),
-                                titleVisibility: .visible, presenting: pendingWorkplace) { w in
+            .alert("この職場を削除しますか?", isPresented: Binding(get: { pendingWorkplace != nil }, set: { if !$0 { pendingWorkplace = nil } }),
+                                presenting: pendingWorkplace) { w in
+                Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) { remove(workplace: w) }
             } message: { w in
                 Text("\(store.workplaceEventCount(w.id))件の予定は「指定なし」の通常予定に変更されます。")
             }
-            .confirmationDialog("このラベルを削除しますか?", isPresented: Binding(get: { pendingLabel != nil }, set: { if !$0 { pendingLabel = nil } }),
-                                titleVisibility: .visible, presenting: pendingLabel) { l in
+            .alert("このラベルを削除しますか?", isPresented: Binding(get: { pendingLabel != nil }, set: { if !$0 { pendingLabel = nil } }),
+                                presenting: pendingLabel) { l in
+                Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) { remove(label: l) }
             } message: { l in
                 Text("\(store.labelEventCount(l.id))件の予定は「指定なし」に変更されます。")
@@ -242,13 +244,20 @@ struct LabelManageView: View {
             .navigationTitle("ラベルの管理")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
-                ToolbarItem(placement: .primaryAction) { EditButton() }
+                if !editMode.isEditing {
+                    ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button(editMode.isEditing ? "完了" : "編集") {
+                        withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+                    }
+                }
             }
             .sheet(item: $target) { LabelEditor(label: $0.label, isNew: $0.isNew) }
             .environment(\.editMode, $editMode)
-            .confirmationDialog("このラベルを削除しますか?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-                                titleVisibility: .visible, presenting: pendingDelete) { l in
+            .alert("このラベルを削除しますか?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+                                presenting: pendingDelete) { l in
+                Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) { store.deleteLabel(id: l.id) }
             } message: { l in
                 Text("\(store.labelEventCount(l.id))件の予定は「指定なし」に変更されます。")
@@ -297,7 +306,8 @@ struct LabelEditor: View {
                     Button(isNew ? "追加" : "保存") { save() }.disabled(!canSave)
                 }
             }
-            .confirmationDialog("このラベルを削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            .alert("このラベルを削除しますか?", isPresented: $confirmDelete) {
+                Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
                     store.deleteLabel(id: label.id)
                     dismiss()

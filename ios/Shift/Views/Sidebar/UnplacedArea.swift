@@ -161,10 +161,10 @@ struct UnplacedArea: View {
             }
         }
         .sheet(isPresented: $showPayBasis) { PayBasisSheet() }
-        .confirmationDialog("「\(pendingDeleteTitle)」を削除しますか?",
+        .alert("「\(pendingDeleteTitle)」を削除しますか?",
                             isPresented: Binding(get: { pendingDeleteId != nil },
-                                                 set: { if !$0 { pendingDeleteId = nil } }),
-                            titleVisibility: .visible) {
+                                                 set: { if !$0 { pendingDeleteId = nil } })) {
+            Button("キャンセル", role: .cancel) {}
             Button("削除", role: .destructive) {
                 if let id = pendingDeleteId {
                 if inShared {

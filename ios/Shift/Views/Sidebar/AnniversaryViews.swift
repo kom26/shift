@@ -263,7 +263,8 @@ struct AnniversaryEditor: View {
                     .disabled(a.name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .confirmationDialog("削除しますか?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            .alert("削除しますか?", isPresented: $confirmDelete) {
+                Button("キャンセル", role: .cancel) {}
                 Button("削除", role: .destructive) {
                     if let onRemove { onRemove() } else { store.deleteAnniversary(id: a.id) }
                     dismiss()
