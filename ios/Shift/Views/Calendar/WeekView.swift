@@ -55,12 +55,6 @@ struct WeekView: View {
             } else {
                 Divider()
             }
-            // 共有カレンダーには、月計も週計も出さない
-            if !isSharedView {
-                SummaryStrip(label: "月計", totals: monthTotals, emptyText: "データなし",
-                             fill: Theme.accentSoft, labelColor: Color.secondary)
-                    .frame(height: 20)
-            }
         }
         .background { MonthWatermark(number: Rules.ymd(days[3]).month) }
     }
