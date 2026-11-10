@@ -231,8 +231,9 @@ struct MonthView: View {
             cap = c
             base = heights(cap: c)
         }
-        // 余った高さは、全部の週に均等に配る
-        let slack = max(0, avail - base.reduce(0, +))
+        // 余った高さは、少ない週から順にそろえて配る(予定が入りきるなら、全部の週が同じ高さ。
+        // 高くなるのは、必要な高さが、そろえた高さを超える週だけ)
+        let level = Self.levelingHeight(base, avail: avail)
         let rows = weeks.indices.map { shown($0, cap: cap) }
         let hidden: [[Int]] = weeks.indices.map { i in
             (0..<7).map { col in
@@ -242,7 +243,19 @@ struct MonthView: View {
                 return covering(fullRows[i]) - covering(rows[i])
             }
         }
-        return MonthLayout(barH: barH, rows: rows, hidden: hidden, heights: base.map { $0 + slack / n })
+        return MonthLayout(barH: barH, rows: rows, hidden: hidden, heights: base.map { max($0, level) })
+    }
+
+    /// 週ごとの必要な高さ(need)を満たしたまま、合計が avail になるように、低い週をそろえる高さ。
+    /// 必要な高さの合計が avail 以上なら、そろえない(0)
+    static func levelingHeight(_ need: [CGFloat], avail: CGFloat) -> CGFloat {
+        guard !need.isEmpty, need.reduce(0, +) < avail else { return 0 }
+        var low: CGFloat = 0, high = avail
+        for _ in 0..<40 {
+            let mid = (low + high) / 2
+            if need.reduce(0, { $0 + max($1, mid) }) > avail { high = mid } else { low = mid }
+        }
+        return low
     }
 
     /// 1週ぶんに必要な高さ。記念日のアイコンがある日は、その日のバーの下にもう1本ぶん確保する
