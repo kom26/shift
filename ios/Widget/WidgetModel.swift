@@ -115,6 +115,8 @@ struct WeekBar: Identifiable, Equatable {
     let text: String
     let color: String
     let showsTime: Bool
+    /// 開始・締切のタグのとき、開始(true)か締切(false)か。予定は nil。カレンダーと同じ矢印形で出す
+    var taskStart: Bool? = nil
 }
 
 struct WeekContent: Equatable {
@@ -220,10 +222,11 @@ extension WidgetSource {
             for s in row {
                 let ev = s.event
                 let mark = ev.taskMarker
-                // 開始・締切は、印(▶ 開始 / ⚑ 締切)を付けて、予定名を出す
-                let text = s.isStart ? (mark != nil ? (mark!.isStart ? "▶ " : "⚑ ") + ev.title : (ev.barShowsTime ? Rules.timeLabel(ev) : ev.title)) : "…"
+                // 開始・締切は、カレンダーと同じ矢印形のタグで、タイトルを出す
+                let text = s.isStart ? (mark != nil ? ev.title : (ev.barShowsTime ? Rules.timeLabel(ev) : ev.title)) : "…"
                 bars.append(WeekBar(id: ev.id + "-\(s.col)", col: s.col, span: s.span, lane: lane,
-                                    text: text, color: ev.color, showsTime: mark == nil && s.isStart && ev.barShowsTime))
+                                    text: text, color: ev.color, showsTime: mark == nil && s.isStart && ev.barShowsTime,
+                                    taskStart: mark?.isStart))
             }
         }
         let totals = (workStore ?? store).totals(from: days[0], to: days[6], isHoliday: isHoliday)

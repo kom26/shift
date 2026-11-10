@@ -102,14 +102,27 @@ struct MediumWeekView: View {
                         Text(b.text).font(.bar(size, weight: .bold)).lineLimit(1)
                     }
                 }
-                .padding(.horizontal, 2)
+                .padding(.leading, b.taskStart == false ? 6 : 2)
+                .padding(.trailing, b.taskStart == true ? 6 : 2)
                 .frame(width: max(0, colW * CGFloat(b.span) - 2), height: barH, alignment: .leading)
                 .clipped()
                 .foregroundStyle(EventColor.text(b.color))
-                .background(EventColor.fill(b.color), in: RoundedRectangle(cornerRadius: 4))
-                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 4))
+                .background { barBackground(b) }
                 .offset(x: colW * CGFloat(b.col) + 1, y: CGFloat(b.lane) * (barH + laneGap))
             }
+        }
+    }
+
+    /// 予定は角丸の帯。開始・締切は、カレンダーと同じ矢印形(開始は白抜きで右向き、締切は塗りで左向き)
+    @ViewBuilder
+    private func barBackground(_ b: WeekBar) -> some View {
+        if let isStart = b.taskStart {
+            let shape = ArrowTagShape(pointsRight: isStart, notch: 5)
+            shape.fill(isStart ? Color(.systemBackground) : EventColor.fill(b.color))
+                .overlay { if isStart { shape.stroke(Color(hex: b.color), lineWidth: 1.2) } }
+        } else {
+            RoundedRectangle(cornerRadius: 4).fill(EventColor.fill(b.color))
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 4))
         }
     }
 

@@ -92,6 +92,7 @@ targets:
       - Shift/Views/Theme.swift
       - Shift/Views/AppFont.swift
       - Shift/Views/Calendar/FixedWidthTime.swift
+      - Shift/Views/Calendar/ArrowTagShape.swift
       - Shift/Resources/Fonts
     info:
       path: ShiftWidgetInfo.plist

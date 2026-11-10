@@ -176,10 +176,6 @@ struct EventLineView: View {
             // 共有した人(共有カレンダーの中で作った予定は、共有カレンダー)のアイコンは、バーの一番左に、バーに収まる大きさで出す
             if let owner = line.owner { WidgetOwnerAvatar(owner: owner, size: compact ? 14 : 22) }
             else if let icon = line.icon { WidgetAvatar(icon: icon, color: color, size: compact ? 14 : 22) }
-            // 開始・締切は、予定一覧と同じ印(開始は再生、締切は旗)
-            if let isStart = line.taskStart {
-                Image(systemName: isStart ? "play.fill" : "flag.fill").font(.system(size: compact ? 8 : 10))
-            }
             Group {
             if compact {
                 HStack(spacing: 6) {
@@ -205,10 +201,23 @@ struct EventLineView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .foregroundStyle(color)
-        .padding(.horizontal, 8)
+        .padding(.leading, line.taskStart == false ? 12 : 8)
+        .padding(.trailing, line.taskStart == true ? 12 : 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(EventColor.fill(line.color), in: RoundedRectangle(cornerRadius: 8))
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 8))
+        .background { lineBackground }
+    }
+
+    /// 予定は角丸の帯。開始・締切は、カレンダーと同じ矢印形(開始は白抜きで右向き、締切は塗りで左向き)
+    @ViewBuilder
+    private var lineBackground: some View {
+        if let isStart = line.taskStart {
+            let shape = ArrowTagShape(pointsRight: isStart, notch: 7)
+            shape.fill(isStart ? Color(.systemBackground) : EventColor.fill(line.color))
+                .overlay { if isStart { shape.stroke(Color(hex: line.color), lineWidth: 1.2) } }
+        } else {
+            RoundedRectangle(cornerRadius: 8).fill(EventColor.fill(line.color))
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 8))
+        }
     }
 
     @ViewBuilder
