@@ -7,6 +7,13 @@ struct TaskEditTarget: Identifiable {
     var id: String { task.id }
 }
 
+extension View {
+    /// 開始・締切の編集画面を出す。長い式の型検査を重くしないよう、1 つの修飾にまとめてある
+    func taskEditorSheet(_ target: Binding<TaskEditTarget?>) -> some View {
+        sheet(item: target) { TaskEditor(original: $0.task, isNew: $0.isNew) }
+    }
+}
+
 /// 開始・締切・タスクの追加と編集。開始と締切のそれぞれを入れる・入れないが選べて、どちらも入れないと「タスク」になる。
 /// 時刻の入力(ホイール・数字キーボード・キーボードを閉じるボタン)は、通常の予定の編集画面と同じ
 struct TaskEditor: View {

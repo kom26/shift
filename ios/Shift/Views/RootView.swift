@@ -123,7 +123,6 @@ struct RootView: View {
             // 開いた共有カレンダーで、まだ見ていない退会のお知らせがあれば出す
             .onChange(of: sharedView.calendar?.id) { _, id in showNotices(for: id) }
             .environment(\.eventSaved, eventSaved)
-            .sheet(item: $taskEditing) { TaskEditor(original: $0.task, isNew: $0.isNew) }
             .sheet(isPresented: $showTasks) { TaskManageView() }
             // カレンダーを切り替えたり、ドロワーを開いたり、週表示にしたりしたら、その日の予定一覧は閉じる
             // (長い式で型の検査が終わらなくなるので、mainBody の外に置く)
@@ -249,6 +248,8 @@ struct RootView: View {
                 .first { $0.name == "cal" }?.value
             Task { await openDayFromWidget(date, sharedId: shared) }
         }
+        // 開始・締切の編集画面は、予定の編集画面と同じ階層に置く(予定一覧が開いたままでも、その上に開けるように)
+        .taskEditorSheet($taskEditing)
         .sheet(item: $editing, onDismiss: {
             if let n = unplacedCountOnCreate, store.unplacedEvents.count > n { revealToken += 1 }
             unplacedCountOnCreate = nil
