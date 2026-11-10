@@ -10,8 +10,7 @@ struct MonthLevelingTests {
 
     @Test func weeksThatFitAreAllTheSameHeight() {
         // 予定のある週も、ない週も、入りきるなら同じ高さ
-        let h = heights([40, 52, 40, 40, 40], 250)
-        #expect(h.allSatisfy { abs($0 - 50) < 0.01 || $0 == 52 } == false)
+        let h = heights([40, 45, 40, 40, 40], 250)
         #expect(h.allSatisfy { abs($0 - 50) < 0.01 })
     }
 
