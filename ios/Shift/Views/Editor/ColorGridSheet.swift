@@ -159,7 +159,8 @@ struct ColorGridSheet: View {
                     .font(.app(10))
                     .foregroundStyle(.secondary)
                     .fixedSize()
-                    .offset(y: 10)
+                    // 見た目の下端から、同じだけ離す(アイコン 44・矢印のタグ 24・バー 30 の高さの違いを合わせる)
+                    .offset(y: iconName != nil ? 10 : (taskLook ? 0 : 3))
             }
             Button {
                 color = picked
