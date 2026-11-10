@@ -392,9 +392,6 @@ final class SharedViewState {
         return await save(made.moved(to: date))
     }
 
-    /// 自分の uid(ログインしていなければ nil)
-    var myUid: String? { calendars.myUid }
-
     /// 予定を作れる共有カレンダー(予定の保存先に選べるもの)
     func writableCalendars() -> [SharedCalendar] {
         calendars.calendars.filter { canWrite(in: $0) }
