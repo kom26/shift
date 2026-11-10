@@ -14,7 +14,7 @@ struct ShiftApp: App {
     @AppStorage("startMonday") private var startMonday = false
     /// アプリを入れた直後は、ライトモード(設定で、自動・ダークに変えられる)
     @AppStorage(Appearance.key) private var appearance = Appearance.light
-    @State private var profile = ProfileSettings()
+    @State private var profile: ProfileSettings
     @State private var updater = UpdateChecker()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -45,11 +45,19 @@ struct ShiftApp: App {
                 Task { await AlarmService.shared.refresh(store: s) }
             }
         }
+        let prof = ProfileSettings()
         a.onApplied = { [weak s] in
             guard let s else { return }
             WidgetSync.publish(store: s)
             Task { await AlarmService.shared.refresh(store: s) }
+            // アカウントから戻した設定(名前・アバターを含む)を、画面にも反映する
+            Task { @MainActor in prof.reload() }
         }
+        // 端末の設定(表示・給料など)を変えたら、アカウントにも送る
+        _ = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak a] _ in
+            a?.localChanged()
+        }
+        _profile = State(initialValue: prof)
         _store = State(initialValue: s)
         _sync = State(initialValue: a)
         _auth = State(initialValue: AuthService())

@@ -109,12 +109,16 @@ final class AuthService {
         }
     }
 
-    func signOut() {
+    /// ログアウトできたら true
+    @discardableResult
+    func signOut() -> Bool {
         do {
             try Auth.auth().signOut()
             GIDSignIn.sharedInstance.signOut()
+            return true
         } catch {
             errorMessage = "ログアウトに失敗しました"
+            return false
         }
     }
 

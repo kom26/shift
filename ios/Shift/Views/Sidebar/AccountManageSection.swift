@@ -6,7 +6,13 @@ struct AccountManageSection: View {
     @Environment(AccountSync.self) private var sync
     @Environment(CalendarService.self) private var service
     @Environment(SharedViewState.self) private var sharedView
+    @Environment(Store.self) private var store
+    @Environment(ProfileSettings.self) private var profile
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmLogout = false
+    @State private var checkingLogout = false
+    /// 保存できていない変更がある(届いたと確かめられた最後の時刻つき)
+    @State private var unsent: LogoutCheck?
     @State private var confirmDelete = false
     @State private var working = false
     @State private var failed = false
@@ -18,10 +24,22 @@ struct AccountManageSection: View {
 
     var body: some View {
         Section {
-            Button("ログアウト") {
-                auth.signOut()
-                dismiss()
-            }
+            Button("ログアウト") { confirmLogout = true }
+                .disabled(checkingLogout || working)
+                .alert("ログアウトしますか?", isPresented: $confirmLogout) {
+                    Button("ログアウト", role: .destructive) { Task { await tryLogout() } }
+                    Button("キャンセル", role: .cancel) {}
+                } message: {
+                    Text("この端末の予定や設定は、消えます。もう一度ログインすると、アカウントに保存したデータが戻ります。ログアウトの前に、すべてのデータが保存されているか確認します。")
+                }
+                .alert("保存できていないデータがあります", isPresented: Binding(get: { unsent != nil }, set: { if !$0 { unsent = nil } })) {
+                    Button("もう一度確認") { Task { await tryLogout() } }
+                    Button("それでもログアウト", role: .destructive) { performLogout() }
+                    Button("キャンセル", role: .cancel) {}
+                } message: {
+                    Text(unsentMessage)
+                }
+            if checkingLogout { HStack(spacing: 8) { ProgressView(); Text("保存されているか確認しています…").foregroundStyle(.secondary) } }
             Button("アカウントを削除", role: .destructive) { confirmDelete = true }
             .disabled(working)
             .alert("アカウントを削除しますか?", isPresented: $confirmDelete) {
@@ -38,6 +56,37 @@ struct AccountManageSection: View {
         } footer: {
             Text("アカウント削除すると共有カレンダーは全て退出し、見せるだけの共有カレンダーやバックアップが全て削除されます。端末の予定(自分のカレンダー)は残ります。")
         }
+    }
+
+    private var unsentMessage: String {
+        var text = "通信できる場所で、もう一度お試しください。"
+        if case .unsent(let at?)? = unsent {
+            text = at.formatted(date: .abbreviated, time: .shortened) + " 以降の変更は、アカウントに保存されていません。\n" + text
+        }
+        return text + "\nこのままログアウトすると、保存されていない変更は消えます。"
+    }
+
+    /// ログアウトの前に、すべて保存されているか確かめる。確かめられたら、端末を消してログアウトする
+    private func tryLogout() async {
+        checkingLogout = true
+        unsent = nil
+        let check = await sync.prepareLogout()
+        checkingLogout = false
+        if check == .ready { performLogout() } else { unsent = check }
+    }
+
+    /// ログアウトして、端末のデータと設定をまっさらにする。ログインし直すと、アカウントから戻る
+    private func performLogout() {
+        guard auth.signOut() else { return }
+        sync.eraseLocalMemo()
+        sharedView.close()
+        store.wipeLocalData()
+        profile.reload()
+        UserDefaults.standard.removeObject(forKey: "pending-invites")
+        WidgetSync.publish(store: store)
+        // 端末のアラームも外す(記録がなくなったので、残りは「解除された」と扱われる)
+        Task { await AlarmService.shared.refresh(store: store) }
+        dismiss()
     }
 
     private var confirmMessage: String {

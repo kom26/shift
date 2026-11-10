@@ -7,6 +7,8 @@ private final class FakeRemote: RemoteDocs {
     var listeners: [SyncCollection: ([RemoteDoc]) -> Void] = [:]
     var writes = 0
     var failFetch = false
+    /// true のあいだは、送った変更がアカウントに届かない(通信できない)
+    var offline = false
 
     private struct Offline: Error {}
 
@@ -32,6 +34,8 @@ private final class FakeRemote: RemoteDocs {
     }
 
     func deleteAll(uid: String) async throws { docs = [:] }
+
+    func waitForPendingWrites() async -> Bool { !offline }
 
     /// 別の端末から届いた変更
     func push(_ c: SyncCollection, _ doc: RemoteDoc) {
@@ -68,13 +72,15 @@ private final class Device {
     let store: Store
     let sync: AccountSync
     let clock: TestClock
+    let defaults: UserDefaults
 
     init(remote: FakeRemote) {
         let c = TestClock()
         clock = c
         let name = UUID().uuidString
+        defaults = UserDefaults(suiteName: name)!
         store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: name + ".json"),
-                      defaults: UserDefaults(suiteName: name)!)
+                      defaults: defaults)
         let dir = FileManager.default.temporaryDirectory.appending(path: "sync-" + name)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         sync = AccountSync(store: store, backing: remote, metaDirectory: dir, fetchTimeout: 2,
@@ -306,6 +312,98 @@ struct AccountSyncTests {
         await other.sync.start(uid: "u1")
         #expect(other.store.labels.map(\.id) == [a.id, b.id])
         #expect(other.store.events.first?.labelId == b.id)
+    }
+
+    @Test func alarmsAreSyncedToAnotherDevice() async {
+        let remote = FakeRemote()
+        let a = Device(remote: remote)
+        a.store.save(ev("e", "2026-12-01"))
+        a.store.addAlarmEntry(AlarmEntry(id: "al1", kind: .clock, minutes: 390, date: "2026-12-01", fireTime: 2_000_000_000))
+        await a.sync.start(uid: "u1")
+        #expect(remote.docs[.alarms]?["al1"]?.deleted == false)
+        let b = Device(remote: remote)
+        await b.sync.start(uid: "u1")
+        #expect(b.store.alarmEntries.map(\.id) == ["al1"])
+        // 消した記録も、もう一方へ伝わる
+        a.store.removeAlarmEntry(id: "al1")
+        a.sync.pushDiff()
+        #expect(remote.docs[.alarms]?["al1"]?.deleted == true)
+    }
+
+    @Test func settingsAreRestoredOnANewDeviceEvenWithoutEvents() async {
+        let remote = FakeRemote()
+        let a = Device(remote: remote)
+        a.defaults.set(true, forKey: "startMonday")
+        a.defaults.set(15, forKey: "conflictGapMinutes")
+        a.defaults.set("体調不良", forKey: "profile-name")
+        await a.sync.start(uid: "u1")
+        let b = Device(remote: remote)
+        await b.sync.start(uid: "u1")
+        #expect(b.defaults.bool(forKey: "startMonday"))
+        #expect(b.defaults.integer(forKey: "conflictGapMinutes") == 15)
+        #expect(b.defaults.string(forKey: "profile-name") == "体調不良")
+    }
+
+    @Test func newDeviceWithOnlyDefaultLabelsAdoptsTheAccountWithoutAsking() async {
+        let remote = FakeRemote()
+        let a = Device(remote: remote)
+        a.store.save(ev("e", "2026-12-01"))
+        await a.sync.start(uid: "u1")
+        let b = Device(remote: remote)
+        b.store.seedDefaultLabelsIfNeeded()
+        await b.sync.start(uid: "u1")
+        #expect(b.sync.status.choice == nil)
+        #expect(b.store.events.map(\.id) == ["e"])
+    }
+
+    @Test func logoutCheckIsReadyWhenEverythingReachedTheAccount() async {
+        let remote = FakeRemote()
+        let a = Device(remote: remote)
+        a.store.save(ev("e", "2026-12-01"))
+        await a.sync.start(uid: "u1")
+        a.store.save(ev("f", "2026-12-02"))
+        let r = await a.sync.prepareLogout()
+        #expect(r == .ready)
+        #expect(remote.docs[.events]?["f"] != nil)
+    }
+
+    @Test func logoutCheckFailsWhileChangesCannotReachTheAccount() async {
+        let remote = FakeRemote()
+        let a = Device(remote: remote)
+        a.store.save(ev("e", "2026-12-01"))
+        await a.sync.start(uid: "u1")
+        remote.offline = true
+        a.store.save(ev("f", "2026-12-02"))
+        let r = await a.sync.prepareLogout()
+        guard case .unsent = r else {
+            Issue.record("保存できていないのに、確認が通った")
+            return
+        }
+    }
+
+    @Test func wipedDeviceGetsEverythingBackAndNeverDeletesTheAccount() async {
+        let remote = FakeRemote()
+        let a = Device(remote: remote)
+        a.store.save(ev("e1", "2026-12-01"))
+        a.store.save(ev("e2", "2026-12-02"))
+        a.defaults.set(true, forKey: "startMonday")
+        await a.sync.start(uid: "u1")
+        #expect(await a.sync.prepareLogout() == .ready)
+
+        // ログアウト: 控えと端末を消す
+        a.sync.eraseLocalMemo()
+        a.store.wipeLocalData()
+        #expect(a.store.events.isEmpty)
+        #expect(!a.defaults.bool(forKey: "startMonday"))
+        #expect(a.store.isPristine)
+
+        // 同じアカウントで、もう一度ログイン
+        await a.sync.start(uid: "u1")
+        #expect(a.sync.status.choice == nil)
+        #expect(a.store.events.map(\.id).sorted() == ["e1", "e2"])
+        #expect(a.defaults.bool(forKey: "startMonday"))
+        #expect(remote.docs[.events]?["e1"]?.deleted == false)
+        #expect(remote.docs[.events]?["e2"]?.deleted == false)
     }
 
     @Test func eraseRemoteClearsAccountDataButKeepsLocal() async {

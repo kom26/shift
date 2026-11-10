@@ -486,11 +486,49 @@ final class Store {
         guard !defaults.bool(forKey: Keys.seededLabels) else { return }
         defaults.set(true, forKey: Keys.seededLabels)
         guard labels.isEmpty else { return }
-        for (name, color) in [("食事", "#f28d8d"), ("用事", "#8dbff2"), ("サークル", "#f2bf8d"),
-                              ("デート", "#f28dae"), ("やること", "#8df29d")] {
+        for (name, color) in Self.defaultLabelSeeds {
             labels.append(EventLabel(id: UUID().uuidString, name: name, color: color))
         }
         persistLabels()
+    }
+
+    /// 初回に入れる、よく使うラベル
+    static let defaultLabelSeeds: [(name: String, color: String)] = [
+        ("食事", "#f28d8d"), ("用事", "#8dbff2"), ("サークル", "#f2bf8d"), ("デート", "#f28dae"), ("やること", "#8df29d"),
+    ]
+
+    /// まだ何も入れていない端末(初回に入るラベルだけは、あってもよい)。アカウントのデータを、そのまま入れてよい状態
+    var isPristine: Bool {
+        guard events.isEmpty, workplaces.isEmpty, favorites.isEmpty, anniversaries.isEmpty, alarmEntries.isEmpty else { return false }
+        let seeds = Set(Self.defaultLabelSeeds.map { "\($0.name)|\($0.color)" })
+        return labels.allSatisfy { seeds.contains("\($0.name)|\($0.color)") }
+    }
+
+    /// ログアウトで、この端末のデータと設定を、まっさらにする(初回に入るラベルだけ入れ直す)。クラウドには何も送らない
+    func wipeLocalData() {
+        applyingRemote = true
+        defer { applyingRemote = false }
+        events = []
+        workplaces = []
+        favorites = []
+        anniversaries = []
+        alarmEntries = []
+        labels = []
+        customColors = []
+        hiddenSuggestions = []
+        checkedWorkplaces = []
+        checkedLabels = []
+        persist()
+        persistWorkplaces()
+        persistFavorites()
+        persistAnniversaries()
+        persistAlarms()
+        persistLabels()
+        for key in [Keys.custom, Keys.hiddenSuggestions, Keys.checked, Keys.checkedLabels, Keys.seededLabels] {
+            defaults.removeObject(forKey: key)
+        }
+        SyncedPrefs.reset(defaults)
+        seedDefaultLabelsIfNeeded()
     }
 
     private func persistLabels() {
@@ -621,7 +659,8 @@ final class Store {
     func syncSnapshot() -> SyncSnapshot {
         SyncSnapshot(events: events, workplaces: workplaces, favorites: favorites,
                      customColors: customColors, hiddenSuggestions: Array(hiddenSuggestions).sorted(),
-                     alarms: alarmEntries, anniversaries: anniversaries, labels: labels)
+                     alarms: alarmEntries, anniversaries: anniversaries, labels: labels,
+                     prefs: SyncedPrefs.read(defaults))
     }
 
     /// iCloud から届いたデータで置き換える(同期の送り返しは起こさない)
@@ -655,5 +694,6 @@ final class Store {
         }
         defaults.set(customColors, forKey: Keys.custom)
         defaults.set(Array(hiddenSuggestions), forKey: Keys.hiddenSuggestions)
+        if let prefs = snap.prefs { SyncedPrefs.write(prefs, to: defaults) }
     }
 }

@@ -15,6 +15,8 @@ struct SyncSnapshot: Codable, Equatable {
     var labels: [EventLabel]?
     /// 以前のレイヤー。読むだけで、書き出さない(ラベルに引き継ぐ)
     var layers: [EventLabel]?
+    /// 端末の設定(表示・給料・スヌーズ・名前とアバター・ウィジェットなど)。古いデータには無いので省略可
+    var prefs: [String: String]?
 
     var isEmpty: Bool { events.isEmpty && workplaces.isEmpty && favorites.isEmpty }
 }

@@ -21,6 +21,18 @@ final class SyncStatus {
     var lastSync: Date? = UserDefaults.standard.object(forKey: "last-sync-time") as? Date {
         didSet { UserDefaults.standard.set(lastSync, forKey: "last-sync-time") }
     }
+    /// 送った変更が、アカウントに届いたと確かめられた、最後の時刻。ログアウトの前に、「いつ以降が保存されていないか」を出すのに使う
+    var lastConfirmed: Date? = UserDefaults.standard.object(forKey: "last-confirmed-time") as? Date {
+        didSet { UserDefaults.standard.set(lastConfirmed, forKey: "last-confirmed-time") }
+    }
+}
+
+/// ログアウトの前の確認の結果
+enum LogoutCheck: Equatable {
+    /// すべて、アカウントに保存されている
+    case ready
+    /// 保存できていない変更がある(届いたと確かめられた最後の時刻つき)
+    case unsent(lastConfirmed: Date?)
 }
 
 /// アカウント(Firestore)との同期。予定・職場などを 1 件ずつ送り、新しい変更が勝つ。
@@ -50,6 +62,8 @@ final class AccountSync {
     private struct SettingsPayload: Codable {
         var customColors: [String]
         var hiddenSuggestions: [String]
+        /// 端末の設定。古いデータには無い
+        var prefs: [String: String]?
     }
 
     @MainActor private final class Gate { var done = false }
@@ -78,6 +92,8 @@ final class AccountSync {
     @ObservationIgnored private var starting = false
     /// 長く開かなかった端末で、突き合わせがまだ済んでいない(済むまで送信しない)
     @ObservationIgnored private var needsReconcile = false
+    /// 最後に出した「届いたか確かめる」待ち。古い待ちが終わっても、あとの送信の分までは確かめたことにしない
+    @ObservationIgnored private var confirmGeneration = 0
 
     init(store: Store, backing: RemoteDocs, status: SyncStatus = SyncStatus(),
          metaDirectory: URL = URL.applicationSupportDirectory,
@@ -127,6 +143,7 @@ final class AccountSync {
         saveMeta()
         attach()
         pushDiff()
+        confirmWrites()
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.purgeDelay) { [weak self] in self?.purgeTombstones() }
     }
 
@@ -193,6 +210,7 @@ final class AccountSync {
         case .favorites: snap.favorites.removeAll { $0.id == id }
         case .anniversaries: snap.anniversaries?.removeAll { $0.id == id }
         case .labels: snap.labels?.removeAll { $0.id == id }
+        case .alarms: snap.alarms?.removeAll { $0.id == id }
         case .settings: break
         }
     }
@@ -227,6 +245,7 @@ final class AccountSync {
         status.choice = nil
         attach()
         pushDiff()
+        confirmWrites()
     }
 
     /// アカウントを削除する前に、クラウドのデータを消す。端末のデータは残る
@@ -258,7 +277,7 @@ final class AccountSync {
 
     private func liveCount(_ docs: [SyncCollection: [RemoteDoc]]) -> Int {
         var n = 0
-        for (c, list) in docs where c != .settings {
+        for (c, list) in docs where c != .settings && c != .alarms {
             n += list.filter { !$0.deleted }.count
         }
         return n
@@ -267,10 +286,11 @@ final class AccountSync {
     private func decideInitial(_ fetched: [SyncCollection: [RemoteDoc]]) {
         guard let store else { return }
         let snap = store.syncSnapshot()
-        let localCount = snap.events.count + snap.workplaces.count + snap.favorites.count
+        // 初回に入るラベルだけの端末(新しい端末、ログアウトで消した端末)は、まだ何も入れていないのと同じ
+        let localCount = store.isPristine ? 0 : snap.events.count + snap.workplaces.count + snap.favorites.count
             + (snap.anniversaries?.count ?? 0) + (snap.labels?.count ?? 0)
         let remoteCount = liveCount(fetched)
-        if localCount == 0, remoteCount == 0 {
+        if localCount == 0, remoteCount == 0, (fetched[.settings] ?? []).isEmpty, (fetched[.alarms] ?? []).isEmpty {
             seed(fetched)
         } else if localCount == 0 {
             applyAll(fetched)
@@ -304,7 +324,9 @@ final class AccountSync {
         snap.workplaces = []
         snap.favorites = []
         snap.anniversaries = []
-        snap.labels = []
+        snap.alarms = []
+        // 初回に入るラベルだけの端末で、アカウントにラベルが無いときは、そのラベルを残す
+        if !(store.isPristine && (fetched[.labels] ?? []).allSatisfy(\.deleted)) { snap.labels = [] }
         meta.items = [:]
         for c in SyncCollection.allCases { _ = applyDocs(fetched[c] ?? [], c, into: &snap) }
         store.applySnapshot(snap)
@@ -362,10 +384,16 @@ final class AccountSync {
                 if d.deleted { list.removeAll { $0.id == d.id } }
                 else if let v: EventLabel = decode(d.payload) { upsert(&list, v) }
                 snap.labels = list
+            case .alarms:
+                var list = snap.alarms ?? []
+                if d.deleted { list.removeAll { $0.id == d.id } }
+                else if let v: AlarmEntry = decode(d.payload) { upsert(&list, v) }
+                snap.alarms = list
             case .settings:
                 if let v: SettingsPayload = decode(d.payload) {
                     snap.customColors = v.customColors
                     snap.hiddenSuggestions = v.hiddenSuggestions
+                    if let p = v.prefs { snap.prefs = p }
                 }
             }
             meta.items[c.rawValue, default: [:]][d.id] = ItemMeta(
@@ -436,7 +464,67 @@ final class AccountSync {
         if sent {
             saveMeta()
             markSynced()
+            confirmWrites()
         }
+    }
+
+    /// 送った変更が、アカウントに届くのを待って、届いた時刻を控える(通信できないあいだは、待ち続ける)
+    private func confirmWrites() {
+        confirmGeneration += 1
+        let generation = confirmGeneration
+        let backing = self.backing
+        let now = clock
+        Task { @MainActor [weak self] in
+            guard await backing.waitForPendingWrites(), let self, self.confirmGeneration == generation else { return }
+            self.status.lastConfirmed = Date(timeIntervalSince1970: now())
+        }
+    }
+
+    // MARK: ログアウト
+
+    /// ログアウトの前に、端末の変更がすべてアカウントに届いているか確かめる。
+    /// 送っていない分を送り、届くのを待つ(時間切れや、通信できないときは、保存できていないとする)
+    @MainActor
+    func prepareLogout() async -> LogoutCheck {
+        guard uid != nil else { return .ready }
+        guard meta.initialized, !needsReconcile, status.choice == nil else {
+            // まだ一度も突き合わせていない。端末に何も入れていなければ、失うものはない
+            return (store?.isPristine ?? true) ? .ready : .unsent(lastConfirmed: status.lastConfirmed)
+        }
+        pushDiff()
+        if await waitForWrites(seconds: fetchTimeout) {
+            status.lastConfirmed = Date(timeIntervalSince1970: clock())
+            return .ready
+        }
+        return .unsent(lastConfirmed: status.lastConfirmed)
+    }
+
+    @MainActor
+    private func waitForWrites(seconds: Double) async -> Bool {
+        let backing = self.backing
+        let gate = Gate()
+        return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            Task { @MainActor in
+                let ok = await backing.waitForPendingWrites()
+                if !gate.done { gate.done = true; cont.resume(returning: ok) }
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(seconds))
+                if !gate.done { gate.done = true; cont.resume(returning: false) }
+            }
+        }
+    }
+
+    /// ログアウトで端末を消すときの、同期の控えを消す。残すと、次のログインで「端末で全部消した」と受け取られ、アカウントのデータが消えてしまう
+    @MainActor
+    func eraseLocalMemo() {
+        stop()
+        let files = (try? FileManager.default.contentsOfDirectory(at: metaDirectory, includingPropertiesForKeys: nil)) ?? []
+        for url in files where url.lastPathComponent.hasPrefix("sync-meta-") || url.lastPathComponent == backupURL.lastPathComponent {
+            try? FileManager.default.removeItem(at: url)
+        }
+        status.lastSync = nil
+        status.lastConfirmed = nil
     }
 
     private func nextTime(after previous: Double?) -> Double {
@@ -450,8 +538,10 @@ final class AccountSync {
         case .favorites: return snap.favorites.enumerated().map { LocalItem(id: $1.id, payload: encode($1), order: $0) }
         case .anniversaries: return (snap.anniversaries ?? []).map { LocalItem(id: $0.id, payload: encode($0), order: 0) }
         case .labels: return (snap.labels ?? []).enumerated().map { LocalItem(id: $1.id, payload: encode($1), order: $0) }
+        case .alarms: return (snap.alarms ?? []).map { LocalItem(id: $0.id, payload: encode($0), order: 0) }
         case .settings:
-            let s = SettingsPayload(customColors: snap.customColors, hiddenSuggestions: snap.hiddenSuggestions.sorted())
+            let s = SettingsPayload(customColors: snap.customColors, hiddenSuggestions: snap.hiddenSuggestions.sorted(),
+                                    prefs: snap.prefs)
             return [LocalItem(id: Self.settingsID, payload: encode(s), order: 0)]
         }
     }

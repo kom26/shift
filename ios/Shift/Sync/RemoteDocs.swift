@@ -2,7 +2,7 @@ import Foundation
 
 /// アカウントに保存するデータの種類。1 件ずつ別のドキュメントとして置く
 enum SyncCollection: String, CaseIterable {
-    case events, workplaces, favorites, anniversaries, labels, settings
+    case events, workplaces, favorites, anniversaries, labels, alarms, settings
 }
 
 /// クラウド上の 1 件。中身(payload)は JSON 文字列のまま持つ
@@ -26,4 +26,6 @@ protocol RemoteDocs: AnyObject {
     func deleteAll(uid: String) async throws
     /// 古くなった削除の印を、ドキュメントごと消す
     func delete(uid: String, collection: SyncCollection, id: String)
+    /// 送った変更が、すべてアカウントに届くのを待つ。届いたら true(通信できないときは、届くまで返らない)
+    func waitForPendingWrites() async -> Bool
 }

@@ -49,6 +49,10 @@ final class FirestoreBacking: RemoteDocs {
         col(uid, collection).document(id).delete()
     }
 
+    func waitForPendingWrites() async -> Bool {
+        (try? await db.waitForPendingWrites()) != nil
+    }
+
     func deleteAll(uid: String) async throws {
         for c in SyncCollection.allCases {
             let snap = try await col(uid, c).getDocuments()

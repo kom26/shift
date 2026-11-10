@@ -27,6 +27,12 @@ final class ProfileSettings {
         avatar = defaults.string(forKey: Self.avatarKey) ?? ""
     }
 
+    /// 端末の設定が入れ替わったあと(アカウントから戻したとき、ログアウトで消したとき)に、読み直す
+    func reload() {
+        customName = defaults.string(forKey: Self.nameKey) ?? ""
+        avatar = defaults.string(forKey: Self.avatarKey) ?? ""
+    }
+
     /// アプリの中での名前。自分で付けていればそれ。なければ、連携してきた名前(なければメールの手前の部分)
     func displayName(for account: AuthService.Account?) -> String {
         let custom = customName.trimmingCharacters(in: .whitespacesAndNewlines)
