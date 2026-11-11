@@ -249,6 +249,7 @@ struct LabelManageView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.borderless)
+                            .foregroundStyle(.primary)
                         }
                     }
                     .onMove { store.moveLabels(from: $0, to: $1) }
@@ -298,6 +299,13 @@ struct LabelEventsView: View {
     @State private var selected: Set<String> = []
     @State private var showMove = false
     @State private var confirmDelete = false
+    /// タップして、編集画面を開く予定
+    @State private var editing: LabelEventEdit?
+
+    private struct LabelEventEdit: Identifiable {
+        let event: ShiftEvent
+        var id: String { event.id }
+    }
 
     private static let weekdays = ["日", "月", "火", "水", "木", "金", "土"]
 
@@ -337,6 +345,7 @@ struct LabelEventsView: View {
         .safeAreaInset(edge: .bottom) {
             if selecting { selectionBar(list) }
         }
+        .sheet(item: $editing) { EventEditor(original: $0.event, isNew: false) }
         .confirmationDialog("選んだ予定のラベルを変更", isPresented: $showMove, titleVisibility: .visible) {
             if labelId != nil {
                 Button("指定なし") { move(to: nil) }
@@ -378,10 +387,23 @@ struct LabelEventsView: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onTapGesture {
-            guard selecting else { return }
-            if on { selected.remove(e.id) } else { selected.insert(e.id) }
+            if selecting {
+                if on { selected.remove(e.id) } else { selected.insert(e.id) }
+            } else {
+                editing = LabelEventEdit(event: e)
+            }
         }
         .accessibilityAddTraits(.isButton)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !selecting {
+                Button(role: .destructive) {
+                    withAnimation { store.delete(id: e.id) }
+                } label: {
+                    swipeDeleteLabel
+                }
+                .tint(swipeDeleteTint)
+            }
+        }
     }
 
     private func dateText(_ e: ShiftEvent) -> String {

@@ -210,6 +210,7 @@ struct AttachmentFields: View {
     @State private var showPicker = false
     @State private var lastTouch: (kind: Kind, at: Date)?
     @FocusState private var focus: Kind?
+    @Environment(\.openURL) private var openURL
 
     init(memo: Binding<String>, url: Binding<String>, imageId: Binding<String?>, outsideTap: Int, session: AttachmentSession,
          calendarId: String? = nil) {
@@ -369,21 +370,43 @@ struct AttachmentFields: View {
         Section {
             if has(.url), !urlEditing {
                 if let dest = AttachmentLink.destination(url) {
-                    Link(destination: dest) {
+                    Button { openURL(dest) } label: {
                         Text(url).lineLimit(1).truncationMode(.middle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("リンクを開く")
                 } else {
                     Text(url).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
                 }
             } else {
-                TextField("https://", text: $url)
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.done)
-                    .focused($focus, equals: .url)
-                    .simultaneousGesture(TapGesture().onEnded { touch(.url) })
-                    .onSubmit { focus = nil }
+                HStack(spacing: 8) {
+                    TextField("https://", text: $url)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .focused($focus, equals: .url)
+                        .simultaneousGesture(TapGesture().onEnded { touch(.url) })
+                        .onSubmit { focus = nil }
+                    // 入れた URL を、まとめて消す
+                    if !url.isEmpty {
+                        Button {
+                            touch(.url)
+                            url = ""
+                            focus = .url
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(Color.secondary.opacity(0.7))
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("URLを消す")
+                    }
+                }
             }
         } header: {
             HStack {
@@ -423,6 +446,8 @@ struct AttachmentFields: View {
     private func touch(_ kind: Kind) { lastTouch = (kind, Date()) }
 
     private func open(_ kind: Kind) {
+        // チップを押したタップは、フォームの「欄の外をタップした」にも数えられるので、いま開く欄を、押した欄として覚えておく
+        touch(kind)
         closeEmpty(keeping: kind)
         withAnimation(.easeOut(duration: 0.2)) { _ = openKinds.insert(kind) }
         if kind == .url { urlEditing = true }
