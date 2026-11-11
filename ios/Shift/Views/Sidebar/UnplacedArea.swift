@@ -56,7 +56,12 @@ struct UnplacedArea: View {
                 }
                 Task { await shared.unplace(id: id) }
             } else {
-                withAnimation(.snappy) { store.unplace(id: id) }
+                withAnimation(.snappy) {
+                    store.unplace(id: id)
+                    // 未配置に入れたら、下のエリアを「未配置の予定」のページに切り替える(「よく使う予定」などのままにしない)
+                    collapsed = false
+                    tab = 2
+                }
             }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         })
