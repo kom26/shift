@@ -477,7 +477,6 @@ struct SharedEventEditor: View {
                 }
             }
             .environment(\.locale, Locale(identifier: "ja_JP"))
-            .simultaneousGesture(TapGesture().onEnded { outsideTap += 1 })
             .onDisappear { attachments.discardIfUncommitted() }
             .navigationTitle(target.isNew ? "共有カレンダーに追加" : "共有の予定を編集")
             .navigationBarTitleDisplayMode(.inline)

@@ -270,6 +270,10 @@ struct AttachmentFields: View {
                 .listRowInsets(EdgeInsets(top: openKinds.count < Self.order.count ? 4 : 0, leading: 2,
                                           bottom: openKinds.count < Self.order.count ? 4 : 0, trailing: 0))
                 .onChange(of: outsideTap) { _, _ in closeEmptyAfterTap() }
+                // キーボードが閉じたとき、空のメモ・URL の欄は閉じる
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+                    closeEmptyAfterTap()
+                }
                 .onChange(of: photoItem) { _, item in
                     guard let item else { return }
                     Task { await loadPhoto(item) }

@@ -413,11 +413,12 @@ struct LabelEventsView: View {
             // 選択中は、チェックを右端に出す
             if selecting {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
+                    .font(.system(size: 20))
+                    .frame(width: 24, height: 24)
                     .foregroundStyle(on ? Theme.accent : Color.secondary.opacity(0.6))
             }
         }
-        .padding(.vertical, 4)
+        .frame(height: 48)
         .contentShape(Rectangle())
         .onTapGesture {
             if selecting {

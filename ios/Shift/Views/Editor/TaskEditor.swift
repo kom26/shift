@@ -124,7 +124,6 @@ struct TaskEditor: View {
                     }
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .simultaneousGesture(TapGesture().onEnded { outsideTap += 1 })
                 .onChange(of: openPanel) { _, new in
                     guard let new else { return }
                     scrollToBottom(panelBottomId(new), proxy: proxy)
