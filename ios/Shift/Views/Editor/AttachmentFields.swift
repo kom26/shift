@@ -203,6 +203,7 @@ struct AttachmentFields: View {
     var onFieldFocus: (String) -> Void = { _ in }
     static let memoFieldId = "attachMemoField"
     static let urlFieldId = "attachUrlField"
+    static let imageFieldId = "attachImageField"
 
     private enum Kind: Hashable { case memo, image, url }
 
@@ -284,7 +285,7 @@ struct AttachmentFields: View {
                 }
                 // キーボードが閉じたとき、空のメモ・URL の欄は閉じる
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
-                    closeEmptyAfterTap()
+                    closeEmptyTextFields()
                 }
                 .onChange(of: photoItem) { _, item in
                     guard let item else { return }
@@ -332,6 +333,7 @@ struct AttachmentFields: View {
                         .frame(maxWidth: .infinity, minHeight: 64)
                 }
                 .buttonStyle(.borderless)
+                .id(Self.imageFieldId)
             }
         } header: {
             HStack {
@@ -468,7 +470,9 @@ struct AttachmentFields: View {
         switch kind {
         case .memo: focus = .memo
         case .url: focus = .url
-        case .image: break
+        case .image:
+            // 欄が出てから、アップロードの枠が全部見えるところまで、画面をスクロールする
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { onFieldFocus(Self.imageFieldId) }
         }
     }
 
@@ -477,6 +481,15 @@ struct AttachmentFields: View {
     private func closeEmpty(keeping: Kind?) {
         for kind in openKinds where kind != keeping && !has(kind) {
             if focus == kind { focus = nil }
+            withAnimation(.easeOut(duration: 0.2)) { _ = openKinds.remove(kind) }
+        }
+    }
+
+    /// キーボードが閉じたとき、空のメモ・URL の欄を閉じる。画像の欄は、キーボードと関係ないので、閉じない
+    /// (メモを開いたまま画像のチップを押すと、キーボードが閉じるのが遅れて届き、開いたばかりの画像の欄まで閉じていた)
+    private func closeEmptyTextFields() {
+        for kind in [Kind.memo, .url] where openKinds.contains(kind) && !has(kind) && focus != kind {
+            if let t = lastTouch, t.kind == kind, Date().timeIntervalSince(t.at) < 1 { continue }
             withAnimation(.easeOut(duration: 0.2)) { _ = openKinds.remove(kind) }
         }
     }
