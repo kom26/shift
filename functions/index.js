@@ -16,6 +16,12 @@ const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 const MODEL = "claude-haiku-5-5";
 /** 1 人が 1 日に使える回数(使いすぎと、料金の暴走を防ぐ) */
 const DAILY_LIMIT = 5;
+/** 回数の制限を受けない管理者(メールアドレスが確認済みのときだけ。確認していない名乗りは受けない) */
+const ADMIN_EMAILS = ["kapikapi26@yahoo.co.jp"];
+function isAdmin(auth) {
+  const t = auth?.token;
+  return !!t && t.email_verified === true && typeof t.email === "string" && ADMIN_EMAILS.includes(t.email.toLowerCase());
+}
 const MAX_IMAGES = 5;
 /** 画像 1 枚の上限(base64 の文字数。アプリ側で縮小してから送る) */
 const MAX_IMAGE_CHARS = 3_000_000;
@@ -114,7 +120,7 @@ export const readShiftScreenshots = onCall(
       throw new HttpsError("invalid-argument", "画像が大きすぎるか、形が正しくありません。");
     }
 
-    await countUse(request.auth.uid);
+    if (!isAdmin(request.auth)) await countUse(request.auth.uid);
 
     const content = [];
     images.forEach((data, i) => {
