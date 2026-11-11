@@ -175,7 +175,8 @@ final class FirestoreCalendarBacking: CalendarBacking {
         // 予定 → 招待 → 参加者 → カレンダー本体の順。持ち主の参加者情報は、予定を消し終えるまで残す必要がある
         for (sub, label) in [("events", "予定"), ("anniversaries", "誕生日・記念日"), ("notices", "お知らせ"), ("invites", "招待"), ("members", "参加者")] {
             try await step(label) {
-                let docs = try await cal.collection(sub).getDocuments().documents
+                // 自分の参加者情報は、本体と同時に消す(先に消すと、本体を消す権限がなくなる)
+                let docs = try await cal.collection(sub).getDocuments().documents.filter { !(sub == "members" && $0.documentID == uid) }
                 for chunk in stride(from: 0, to: docs.count, by: 400).map({ Array(docs[$0..<min($0 + 400, docs.count)]) }) {
                     let batch = self.db.batch()
                     chunk.forEach { batch.deleteDocument($0.reference) }
@@ -183,7 +184,12 @@ final class FirestoreCalendarBacking: CalendarBacking {
                 }
             }
         }
-        try await step("カレンダー本体") { try await cal.delete() }
+        try await step("カレンダー本体") {
+            let batch = self.db.batch()
+            batch.deleteDocument(self.member(calendarId, uid))
+            batch.deleteDocument(cal)
+            try await batch.commit()
+        }
         try await step("一覧") { try await self.index(uid).document(calendarId).delete() }
     }
 
