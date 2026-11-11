@@ -205,3 +205,11 @@ struct TaskDefaultsAndOrderTests {
         #expect(store.taskMarkerEvent(taskId: "none", isStart: true) == nil)
     }
 }
+
+struct UnplaceRefusesTasksTests {
+    @Test func taskTagsAreRefusedByTheUnplacedAreaButNotByTheTrash() {
+        DragState.shared.draggingId = "task:abc:start"
+        defer { DragState.shared.draggingId = nil }
+        #expect(UnplacedArea.taskId(of: DragState.shared.draggingId ?? "") == "abc")
+    }
+}

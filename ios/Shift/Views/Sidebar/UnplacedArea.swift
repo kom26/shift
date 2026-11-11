@@ -596,17 +596,24 @@ struct UnplaceDropDelegate: DropDelegate {
         if trash { DragState.shared.isOverTrash = on } else { DragState.shared.isOverUnplaced = on }
     }
 
+    /// つかんでいるのが、開始・締切のタグか(未配置エリアには置けない。削除エリアには落とせる)
+    private var refusesTask: Bool {
+        !trash && DragState.shared.draggingId?.hasPrefix("task:") == true
+    }
+
     func validateDrop(info: DropInfo) -> Bool {
-        info.hasItemsConforming(to: [.plainText])
+        info.hasItemsConforming(to: [.plainText]) && !refusesTask
     }
 
     func dropEntered(info: DropInfo) {
         DragState.shared.touch()
-        setOver(true)
+        // 開始・締切は、未配置エリアの上では、「置けない」(🚫)にして、離すと、元に戻る
+        if !refusesTask { setOver(true) }
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         DragState.shared.touch()
+        if refusesTask { return DropProposal(operation: .forbidden) }
         setOver(true)
         return DropProposal(operation: .move)
     }
@@ -617,7 +624,9 @@ struct UnplaceDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
+        let refused = refusesTask
         DragState.shared.ended()
+        if refused { return false }
         guard let provider = info.itemProviders(for: [.plainText]).first else { return false }
         _ = provider.loadObject(ofClass: NSString.self) { obj, _ in
             guard let id = obj as? String else { return }
