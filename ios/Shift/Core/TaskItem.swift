@@ -20,8 +20,8 @@ struct TaskItem: Codable, Identifiable, Equatable {
     /// 開始と締切のあいだを点線でつなぐか(月のカレンダーとウィジェット)。nil・false は、つながない
     var linkDots: Bool? = nil
 
-    /// 最初に選ばれている色。カスタム色の並びの、赤(3 行目・色相 4°の列)。ウィジェットでも使う Core なので、画面の部品は参照せず、値で持つ
-    static let defaultColor = "#df3226"
+    /// 最初に選ばれている色。色の並び(`Store.defaultColors`)の、左から 5 個目の赤。通常予定の最初の色(左端のグレー)とは別。ウィジェットでも使う Core なので、画面の部品は参照しない
+    static let defaultColor = Store.defaultColors[4]
 
     static func new(startDate: String? = nil, dueDate: String? = nil) -> TaskItem {
         TaskItem(id: UUID().uuidString, title: "", color: defaultColor,
@@ -188,6 +188,14 @@ extension Store {
             }
         }
         return list.sorted { ($0.startDate ?? "", $0.startTime ?? "") < ($1.startDate ?? "", $1.startTime ?? "") }
+    }
+
+    /// 予定一覧の行から、開始・締切をつかんで動かすための、カレンダーの印と同じ予定(開始・締切の日がなければ nil)
+    func taskMarkerEvent(taskId: String, isStart: Bool) -> ShiftEvent? {
+        guard let t = task(id: taskId) else { return nil }
+        let date = isStart ? t.startDate : t.dueDate
+        guard let date else { return nil }
+        return marker(t, date: date, time: isStart ? t.startTime : t.dueTime, isStart: isStart)
     }
 
     private func marker(_ t: TaskItem, date: String, time: String?, isStart: Bool) -> ShiftEvent {

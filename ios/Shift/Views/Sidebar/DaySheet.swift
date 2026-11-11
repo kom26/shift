@@ -182,6 +182,8 @@ struct DaySheet: View {
                             .contentShape(Rectangle())
                             .onTapGesture { taskEdit = TaskEditTarget(task: row.task, isNew: false) }
                             .accessibilityAddTraits(.isButton)
+                            // 長押ししてつかむと、予定と同じように、カレンダー上の日へ動かせる(開始・締切の、その側だけ)
+                            .taskDragSource(row: row, store: store) { taskEdit = TaskEditTarget(task: row.task, isNew: false) }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) { store.deleteTask(id: row.task.id) } label: {
                                     swipeDeleteLabel

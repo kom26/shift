@@ -128,7 +128,8 @@ struct TaskEditor: View {
                             Text("月のカレンダーと、ウィジェットで、開始と締切のタグのあいだを点線でつなぎます。")
                         }
                     }
-                    AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap, session: attachments)
+                    AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap, session: attachments,
+                                     onFieldFocus: { scrollToBottom($0, proxy: proxy) })
                     if !isNew && onCommit == nil {
                         Section {
                             Button("削除", role: .destructive) { confirmDelete = true }

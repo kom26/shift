@@ -17,14 +17,19 @@ struct EventDragSource: ViewModifier {
     @AppStorage(BarFontSize.thicknessKey) private var thickness = 0.0
 
     /// カレンダー上のバーと同じ見た目・長さのプレビュー(1 週に入るぶんの日数 × 1 マスの幅。太さと文字は月表示と同じ)
-    private var calendarBarPreview: some View {
+    private var calendarBarPreview: AnyView {
         let colW = UIScreen.main.bounds.width / 7
         let days = event.startDate.map { s in max(1, Rules.daysBetween(s, event.endDate ?? s) + 1) } ?? 1
         let base = FixedWidthTime.fitSize(width: colW - 2 - BarFontSize.sidePadding)
         let font = max(5, base + CGFloat(monthDelta))
         let titleFont = max(5, base + CGFloat(monthTitleDelta))
         let height = max(thickness > 0 ? CGFloat(thickness) : 18, BarFontSize.minBar(font: max(font, titleFont)))
-        return EventBarPreview(event: event, height: height, fontSize: font, titleSize: titleFont, minWidth: colW * CGFloat(min(days, 7)) - 2)
+        // 開始・締切は、カレンダーと同じ矢印形のタグ(1 マスぶん)
+        if let m = event.taskMarker, !m.isLink {
+            return AnyView(TaskTagBar(title: event.title, color: event.color, isStart: m.isStart, height: height, fontSize: titleFont)
+                .frame(width: max(0, colW - 2), height: height))
+        }
+        return AnyView(EventBarPreview(event: event, height: height, fontSize: font, titleSize: titleFont, minWidth: colW * CGFloat(min(days, 7)) - 2))
     }
 
     private var allowed: Bool {
@@ -63,5 +68,17 @@ struct EventDragSource: ViewModifier {
 extension View {
     func eventDragSource(_ event: ShiftEvent, grabOffsetDays: Int = 0, barPreview: Bool = false, onOpen: @escaping (ShiftEvent) -> Void) -> some View {
         modifier(EventDragSource(event: event, grabOffsetDays: grabOffsetDays, barPreview: barPreview, onOpen: onOpen))
+    }
+}
+
+extension View {
+    /// 予定一覧の、開始・締切の行を、長押しでつかんで動かせるようにする(日がない「タスク」は、動かせない)
+    @ViewBuilder
+    func taskDragSource(row: TaskRow, store: Store, onOpen: @escaping () -> Void) -> some View {
+        if let isStart = row.isStart, let marker = store.taskMarkerEvent(taskId: row.task.id, isStart: isStart) {
+            eventDragSource(marker, barPreview: true) { _ in onOpen() }
+        } else {
+            self
+        }
     }
 }

@@ -199,6 +199,10 @@ struct AttachmentFields: View {
     var session: AttachmentSession
     /// 共有カレンダーの予定を直すときの、そのカレンダーの ID(画像を、共有カレンダーの保存先に置く)
     var calendarId: String?
+    /// メモ・URL の欄に入力しはじめたとき(と、メモが伸びたとき)に、その欄(の id)が全部見えるところまで、画面をスクロールしてもらう
+    var onFieldFocus: (String) -> Void = { _ in }
+    static let memoFieldId = "attachMemoField"
+    static let urlFieldId = "attachUrlField"
 
     private enum Kind: Hashable { case memo, image, url }
 
@@ -214,9 +218,10 @@ struct AttachmentFields: View {
     @Environment(\.openURL) private var openURL
 
     init(memo: Binding<String>, url: Binding<String>, imageId: Binding<String?>, outsideTap: Int, session: AttachmentSession,
-         calendarId: String? = nil) {
+         calendarId: String? = nil, onFieldFocus: @escaping (String) -> Void = { _ in }) {
         self.session = session
         self.calendarId = calendarId
+        self.onFieldFocus = onFieldFocus
         _memo = memo
         _url = url
         _imageId = imageId
@@ -270,6 +275,13 @@ struct AttachmentFields: View {
                 .listRowInsets(EdgeInsets(top: openKinds.count < Self.order.count ? 4 : 0, leading: 2,
                                           bottom: openKinds.count < Self.order.count ? 4 : 0, trailing: 0))
                 .onChange(of: outsideTap) { _, _ in closeEmptyAfterTap() }
+                // 入力しはじめたら、入力欄が全部見えるところまでスクロールする(キーボードに隠れないように)
+                .onChange(of: focus) { _, new in
+                    if new == .memo { onFieldFocus(Self.memoFieldId) } else if new == .url { onFieldFocus(Self.urlFieldId) }
+                }
+                .onChange(of: memo) { _, _ in
+                    if focus == .memo { onFieldFocus(Self.memoFieldId) }
+                }
                 // キーボードが閉じたとき、空のメモ・URL の欄は閉じる
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
                     closeEmptyAfterTap()
@@ -294,6 +306,7 @@ struct AttachmentFields: View {
                 Section {
                     TextField("メモ(任意)", text: $memo, axis: .vertical).lineLimit(2...5)
                         .focused($focus, equals: .memo)
+                        .id(Self.memoFieldId)
                         // この欄の中のタップは、「欄の外をタップした」には数えない
                         .simultaneousGesture(TapGesture().onEnded { touch(.memo) })
                 } header: { Text("メモ").textCase(nil) }
@@ -377,6 +390,7 @@ struct AttachmentFields: View {
                         .autocorrectionDisabled()
                         .submitLabel(.done)
                         .focused($focus, equals: .url)
+                        .id(Self.urlFieldId)
                         .simultaneousGesture(TapGesture().onEnded { touch(.url) })
                         .onSubmit { focus = nil }
                     // 入れた URL を、まとめて消す

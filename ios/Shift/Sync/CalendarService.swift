@@ -33,6 +33,13 @@ struct SharedCalendar: Equatable, Identifiable {
     var icon: String = CalendarIcon.defaultName
     /// 自分の予定を、確認してから共有する(手動)か。false は、予定を変えるとすぐ共有する(自動)
     var myShareManual = false
+    /// 自分が参加した時刻(Unix ミリ秒)。一覧を、参加した順に並べるのに使う(古い記録には無いので 0)
+    var joinedAt: Double = 0
+
+    /// 一覧の並び: 参加した順(古い順)。同じ時刻や、時刻が無いものは、ID の順。取り直しても、並びが変わらない
+    static func ordered(_ list: [SharedCalendar]) -> [SharedCalendar] {
+        list.sorted { ($0.joinedAt, $0.id) < ($1.joinedAt, $1.id) }
+    }
 
     /// 自分の予定を共有に出せるか。見せるだけのカレンダーでは、持ち主だけ
     func canPublish(uid: String) -> Bool { status == .active && (kind == .mutual || ownerUid == uid) }
@@ -246,7 +253,7 @@ final class CalendarService {
         do {
             let list = try await backing.joined(uid: uid)
             guard self.uid == uid else { return }
-            calendars = list
+            calendars = SharedCalendar.ordered(list)
             syncStatusListeners()
             onChange?()
             for g in await backing.goneCalendars(uid: uid) { onGone?(g) }
@@ -301,7 +308,7 @@ final class CalendarService {
         for c in list {
             if let i = merged.firstIndex(where: { $0.id == c.id }) { merged[i] = c } else { merged.append(c) }
         }
-        calendars = merged
+        calendars = SharedCalendar.ordered(merged)
         syncStatusListeners()
         onChange?()
         for c in list where before[c.id] == .pending && c.status == .active { onApproved?(c) }
@@ -317,7 +324,7 @@ final class CalendarService {
         return await run("共有カレンダーを作れませんでした") {
             var made = try await self.backing.create(uid: uid, spec: spec)
             made.calendar.mySharedKeys = spec.sharedKeys
-            self.calendars.append(made.calendar)
+            self.calendars = SharedCalendar.ordered(self.calendars + [made.calendar])
             self.onChange?()
             return made
         }
@@ -352,7 +359,7 @@ final class CalendarService {
         return await run("参加できませんでした", invalid: "招待コードが無効か、期限が切れています") {
             var joined = try await self.backing.join(uid: uid, code: code, displayName: name, sharedKeys: sharedKeys, avatar: avatar)
             joined.mySharedKeys = joined.kind == .oneway ? [] : sharedKeys
-            self.calendars.append(joined)
+            self.calendars = SharedCalendar.ordered(self.calendars + [joined])
             self.syncStatusListeners()
             self.onChange?()
             return joined

@@ -427,6 +427,15 @@ struct SharedEventEditor: View {
         return p
     }
 
+    /// メモ・URL の入力欄が全部見えるところまで、スクロールする(キーボードの出る早さは一定でないので、少し間をおいて数回合わせる)
+    private func scrollToField(_ id: String, proxy: ScrollViewProxy) {
+        for delay in [0.25, 0.6] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+            }
+        }
+    }
+
     /// 画像の置き場にする共有カレンダーの ID(保存先を切り替えているときは、切り替え先)
     private var attachmentCalendarId: String? {
         if let flow, !flow.isAtOrigin, let cid = flow.destination { return cid }
@@ -435,6 +444,7 @@ struct SharedEventEditor: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 if let flow { DestinationSection(flow: flow, draft: { .shared(built()) }) }
                 Section {
@@ -462,7 +472,8 @@ struct SharedEventEditor: View {
                 // 共有カレンダーの中で作った予定だけ、メモ・画像・URL を付けられる(自分の予定を共有に出したものは、メモなどを共有しない)
                 if target.event.isCalendarOwned {
                     AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap, session: attachments,
-                                     calendarId: attachmentCalendarId)
+                                     calendarId: attachmentCalendarId,
+                                     onFieldFocus: { scrollToField($0, proxy: proxy) })
                 }
                 if failed {
                     Section { Text("保存できませんでした。通信を確認してください。").foregroundStyle(.red) }
@@ -475,6 +486,7 @@ struct SharedEventEditor: View {
                         LastModifiedHeader(line: target.event.lastModifiedText())
                     }
                 }
+            }
             }
             .environment(\.locale, Locale(identifier: "ja_JP"))
             .onDisappear { attachments.discardIfUncommitted() }

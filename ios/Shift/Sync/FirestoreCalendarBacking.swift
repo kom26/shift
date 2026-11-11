@@ -31,11 +31,12 @@ final class FirestoreCalendarBacking: CalendarBacking {
     }
 
     func create(uid: String, spec: NewCalendar) async throws -> (calendar: SharedCalendar, invite: InviteCode) {
-        let cal = SharedCalendar(id: InviteCode.random(length: 12), name: spec.name, ownerUid: uid,
+        var cal = SharedCalendar(id: InviteCode.random(length: 12), name: spec.name, ownerUid: uid,
                                  kind: spec.kind, requireApproval: spec.requireApproval, status: .active,
                                  icon: CalendarIcon.resolved(spec.icon))
         let token = InviteCode.random(length: 16)
         let now = Self.nowMillis()
+        cal.joinedAt = now
         let batch = db.batch()
         batch.setData(["name": spec.name, "ownerUid": uid, "kind": spec.kind.rawValue,
                        "requireApproval": spec.requireApproval, "icon": cal.icon, "createdAt": now],
@@ -67,9 +68,11 @@ final class FirestoreCalendarBacking: CalendarBacking {
             let status = MemberStatus(rawValue: data["status"] as? String ?? "") ?? .active
             // 名前・アイコン・許可制は、持ち主が変えるので、本体の最新を読む(読めなければ自分の記録のまま)
             let latest = (try? await calendar(d.documentID).getDocument())?.data() ?? d.data()
-            out.append(Self.calendar(id: d.documentID, data: latest, status: status,
-                                     sharedKeys: data["sharedKeys"] as? [String] ?? [],
-                                     shareManual: data["shareMode"] as? String == "manual"))
+            var cal = Self.calendar(id: d.documentID, data: latest, status: status,
+                                    sharedKeys: data["sharedKeys"] as? [String] ?? [],
+                                    shareManual: data["shareMode"] as? String == "manual")
+            cal.joinedAt = (data["joinedAt"] as? NSNumber)?.doubleValue ?? 0
+            out.append(cal)
         }
         return out
     }
@@ -112,10 +115,11 @@ final class FirestoreCalendarBacking: CalendarBacking {
             if Self.isDenied(error) { throw CalendarError.invalidInvite }
             throw error
         }
-        let cal = SharedCalendar(id: code.calendarId, name: data["calendarName"] as? String ?? "",
+        var cal = SharedCalendar(id: code.calendarId, name: data["calendarName"] as? String ?? "",
                                  ownerUid: data["createdBy"] as? String ?? "", kind: kind,
                                  requireApproval: requireApproval, status: status,
                                  icon: CalendarIcon.resolved(data["icon"] as? String ?? ""))
+        cal.joinedAt = Self.nowMillis()
         try await index(uid).document(cal.id).setData(Self.indexData(cal))
         return cal
     }

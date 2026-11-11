@@ -176,3 +176,32 @@ struct ScanLayoutTests {
         #expect(ps.max()! > 0.95 && ps.min()! < 0.05)
     }
 }
+
+struct TaskDefaultsAndOrderTests {
+    @Test func taskDefaultColorIsTheFifthSwatchAndEventsKeepTheGray() {
+        #expect(TaskItem.defaultColor == Store.defaultColors[4] && TaskItem.defaultColor == "#f28d8d")
+        #expect(ShiftEvent.new(on: "2026-12-08").color == Store.defaultColors[0])
+    }
+
+    @Test func sharedCalendarsAreOrderedByJoinTimeThenId() {
+        func cal(_ id: String, _ at: Double) -> SharedCalendar {
+            var c = SharedCalendar(id: id, name: id, ownerUid: "u")
+            c.joinedAt = at
+            return c
+        }
+        let list = [cal("c", 300), cal("a", 0), cal("b", 100), cal("z", 100)]
+        #expect(SharedCalendar.ordered(list).map(\.id) == ["a", "b", "z", "c"])
+        #expect(SharedCalendar.ordered(list.reversed()).map(\.id) == SharedCalendar.ordered(list).map(\.id))
+    }
+
+    @Test func markerEventForAListRowMatchesTheCalendarTag() {
+        let name = UUID().uuidString
+        let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: "\(name).json"), defaults: UserDefaults(suiteName: name)!)
+        var t = TaskItem.new(startDate: "2026-12-08", dueDate: "2026-12-11")
+        t.id = "x"
+        store.saveTask(t)
+        #expect(store.taskMarkerEvent(taskId: "x", isStart: true)?.id == "task:x:start")
+        #expect(store.taskMarkerEvent(taskId: "x", isStart: false)?.startDate == "2026-12-11")
+        #expect(store.taskMarkerEvent(taskId: "none", isStart: true) == nil)
+    }
+}

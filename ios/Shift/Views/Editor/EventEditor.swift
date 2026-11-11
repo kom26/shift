@@ -188,7 +188,8 @@ struct EventEditor: View {
                         paySection(p)
                     }
                 }
-                AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap, session: attachments)
+                AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap, session: attachments,
+                                 onFieldFocus: { scrollToBottom($0, proxy: proxy) })
                 if !favoriteMode && onCommit == nil {
                     Section {
                         Toggle("よく使う予定にも登録", isOn: $registerFavorite)
