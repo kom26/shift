@@ -27,6 +27,8 @@ struct TaskEditor: View {
     @State private var title: String
     @State private var color: String
     @State private var memo: String
+    /// 開始と締切のあいだを点線でつなぐか
+    @State private var linkDots: Bool
     @State private var url: String
     @State private var imageId: String?
     /// フォームのどこかをタップするたびに増やす(メモ・画像・URL の空の欄を閉じる合図)
@@ -60,6 +62,7 @@ struct TaskEditor: View {
         _title = State(initialValue: original.title)
         _color = State(initialValue: original.color)
         _memo = State(initialValue: original.memo)
+        _linkDots = State(initialValue: original.linkDots == true)
         _url = State(initialValue: original.url ?? "")
         _imageId = State(initialValue: original.imageId)
         _hasStart = State(initialValue: original.hasStart)
@@ -93,7 +96,8 @@ struct TaskEditor: View {
                         HStack(alignment: .center, spacing: 8) {
                             Text("予定バーの見た目").lineLimit(1).fixedSize()
                             Spacer(minLength: 0)
-                            TaskLookPreview(title: title.isEmpty ? "タイトル" : title, color: color, start: startText, due: dueText)
+                            TaskLookPreview(title: title.isEmpty ? "タイトル" : title, color: color, start: startText, due: dueText,
+                                            link: linkDots && hasStart && hasDue)
                         }
                     }
                     Section {
@@ -114,6 +118,14 @@ struct TaskEditor: View {
                             Text("締切が開始より前だったので、開始の時刻に合わせました。").foregroundStyle(.orange)
                         } else if !hasStart && !hasDue {
                             Text("開始も締切も指定がない場合は「タスク」として保存されます。")
+                        }
+                    }
+                    // 開始と締切の両方があるときだけ、点線でつなぐかを選べる(はじめは、つながない)
+                    if hasStart && hasDue {
+                        Section {
+                            Toggle("開始と締切を点線でつなぐ", isOn: $linkDots)
+                        } footer: {
+                            Text("月のカレンダーと、ウィジェットで、開始と締切のタグのあいだを点線でつなぎます。")
                         }
                     }
                     AttachmentFields(memo: $memo, url: $url, imageId: $imageId, outsideTap: outsideTap, session: attachments)
@@ -183,6 +195,7 @@ struct TaskEditor: View {
         t.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         t.color = color
         t.memo = memo
+        t.linkDots = (hasStart && hasDue && linkDots) ? true : nil
         t.url = Optional(url.trimmingCharacters(in: .whitespacesAndNewlines)).nonEmpty
         t.imageId = imageId
         let dates = TaskItem.orderedDates(start: startText, due: dueText)
@@ -409,6 +422,8 @@ struct TaskLookPreview: View {
     let color: String
     let start: String?
     let due: String?
+    /// 開始と締切のあいだを点線でつなぐか
+    var link = false
     @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
     @AppStorage(BarFontSize.monthTitleKey) private var monthTitleDelta = 0.0
 
@@ -464,7 +479,7 @@ struct TaskLookPreview: View {
             }
             ZStack(alignment: .topLeading) {
                 Color.clear.frame(width: total, height: CGFloat(lanes) * (barH + 2))
-                if let s = start, let d = due, s != d {
+                if link, let s = start, let d = due, s != d {
                     // 開始と締切をつなぐ点線
                     // 両側のタグの先から、同じだけ離す
                     let x1 = x(of: s, widths: widths, columns: columns) + colW - 1 + 4

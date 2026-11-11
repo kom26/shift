@@ -37,7 +37,6 @@ struct SettingsView: View {
 /// カレンダー設定。週の始まり・背景・予定バー・予定の重複(ダブルブッキング)
 struct CalendarSettingsView: View {
     @AppStorage("startMonday") private var startMonday = false
-    @AppStorage("taskLinkDots") private var taskLinkDots = false
     @AppStorage("conflictWarningOn") private var conflictWarningOn = true
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @FocusState private var gapFocused: Bool
@@ -64,7 +63,6 @@ struct CalendarSettingsView: View {
                         Image(systemName: "chevron.right").font(.app(13)).foregroundStyle(.tertiary)
                     }
                 }
-                Toggle("開始と締切を点線でつなぐ", isOn: $taskLinkDots)
             }
             Section {
                 Toggle("予定重複を赤く注意表示", isOn: $conflictWarningOn)

@@ -81,3 +81,35 @@ struct SharedAttachmentTests {
         #expect(moved.memo == e.memo && moved.url == e.url && moved.imageId == e.imageId)
     }
 }
+
+struct YearGroupTests {
+    private func event(_ id: String, _ date: String?) -> ShiftEvent { ev(id, date) }
+
+    @Test func groupsBreakWhereTheYearChanges() {
+        let g = LabelEventsView.yearGroups([event("a", "2026-12-20"), event("b", "2026-12-23"), event("c", "2027-02-08")])
+        #expect(g.map(\.title) == ["2026年", "2027年"])
+        #expect(g[0].events.map(\.id) == ["a", "b"] && g[1].events.map(\.id) == ["c"])
+    }
+
+    @Test func newestFirstListKeepsItsOrderAndUndatedGoesLast() {
+        let g = LabelEventsView.yearGroups([event("c", "2027-02-08"), event("a", "2026-12-20"), event("n", nil)])
+        #expect(g.map(\.title) == ["2027年", "2026年", "日付なし"])
+    }
+}
+
+struct TaskLinkDotsTests {
+    @Test func linkIsOffByDefaultAndOnlyChosenTasksAreLinked() {
+        let name = UUID().uuidString
+        let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: "\(name).json"), defaults: UserDefaults(suiteName: name)!)
+        var a = TaskItem.new(startDate: "2026-12-08", dueDate: "2026-12-11")
+        a.id = "a"
+        var b = a
+        b.id = "b"
+        b.linkDots = true
+        store.saveTask(a)
+        store.saveTask(b)
+        let m = store.taskMarkers(linked: true)
+        #expect(m.filter { $0.taskMarker?.taskId == "a" }.count == 2)
+        #expect(m.filter { $0.taskMarker?.taskId == "b" && $0.taskMarker?.isLink == true }.count == 1)
+    }
+}

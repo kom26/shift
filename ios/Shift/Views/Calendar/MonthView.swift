@@ -24,8 +24,6 @@ struct MonthView: View {
     @Environment(\.isSharedView) private var isSharedView
     @AppStorage("conflictGapMinutes") private var conflictGapMinutes = 0
     @AppStorage(BarFontSize.monthKey) private var monthDelta = 0.0
-    /// 開始と締切を点線でつなぐか(設定。はじめはオフ)
-    @AppStorage("taskLinkDots") private var taskLinkDots = false
     @AppStorage(BarFontSize.monthTitleKey) private var monthTitleDelta = 0.0
     @AppStorage(BarFontChoice.key) private var barFont = BarFontChoice.zen.rawValue
     @AppStorage(BarFontSize.thicknessKey) private var thickness = 0.0
@@ -66,7 +64,7 @@ struct MonthView: View {
             Divider()
             GeometryReader { geo in
                 // 開始・締切の印も、予定と同じ決まりで行に詰める
-                let calEvents = store.visibleEvents + store.taskMarkers(linked: taskLinkDots)
+                let calEvents = store.visibleEvents + store.taskMarkers(linked: true)
                 let fullRows = weeks.map { SpanLayout.rows(events: calEvents, weekCells: $0.map { Optional($0) }) }
                 let lay = monthLayout(weeks: weeks, fullRows: fullRows, size: geo.size, annivMap: annivMap)
                 ScrollView(.vertical, showsIndicators: false) {

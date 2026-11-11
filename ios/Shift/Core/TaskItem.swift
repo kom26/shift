@@ -17,6 +17,8 @@ struct TaskItem: Codable, Identifiable, Equatable {
     /// 付けた URL と、画像(この端末の `AttachmentStore` に入っている名前)。nil は無い
     var url: String? = nil
     var imageId: String? = nil
+    /// 開始と締切のあいだを点線でつなぐか(月のカレンダーとウィジェット)。nil・false は、つながない
+    var linkDots: Bool? = nil
 
     /// 最初に選ばれている色。カスタム色の並びの、赤(3 行目・色相 4°の列)。ウィジェットでも使う Core なので、画面の部品は参照せず、値で持つ
     static let defaultColor = "#df3226"
@@ -45,7 +47,7 @@ struct TaskItem: Codable, Identifiable, Equatable {
     var isPlain: Bool { !hasStart && !hasDue }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, color, startDate, startTime, dueDate, dueTime, done, memo, url, imageId
+        case id, title, color, startDate, startTime, dueDate, dueTime, done, memo, url, imageId, linkDots
     }
 
     init(id: String, title: String, color: String, startDate: String?, startTime: String?,
@@ -76,6 +78,7 @@ struct TaskItem: Codable, Identifiable, Equatable {
         memo = try c.decodeIfPresent(String.self, forKey: .memo) ?? ""
         url = try c.decodeIfPresent(String.self, forKey: .url).nonEmpty
         imageId = try c.decodeIfPresent(String.self, forKey: .imageId).nonEmpty
+        linkDots = try c.decodeIfPresent(Bool.self, forKey: .linkDots)
     }
 }
 
@@ -165,12 +168,13 @@ extension Store {
     }
 
     /// カレンダーに出す開始・締切の印。チェックを付けたものは出さない。
+    /// `linked` のときは、「点線でつなぐ」を選んだ項目だけ、開始から締切までを 1 本につなぐ。
     /// 月表示と、週表示の終日の場所には、時刻の有無にかかわらず出す(週表示の時刻つきは線なので、timeless で分ける)
     func taskMarkers(timelessOnly: Bool = false, linked: Bool = false) -> [ShiftEvent] {
         var list: [ShiftEvent] = []
         for t in tasks where !t.done {
             // 月表示: 開始と締切が別の日なら、1 本につなぐ(間は点線)
-            if linked, let s = t.startDate, let d = t.dueDate, s < d {
+            if linked, t.linkDots == true, let s = t.startDate, let d = t.dueDate, s < d {
                 list.append(ShiftEvent(id: "task:\(t.id):link", title: t.title, memo: "", color: t.color,
                                        startDate: s, endDate: d, placed: true, allDay: true,
                                        startTime: nil, endTime: nil, workHours: nil, source: ShiftEvent.taskLinkSource))

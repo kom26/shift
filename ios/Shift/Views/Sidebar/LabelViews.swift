@@ -357,7 +357,17 @@ struct LabelEventsView: View {
             if list.isEmpty {
                 Text("このラベルの予定はありません").foregroundStyle(.secondary)
             }
-            ForEach(list) { e in row(e) }
+            // 年が変わるところに、「2027年」の区切りを出す(最初の年にも出す。日付のない予定は「日付なし」)
+            ForEach(Self.yearGroups(list)) { g in
+                Section {
+                    ForEach(g.events) { e in row(e) }
+                } header: {
+                    Text(g.title)
+                        .font(.app(12, weight: .bold))
+                        .foregroundStyle(Theme.accent)
+                        .textCase(nil)
+                }
+            }
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
@@ -438,6 +448,26 @@ struct LabelEventsView: View {
                 .tint(swipeDeleteTint)
             }
         }
+    }
+
+    /// 一覧の並びのまま、年ごとにまとめる(年が変わるたびに、新しい組)
+    struct YearGroup: Identifiable {
+        let title: String
+        let events: [ShiftEvent]
+        var id: String { title + (events.first?.id ?? "") }
+    }
+
+    static func yearGroups(_ list: [ShiftEvent]) -> [YearGroup] {
+        var groups: [YearGroup] = []
+        for e in list {
+            let title = e.startDate.map { "\(Rules.ymd($0).year)年" } ?? "日付なし"
+            if let last = groups.last, last.title == title {
+                groups[groups.count - 1] = YearGroup(title: title, events: last.events + [e])
+            } else {
+                groups.append(YearGroup(title: title, events: [e]))
+            }
+        }
+        return groups
     }
 
     private func dateText(_ e: ShiftEvent) -> String {

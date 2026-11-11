@@ -35,7 +35,9 @@ struct TaskItemTests {
 
     @Test func monthLinksStartAndDueIntoOneBar() {
         let store = make()
-        store.saveTask(task("a", start: "2026-12-08", due: "2026-12-11"))
+        var a = task("a", start: "2026-12-08", due: "2026-12-11")
+        a.linkDots = true
+        store.saveTask(a)
         store.saveTask(task("b", start: "2026-12-08", due: "2026-12-08"))
         let m = store.taskMarkers(linked: true)
         let link = m.first { $0.taskMarker?.taskId == "a" }
