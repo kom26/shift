@@ -47,8 +47,20 @@ struct EventDropDelegate: DropDelegate {
         DragState.shared.dropPoint = CGPoint(x: origin.x + info.location.x, y: origin.y + info.location.y)
         let local = cellRect?(info.location) ?? CGRect(origin: info.location, size: .zero)
         DragState.shared.dropRect = local.offsetBy(dx: origin.x, dy: origin.y)
+        // アプリ内のドラッグは、つかんだ時点の id を持っているので、離した瞬間にそのまま使う。
+        // (NSItemProvider の読み込みは、離したあとの次のタッチまで返ってこないことがあり、移動が反映されなかった)
+        let grabbedId = DragState.shared.draggingId
         DragState.shared.ended()
-        guard let provider = info.itemProviders(for: [.plainText]).first, let date else {
+        guard let date else {
+            target = nil
+            return false
+        }
+        if let grabbedId {
+            target = nil
+            onDrop(grabbedId, date)
+            return true
+        }
+        guard let provider = info.itemProviders(for: [.plainText]).first else {
             target = nil
             return false
         }

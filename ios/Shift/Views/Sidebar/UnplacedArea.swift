@@ -634,8 +634,14 @@ struct UnplaceDropDelegate: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         let refused = refusesTask
+        let grabbedId = DragState.shared.draggingId
         DragState.shared.ended()
         if refused { return false }
+        // アプリ内のドラッグは、つかんだ時点の id をそのまま使う(読み込みの返りを待たない)
+        if let grabbedId {
+            onDrop(grabbedId)
+            return true
+        }
         guard let provider = info.itemProviders(for: [.plainText]).first else { return false }
         _ = provider.loadObject(ofClass: NSString.self) { obj, _ in
             guard let id = obj as? String else { return }
