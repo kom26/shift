@@ -12,7 +12,11 @@ enum SyncedPrefs {
         "widget-prefs-small", "widget-prefs-medium",
         "profile-name", "profile-avatar",
         "shared-color-overrides", "shared-overlay-ids", "shared-bar-time-modes",
+        "tutorialDone",
     ]
+
+    /// 一度オンになったら、アカウントに無くても、この端末では戻さない(はじめの紹介を、見たあとにまた出さないため)
+    private static let stickyKeys: Set<String> = ["tutorialDone"]
 
     /// いまの端末の設定(値のあるキーだけ)
     static func read(_ d: UserDefaults) -> [String: String] {
@@ -28,6 +32,7 @@ enum SyncedPrefs {
     static func write(_ prefs: [String: String], to d: UserDefaults) {
         let current = read(d)
         for k in keys where current[k] != prefs[k] {
+            if prefs[k] == nil, stickyKeys.contains(k) { continue }
             if let raw = prefs[k], let v = decode(raw) {
                 d.set(v, forKey: k)
             } else {

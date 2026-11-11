@@ -55,6 +55,7 @@ struct RootView: View {
     @Environment(CalendarService.self) private var calendarService
     @Environment(SharedViewState.self) private var sharedView
     @Environment(SharedPublisher.self) private var publisher
+    @Environment(AccountSync.self) private var accountSync
     @AppStorage("mode") private var mode: CalendarMode = .month
     @AppStorage("startMonday") private var startMonday = false
     @AppStorage(CalendarBackground.personalKey) private var calendarBackgroundKey = ""
@@ -111,6 +112,14 @@ struct RootView: View {
     /// 共有カレンダーを開いたまま、共有に出した自分の予定を直している(保存したあとも、その共有カレンダーに残る)
     @State private var ownEditFromShared = false
     @State private var revealToken = 0
+    /// はじめて開いたときの紹介(動画つき)。「使い始める」を押したら見たことにする
+    @AppStorage(FirstTutorial.doneKey) private var tutorialDone = false
+    @State private var showTutorial = false
+    @State private var tutorialChecked = false
+    /// 招待のリンクで開いたときは、この起動では紹介を出さない
+    @State private var tutorialSkipThisLaunch = false
+    /// 紹介を閉じて、すぐ参加画面を開くとき(閉じる動きが終わるまで待つ)
+    @State private var tutorialClosedForInvite = false
     @Environment(\.scenePhase) private var scenePhase
 
     /// カレンダーの背景(ヘッダーも含む)。共有カレンダーを開いている間は、その共有カレンダーの背景
@@ -219,6 +228,7 @@ struct RootView: View {
             calendarService.onGone = { g in showToast(g.text) }
             presentPendingJoin()
             fillInviteNames()
+            checkTutorial()
         }
         .onOpenURL { url in
             // 招待リンクから: shiftpalette://join/<招待コード> で、参加の確認を開く(ログイン前なら設定へ)
@@ -255,6 +265,10 @@ struct RootView: View {
             unplacedCountOnCreate = nil
         }) { ownEditor($0) }
         .sheet(item: $paydayTarget) { PaydaySheet(date: $0.date) }
+        .fullScreenCover(isPresented: $showTutorial) {
+            FirstTutorialView(onStart: { tutorialDone = true; showTutorial = false },
+                              onLater: { showTutorial = false })
+        }
         .sheet(item: $dayTarget) { t in
             DaySheet(date: t.date, canAdd: !sharedView.isOpen || sharedView.canCreate, onSelectPayday: { date in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: date) }
@@ -299,8 +313,28 @@ struct RootView: View {
         return "\(target)に参加するにはアカウント登録かログインが必要です。"
     }
 
+    /// 紹介を出す(まだ「使い始める」を押していなければ、開くたびに)。招待のリンクで開いた人・アカウントのデータを読み込み中の人には出さない
+    private func checkTutorial() {
+        guard !tutorialChecked else { return }
+        tutorialChecked = true
+        Task { @MainActor in
+            // 招待のリンクの受け取りと、アカウントの読み込みの開始を待ってから決める
+            try? await Task.sleep(for: .seconds(1))
+            guard !accountSync.status.restoring, accountSync.status.choice == nil else { return }
+            // 招待の参加が終わるまで(参加画面が開いている間も、待っている招待があるうちも)は出さない
+            let joining = !pendingInvites.isEmpty || joinPresenting || joinTarget != nil
+            if !tutorialSkipThisLaunch, FirstTutorial.shouldShow(hasInvite: joining) { showTutorial = true }
+        }
+    }
+
     /// 開いた招待を、順番待ちに入れる(同じ共有カレンダーの招待は、新しい方に置き換える)
     private func stockInvite(_ code: String) {
+        // 招待から入ってきた人には、この起動では紹介を出さない(次のふつうの起動で出す)
+        tutorialSkipThisLaunch = true
+        if showTutorial {
+            showTutorial = false
+            tutorialClosedForInvite = true
+        }
         var list = pendingInvites
         let cid = InviteCode.parse(code)?.calendarId
         list.removeAll { $0.code == code || (cid != nil && InviteCode.parse($0.code)?.calendarId == cid) }
@@ -359,6 +393,9 @@ struct RootView: View {
             showSettings = false
             withAnimation(.snappy) { showDrawer = false }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: open)
+        } else if tutorialClosedForInvite {
+            tutorialClosedForInvite = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: open)
         } else {
             open()
         }
