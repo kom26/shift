@@ -376,10 +376,14 @@ struct ScreenshotImportSheet: View {
     // MARK: 読み取り
 
     private var readingView: some View {
-        VStack(spacing: 14) {
-            ProgressView().controlSize(.large)
-            Text("読み取っています…").font(.app(15, weight: .semibold))
-            Text("画像の枚数によって、数秒〜十数秒かかります。").font(.app(12)).foregroundStyle(.secondary)
+        VStack(spacing: 26) {
+            // アップロードした画像を横に並べて、光の線が上下に往復する。文字は、線が通ると光って、認識した状態で残る
+            ReadingScanView(images: images)
+                .padding(.horizontal, 16)
+            VStack(spacing: 6) {
+                Text("読み取っています…").font(.app(15, weight: .semibold))
+                Text("画像の枚数によって、数秒〜十数秒かかります。").font(.app(12)).foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

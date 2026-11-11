@@ -153,3 +153,26 @@ struct TrashTaskIdTests {
         #expect(UnplacedArea.taskId(of: "cal_1234") == nil)
     }
 }
+
+struct ScanLayoutTests {
+    @Test func tallImagesAreFittedInOneRowKeepingTheirShape() {
+        // 縦横比 0.89 / 0.46 / 0.46 の 3 枚。幅 358pt に収まる高さ
+        let l = ScanLayout.size(aspects: [0.89, 0.46, 0.46], availableWidth: 358)
+        #expect(l.height < ScanLayout.maxHeight)
+        let total = l.widths.reduce(0, +) + ScanLayout.gap * 2
+        #expect(abs(total - 358) < 0.5)
+        #expect(abs(l.widths[1] / l.height - 0.46) < 0.001)
+    }
+
+    @Test func aSingleWideImageIsCappedAtTheMaxHeight() {
+        let l = ScanLayout.size(aspects: [0.5], availableWidth: 358)
+        #expect(l.height == ScanLayout.maxHeight)
+        #expect(l.widths[0] == 130)
+    }
+
+    @Test func beamStaysInsideTheImageAndMovesBothWays() {
+        let ps = stride(from: 0.0, to: 6.0, by: 0.1).map { ScanLayout.beamPosition(time: $0, index: 0) }
+        #expect(ps.allSatisfy { $0 >= 0 && $0 <= 1 })
+        #expect(ps.max()! > 0.95 && ps.min()! < 0.05)
+    }
+}
