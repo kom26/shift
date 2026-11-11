@@ -290,6 +290,44 @@ struct LabelManageView: View {
     }
 }
 
+/// 選んだ予定の付け替え先のラベルを選ぶ、下から出るシート(いまのラベルは出さない。「指定なし」も選べる)
+struct LabelMoveSheet: View {
+    let currentLabelId: String?
+    let onPick: (String?) -> Void
+    @Environment(Store.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if currentLabelId != nil { row(name: "指定なし", color: EventLabel.noneColor, id: nil) }
+                ForEach(store.labels.filter { $0.id != currentLabelId }) { l in row(name: l.name, color: l.color, id: l.id) }
+            }
+            .navigationTitle("ラベルを変更")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } } }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationBackground(Color(.systemGroupedBackground))
+    }
+
+    private func row(name: String, color: String, id: String?) -> some View {
+        Button {
+            onPick(id)
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                ColorDot(hex: color, size: 14)
+                Text(name)
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.primary)
+    }
+}
+
 /// ラベルの予定の一覧。日付で並べ替えられる(はじめは古い順)。「選択」で、予定を選んで、ラベルの付け替えと削除がまとめてできる
 struct LabelEventsView: View {
     let labelId: String?
@@ -346,14 +384,9 @@ struct LabelEventsView: View {
             if selecting { selectionBar(list) }
         }
         .sheet(item: $editing) { EventEditor(original: $0.event, isNew: false) }
-        .confirmationDialog("選んだ予定のラベルを変更", isPresented: $showMove, titleVisibility: .visible) {
-            if labelId != nil {
-                Button("指定なし") { move(to: nil) }
-            }
-            ForEach(store.labels.filter { $0.id != labelId }) { l in
-                Button(l.name) { move(to: l.id) }
-            }
-            Button("キャンセル", role: .cancel) {}
+        // 付け替え先は、いつもの、下から出るシートで選ぶ
+        .sheet(isPresented: $showMove) {
+            LabelMoveSheet(currentLabelId: labelId) { move(to: $0) }
         }
         .alert("\(chosenCount)件の予定を削除しますか?", isPresented: $confirmDelete) {
             Button("キャンセル", role: .cancel) {}
