@@ -511,6 +511,10 @@ struct ScreenshotImportSheet: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(t.title).font(.app(16)).strikethrough(!on)
                         Text(taskDetail(t)).font(.app(12)).foregroundStyle(.secondary)
+                        // AI が読み取った、タイトルの補足(取り込むと、メモに入る)
+                        if !t.memo.isEmpty {
+                            Text(t.memo).font(.app(12)).foregroundStyle(.secondary).lineLimit(1)
+                        }
                     }
                     Spacer(minLength: 4)
                     if taskEdited[line.id] != nil {
