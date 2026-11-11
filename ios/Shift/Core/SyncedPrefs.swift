@@ -8,7 +8,8 @@ enum SyncedPrefs {
     static let keys: [String] = [
         "startMonday", "appearance", "calendarBackground", "summaryOn", "payBasis",
         "conflictWarningOn", "conflictGapMinutes", "alarmSnoozeMinutes",
-        "monthBarFontDelta", "weekBarFontDelta", "monthBarThickness", "monthBarOverflowScroll",
+        "monthBarFontDelta", "weekBarFontDelta", "monthBarTitleDelta", "weekBarTitleDelta", "barFont",
+        "monthBarThickness", "monthBarOverflowScroll",
         "widget-prefs-small", "widget-prefs-medium",
         "profile-name", "profile-avatar",
         "shared-color-overrides", "shared-overlay-ids", "shared-bar-time-modes",
