@@ -213,3 +213,15 @@ struct UnplaceRefusesTasksTests {
         #expect(UnplacedArea.taskId(of: DragState.shared.draggingId ?? "") == "abc")
     }
 }
+
+struct TaskDotsTests {
+    @Test func dotsAreEvenlySpacedAndTouchBothEnds() {
+        for length in [10.0, 23.7, 44.0, 120.3] {
+            let c = TaskDots.centers(x1: 5, x2: 5 + CGFloat(length))
+            #expect(c.first == 5 && abs(c.last! - (5 + CGFloat(length))) < 0.001)
+            let gaps = zip(c.dropFirst(), c).map { $0 - $1 }
+            #expect(gaps.allSatisfy { abs($0 - gaps[0]) < 0.001 })
+        }
+        #expect(TaskDots.centers(x1: 5, x2: 5).isEmpty)
+    }
+}

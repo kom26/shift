@@ -124,11 +124,8 @@ struct MediumWeekView: View {
         let x2 = b.showsDue ? width - tagW - gap : width - 2
         return ZStack(alignment: .topLeading) {
             if x2 > x1 {
-                Path { p in
-                    p.move(to: CGPoint(x: x1, y: barH / 2))
-                    p.addLine(to: CGPoint(x: x2, y: barH / 2))
-                }
-                .stroke(Color(hex: b.color), style: TaskDots.style(length: x2 - x1))
+                TaskDots.path(x1: x1, x2: x2, y: barH / 2)
+                    .fill(Color(hex: b.color))
             }
             if b.showsStart { tag(b, isStart: true, width: tagW, size: size) }
             if b.showsDue { tag(b, isStart: false, width: tagW, size: size).offset(x: width - tagW) }

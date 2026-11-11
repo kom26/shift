@@ -28,9 +28,25 @@ struct ArrowTagShape: Shape {
 
 /// 開始と締切をつなぐ点線。長さに合わせて点の間隔を決めて、両端に点が来るようにする
 enum TaskDots {
-    static func style(length: CGFloat) -> StrokeStyle {
-        let n = max(1, Int((length / 3.6).rounded()))
+    static let radius: CGFloat = 0.75
+    static let targetSpacing: CGFloat = 3.6
+
+    /// x1〜x2 のあいだに、点を等間隔に並べる(点の数は、間隔が 3.6pt に近くなるように決める)。
+    /// 最初の点が x1、最後の点が x2 にぴったり来るので、タグの先からの余白が、左右で同じになる
+    static func centers(x1: CGFloat, x2: CGFloat) -> [CGFloat] {
+        let length = x2 - x1
+        guard length > 0 else { return [] }
+        let n = max(1, Int((length / targetSpacing).rounded()))
         let step = length / CGFloat(n)
-        return StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0.1, max(0.1, step - 0.1)])
+        return (0...n).map { x1 + CGFloat($0) * step }
+    }
+
+    /// 点(小さな丸)の線。色は、`.fill` で付ける
+    static func path(x1: CGFloat, x2: CGFloat, y: CGFloat) -> Path {
+        var p = Path()
+        for x in centers(x1: x1, x2: x2) {
+            p.addEllipse(in: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
+        }
+        return p
     }
 }

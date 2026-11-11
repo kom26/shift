@@ -486,11 +486,8 @@ struct TaskLookPreview: View {
                     let x1 = x(of: s, widths: widths, columns: columns) + colW - 1 + 4
                     let x2 = x(of: d, widths: widths, columns: columns) + 1 - 4
                     if x2 > x1 {
-                        Path { p in
-                            p.move(to: CGPoint(x: x1, y: barH / 2))
-                            p.addLine(to: CGPoint(x: x2, y: barH / 2))
-                        }
-                        .stroke(Color(hex: color), style: TaskDots.style(length: x2 - x1))
+                        TaskDots.path(x1: x1, x2: x2, y: barH / 2)
+                            .fill(Color(hex: color))
                     }
                 }
                 if let s = start {

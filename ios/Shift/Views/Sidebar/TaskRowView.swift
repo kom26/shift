@@ -64,7 +64,8 @@ struct TaskRowView: View {
             TaskKindMark(isStart: row.isStart == true).font(.system(size: icon))
             Text(label).font(.app(size, weight: .semibold))
         }
-        .foregroundStyle(EventColor.text(row.task.color))
+        // 色は、項目の色とは関係なく、週表示の線・印と同じ(開始は青系、締切は赤系)
+        .foregroundStyle(row.isStart == true ? Theme.taskStart : Theme.taskDue)
     }
 
     /// 名前の下の小さな文字: 期限切れ、または、もう片方の日付

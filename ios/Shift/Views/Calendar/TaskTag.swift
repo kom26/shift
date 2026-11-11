@@ -58,11 +58,8 @@ struct TaskLinkBar: View {
             let x2 = showsDue ? geo.size.width - tagW - gap : geo.size.width - 2
             ZStack(alignment: .topLeading) {
                 if x2 > x1 {
-                    Path { p in
-                        p.move(to: CGPoint(x: x1, y: geo.size.height / 2))
-                        p.addLine(to: CGPoint(x: x2, y: geo.size.height / 2))
-                    }
-                    .stroke(Color(hex: color), style: TaskDots.style(length: x2 - x1))
+                    TaskDots.path(x1: x1, x2: x2, y: geo.size.height / 2)
+                        .fill(Color(hex: color))
                 }
                 // 開始のタグ・締切のタグを、それぞれ長押しでつかんで、その日だけを動かせる
                 if showsStart {
