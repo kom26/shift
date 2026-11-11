@@ -203,7 +203,8 @@ struct AttachmentFields: View {
     private enum Kind: Hashable { case memo, image, url }
 
     @State private var openKinds: Set<Kind> = []
-    @State private var imageEditing = false
+    /// 削除の確認待ちの欄(画像・URL)
+    @State private var pendingRemove: Kind?
     @State private var urlEditing = false
     @State private var showViewer = false
     @State private var photoItem: PhotosPickerItem?
@@ -273,6 +274,13 @@ struct AttachmentFields: View {
                     guard let item else { return }
                     Task { await loadPhoto(item) }
                 }
+                .alert(pendingRemove.map { "\(label($0))を削除しますか?" } ?? "",
+                       isPresented: Binding(get: { pendingRemove != nil }, set: { if !$0 { pendingRemove = nil } })) {
+                    Button("キャンセル", role: .cancel) {}
+                    Button("削除", role: .destructive) {
+                        if let kind = pendingRemove { removeConfirmed(kind) }
+                    }
+                }
                 .photosPicker(isPresented: $showPicker, selection: $photoItem, matching: .images)
                 .fullScreenCover(isPresented: $showViewer) {
                     if let id = imageId { AttachmentImageViewer(imageId: id) }
@@ -312,44 +320,22 @@ struct AttachmentFields: View {
             HStack {
                 Text("画像").textCase(nil)
                 Spacer()
-                if imageId != nil {
-                    pencil(editing: imageEditing, label: "画像") { imageEditing.toggle() }
-                }
+                if imageId != nil { removeButton(.image) }
             }
         }
     }
 
     private func thumbnail(_ id: String) -> some View {
-        ZStack(alignment: .topTrailing) {
-            Button {
-                touch(.image)
-                if !imageEditing { showViewer = true }
-            } label: {
-                AttachmentImageView(imageId: id, fill: true)
+        Button {
+            touch(.image)
+            showViewer = true
+        } label: {
+            AttachmentImageView(imageId: id, fill: true)
                 .frame(width: 120, height: 120)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("画像を開く")
-            if imageEditing {
-                Button {
-                    touch(.image)
-                    if let old = imageId { session.didRemove(old) }
-                    imageId = nil
-                    imageEditing = false
-                    withAnimation { _ = openKinds.remove(.image) }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 24, height: 24)
-                        .background(.black.opacity(0.6), in: Circle())
-                        .padding(6)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("画像を外す")
-            }
         }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("画像を開く")
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -361,7 +347,6 @@ struct AttachmentFields: View {
         session.didAdd(id)
         imageId = id
         Task { await AttachmentCloud.upload(id) }
-        imageEditing = false
     }
 
     // MARK: URL
@@ -412,12 +397,7 @@ struct AttachmentFields: View {
             HStack {
                 Text("URL").textCase(nil)
                 Spacer()
-                if has(.url), !urlEditing {
-                    pencil(editing: false, label: "URL") {
-                        urlEditing = true
-                        focus = .url
-                    }
-                }
+                if has(.url), !urlEditing { removeButton(.url) }
             }
         }
         // キーボードを閉じたとき、中身があれば、タップで開けるリンクにする
@@ -429,18 +409,34 @@ struct AttachmentFields: View {
 
     // MARK: 共通
 
-    private func pencil(editing: Bool, label: String, action: @escaping () -> Void) -> some View {
+    /// 見出しの右端の ×。押すと、確認(画面の真ん中のダイアログ)を出して、削除すれば、欄ごと消す
+    private func removeButton(_ kind: Kind) -> some View {
         Button {
-            touch(.image)
-            action()
+            touch(kind)
+            pendingRemove = kind
         } label: {
-            Image(systemName: editing ? "checkmark" : "pencil")
-                .font(.system(size: 15, weight: .semibold))
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 20))
+                .foregroundStyle(Color.secondary.opacity(0.7))
                 .frame(width: 32, height: 28)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .accessibilityLabel(editing ? "\(label)の編集を終える" : "\(label)を編集")
+        .accessibilityLabel("\(label(kind))を削除")
+    }
+
+    private func removeConfirmed(_ kind: Kind) {
+        switch kind {
+        case .image:
+            if let old = imageId { session.didRemove(old) }
+            imageId = nil
+        case .url:
+            url = ""
+            urlEditing = true
+        case .memo:
+            memo = ""
+        }
+        withAnimation(.easeOut(duration: 0.2)) { _ = openKinds.remove(kind) }
     }
 
     private func touch(_ kind: Kind) { lastTouch = (kind, Date()) }
@@ -471,11 +467,6 @@ struct AttachmentFields: View {
     /// フォーカスの移り変わりが落ち着いてから、判断する
     private func closeEmptyAfterTap() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            if imageEditing, let t = lastTouch, t.kind == .image, Date().timeIntervalSince(t.at) < 0.4 {
-                // 画像の編集中の操作なので、そのまま
-            } else if imageEditing {
-                imageEditing = false
-            }
             if let t = lastTouch, Date().timeIntervalSince(t.at) < 0.5 {
                 closeEmpty(keeping: t.kind)
             } else {
