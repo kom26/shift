@@ -460,9 +460,11 @@ struct UnplacedArea: View {
                 ZStack {
                     Color(.secondarySystemBackground)
                     if over { Theme.accentSoft }
+                    // 開始・締切のタグをつかんでいるときは、置けないことを伝える
+                    let refusing = DragState.shared.draggingId?.hasPrefix("task:") == true
                     VStack(spacing: 4) {
-                        Image(systemName: "tray.and.arrow.down").font(.app(22))
-                        Text("未配置予定に入れる").font(.app(15))
+                        Image(systemName: refusing ? "nosign" : "tray.and.arrow.down").font(.app(22))
+                        Text(refusing ? "開始・締切は置けません" : "未配置予定に入れる").font(.app(15))
                     }
                     .foregroundStyle(.secondary)
                     if over {
@@ -606,8 +608,10 @@ struct UnplaceDropDelegate: DropDelegate {
         !trash && DragState.shared.draggingId?.hasPrefix("task:") == true
     }
 
+    /// 開始・締切のタグも、ここでは「受ける」ことにして(置けない印は、dropUpdated で出す)、ドラッグ中の状態を保つ。
+    /// 受けないと、ドラッグ中の状態が切れて、後ろの「よく使う予定」のページが一瞬チラつく
     func validateDrop(info: DropInfo) -> Bool {
-        info.hasItemsConforming(to: [.plainText]) && !refusesTask
+        info.hasItemsConforming(to: [.plainText])
     }
 
     func dropEntered(info: DropInfo) {
