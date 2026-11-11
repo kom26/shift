@@ -16,11 +16,10 @@ const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 const MODEL = "claude-haiku-5-5";
 /** 1 人が 1 日に使える回数(使いすぎと、料金の暴走を防ぐ) */
 const DAILY_LIMIT = 5;
-/** 回数の制限を受けない管理者(メールアドレスが確認済みのときだけ。確認していない名乗りは受けない) */
-const ADMIN_EMAILS = ["kapikapi26@yahoo.co.jp"];
+/** 回数の制限を受けない管理者の UID(Apple でサインインしていて、メールアドレスが伏せられるので、UID で決める) */
+const ADMIN_UIDS = ["FiO92cEsHBRYp1vFZtjghs6to2M2"];
 function isAdmin(auth) {
-  const t = auth?.token;
-  return !!t && t.email_verified === true && typeof t.email === "string" && ADMIN_EMAILS.includes(t.email.toLowerCase());
+  return !!auth && ADMIN_UIDS.includes(auth.uid);
 }
 const MAX_IMAGES = 5;
 /** 画像 1 枚の上限(base64 の文字数。アプリ側で縮小してから送る) */
