@@ -62,6 +62,9 @@ enum Theme {
     static let payText = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#f7d77b")) : UIColor(Color(hex: "#9a7000")) })
     static let deltaDown = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#f19a9a")) : UIColor(Color(hex: "#d9695f")) })
     static let alarm = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#f2a64a")) : UIColor(Color(hex: "#e8890c")) })
+    /// 週表示の、開始(青系)と締切(赤系)の線と印の色。項目の色とは関係なく、決まった色にする(ライトは少し淡く、ダークは少し明るく)
+    static let taskStart = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#80a9ff")) : UIColor(Color(hex: "#5b8def")) })
+    static let taskDue = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: "#ff8e8e")) : UIColor(Color(hex: "#ec6a6a")) })
     static let saturday = Color(hex: "#3b82f6")
     static let sunday = Color(hex: "#ef4444")
 }

@@ -290,12 +290,13 @@ struct WeekView: View {
         let w = colW / CGFloat(slot.count)
         let size = max(5, min(9, (w * 0.42).rounded(.down)))
         let plusSize = max(5, min(8, (w * 0.34).rounded(.down)))
-        let tint = slot.color.map { Color(hex: $0) } ?? Theme.alarm
+        // 線と印の色は、種類で決まる(ベル: オレンジ、開始: 青系、締切: 赤系)。開始・締切に付けた色は、使わない
+        let tint: Color
         let symbol: String
         switch slot.kind {
-        case .bell: symbol = "bell.fill"
-        case .start: symbol = "play.fill"
-        case .due: symbol = "flag.fill"
+        case .bell: symbol = "bell.fill"; tint = Theme.alarm
+        case .start: symbol = "play.fill"; tint = Theme.taskStart
+        case .due: symbol = "flag.fill"; tint = Theme.taskDue
         }
         return ZStack(alignment: .topLeading) {
             Rectangle().fill(tint).frame(width: w, height: 2)
@@ -305,7 +306,7 @@ struct WeekView: View {
                     Text("+\(slot.extra)").font(.system(size: plusSize, weight: .bold))
                 }
             }
-            .foregroundStyle(slot.color.map { EventColor.text($0) } ?? Theme.alarm)
+            .foregroundStyle(tint)
             .frame(width: w, alignment: .leading)
             .lineLimit(1)
             .fixedSize(horizontal: false, vertical: true)
