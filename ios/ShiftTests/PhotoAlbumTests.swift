@@ -62,15 +62,15 @@ struct PhotoAlbumTests {
     }
 
     @Test func sharedPhotosOnlyComeFromEventsMadeInTheCalendar() {
-        var made = SharedEvent.newInCalendar(uid: "me", date: "2026-11-15")
-        made.title = "水族館"
-        made.imageId = "cal~c~1"
+        func shared(_ id: String, key: String, title: String, date: String, image: String) -> SharedEvent {
+            var e = SharedEvent(id: id, ownerUid: "me", sourceKey: key, title: title, startDate: date, endDate: date,
+                                startTime: nil, endTime: nil, allDay: true, name: "", color: EventLabel.noneColor)
+            e.imageId = image
+            return e
+        }
+        let made = shared("cal_1", key: SharedEvent.calendarKey, title: "水族館", date: "2026-11-15", image: "cal~c~1")
         // 自分の予定を共有に出したもの(画像は共有しない形だが、もし付いていても出さない)
-        var published = SharedEvent.newInCalendar(uid: "me", date: "2026-11-16")
-        published = SharedEvent(id: "me_x", ownerUid: "me", sourceKey: "w:abc", title: "バイト",
-                                startDate: "2026-11-16", endDate: "2026-11-16", startTime: nil, endTime: nil,
-                                allDay: true, name: "", color: published.color)
-        published.imageId = "img-mine"
+        let published = shared("me_x", key: "w:abc", title: "バイト", date: "2026-11-16", image: "img-mine")
         let photos = PhotoAlbum.shared([made, published])
         #expect(photos.map(\.imageId) == ["cal~c~1"])
     }
