@@ -32,14 +32,16 @@ struct WidgetBackLabel: View {
 struct WidgetCalendarSwitchLabel: View {
     let sw: WidgetCalendarSwitch
     var size: CGFloat = 20
+    /// 右下に重ねる、切り替えの印の丸の大きさ
+    var badge: CGFloat = 11
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             avatar
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 6.5, weight: .heavy))
+                .font(.system(size: badge * 0.6, weight: .heavy))
                 .foregroundStyle(.primary)
-                .frame(width: 11, height: 11)
+                .frame(width: badge, height: badge)
                 .background(Circle().fill(Color(.systemBackground)))
                 .offset(x: 3, y: 3)
         }

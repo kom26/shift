@@ -97,7 +97,7 @@ struct SmallDayView: View {
                 Spacer(minLength: 0)
                 // 右上: カレンダーの切り替え(2 つ以上選んでいるときだけ)
                 if let sw = content.switcher {
-                    Button(intent: CycleCalendarIntent(size: "small")) { WidgetCalendarSwitchLabel(sw: sw) }
+                    Button(intent: CycleCalendarIntent(size: "small")) { WidgetCalendarSwitchLabel(sw: sw, size: 19, badge: 9) }
                         .buttonStyle(.plain)
                 }
             }

@@ -50,7 +50,7 @@ struct MediumWeekView: View {
             footer
         }
         .padding(.horizontal, sidePad)
-        .padding(.top, 8)
+        .padding(.top, 7)
         .padding(.bottom, 8)
     }
 
@@ -64,7 +64,7 @@ struct MediumWeekView: View {
     private func alarmMark(_ i: Int) -> some View {
         if i < content.marks.count, content.marks[i].alarm {
             Image(systemName: "bell.fill")
-                .font(.system(size: 9))
+                .font(.system(size: 11))
                 .foregroundStyle(Theme.alarm)
                 .fixedSize()
                 .alignmentGuide(.leading) { d in d[.trailing] + 2 }
@@ -117,7 +117,7 @@ struct MediumWeekView: View {
     private var header: some View {
         HStack(spacing: 5) {
             Text(content.title)
-                .font(.app(12.5, weight: .bold))
+                .font(.app(14, weight: .bold))
                 .lineLimit(1)
             Spacer(minLength: 0)
             if offset != 0 {
