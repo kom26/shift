@@ -133,6 +133,8 @@ struct ProfileEditSheet: View {
                     Button("保存") {
                         profile.customName = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         profile.avatar = avatar
+                        // ウィジェットの切り替えボタン(自分のカレンダー)のアイコンも、新しくする
+                        WidgetSync.publish(store: store)
                         // 自分の誕生日を、誕生日・記念日に入れる(名前を変えたときも、名前を合わせる)
                         if hasBirthday {
                             store.setMyBirthday(name: shownName, year: knowsYear ? birthYear : nil, month: birthMonth, day: birthDay)

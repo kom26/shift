@@ -50,7 +50,10 @@ struct WidgetCalendarSwitchLabel: View {
 
     @ViewBuilder
     private var avatar: some View {
-        if let icon = sw.icon, let photo = AvatarStyle.photo(from: icon) {
+        if sw.icon == nil, let me = sw.me {
+            // 自分のカレンダーは、自分のプロフィールのアイコン
+            WidgetOwnerAvatar(owner: me, size: size)
+        } else if let icon = sw.icon, let photo = AvatarStyle.photo(from: icon) {
             Image(uiImage: photo)
                 .resizable()
                 .scaledToFill()

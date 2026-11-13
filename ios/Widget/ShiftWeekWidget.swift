@@ -34,6 +34,8 @@ struct MediumWeekView: View {
                                                      : (content.dayTypes[i] == .normal ? Color.primary : content.dayTypes[i].color))
                             }
                             .frame(width: colW)
+                            // 曜日の両脇に、その日の印(左: 記念日・誕生日、右: 給料日・アラーム)
+                            .overlay(alignment: .top) { dayMarks(i) }
                         }
                     }
                     bars(colW: colW)
@@ -53,17 +55,45 @@ struct MediumWeekView: View {
         (Rules.weekday(content.days[0]) + i) % 7
     }
 
+    @ViewBuilder
+    private func dayMarks(_ i: Int) -> some View {
+        if i < content.marks.count {
+            let m = content.marks[i]
+            HStack(spacing: 1) {
+                ForEach(m.annivs) { a in
+                    Image(a.asset)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 8, height: 8)
+                        .foregroundStyle(Color(hex: a.color))
+                }
+                Spacer(minLength: 0)
+                if m.payday {
+                    Image("CoinStack")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 8, height: 8)
+                        .foregroundStyle(Color(red: 0.95, green: 0.7, blue: 0.1))
+                }
+                if m.alarm {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 7.5))
+                        .foregroundStyle(Theme.alarm)
+                }
+            }
+            .padding(.horizontal, 3)
+            .frame(height: 11)
+        }
+    }
+
     private var header: some View {
         HStack(spacing: 5) {
             Text(content.title)
                 .font(.app(12.5, weight: .bold))
                 .lineLimit(1)
             Spacer(minLength: 0)
-            // カレンダーの切り替え(2 つ以上選んでいるときだけ)。前へ・次への左に置く
-            if let sw = content.switcher {
-                Button(intent: CycleCalendarIntent(size: "medium")) { WidgetCalendarSwitchLabel(sw: sw) }
-                    .buttonStyle(.plain)
-            }
             if offset != 0 {
                 Button(intent: ResetWeekIntent()) { WidgetBackLabel(text: "今週へ") }
                     .buttonStyle(.plain)
@@ -72,6 +102,12 @@ struct MediumWeekView: View {
                 .buttonStyle(.plain)
             Button(intent: StepWeekIntent(delta: 1)) { WidgetStepButtonLabel(systemName: "chevron.right") }
                 .buttonStyle(.plain)
+            // カレンダーの切り替え(2 つ以上選んでいるときだけ)。小と同じく、いつも右上(前へ・次への右)
+            if let sw = content.switcher {
+                Button(intent: CycleCalendarIntent(size: "medium")) { WidgetCalendarSwitchLabel(sw: sw) }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 2)
+            }
         }
         .frame(height: 22)
     }

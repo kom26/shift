@@ -9,6 +9,15 @@ struct WidgetData: Codable, Equatable {
     var medium: WidgetPrefs?
     /// ウィジェットで見る共有カレンダーの中身(アプリを開いたときに取ってくる)
     var shared: [WidgetSharedCalendar]?
+    /// 自分のプロフィール(切り替えボタンで、自分のカレンダーのアイコンに使う)。ログインしていなければ nil
+    var me: WidgetMe? = nil
+}
+
+/// 自分のプロフィール。アイコンは、写真・絵文字・頭文字(色は uid から決まる)をアプリと同じ見た目で出す
+struct WidgetMe: Codable, Equatable {
+    var uid: String
+    var name: String
+    var avatar: String
 }
 
 /// ウィジェットに渡す、共有カレンダー 1 つぶんの予定と誕生日・記念日

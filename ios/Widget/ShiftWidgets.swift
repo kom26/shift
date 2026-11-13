@@ -38,7 +38,10 @@ struct ShiftProvider: TimelineProvider {
     /// 右上の切り替えボタン。カレンダーが 1 つだけなら出さない
     static func switcher(_ prefs: WidgetPrefs, data: WidgetData?) -> WidgetCalendarSwitch? {
         guard prefs.canSwitch else { return nil }
-        guard let id = prefs.calendarId else { return WidgetCalendarSwitch(icon: nil) }
+        guard let id = prefs.calendarId else {
+            // 自分のカレンダーは、自分のプロフィールのアイコン(ログインしていなければ、カレンダーの記号)
+            return WidgetCalendarSwitch(icon: nil, me: data?.me.map { DayOwner(uid: $0.uid, name: $0.name, avatar: $0.avatar) })
+        }
         return WidgetCalendarSwitch(icon: data?.shared?.first { $0.id == id }?.icon ?? "person.2.fill")
     }
 

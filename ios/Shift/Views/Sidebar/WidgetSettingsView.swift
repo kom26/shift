@@ -7,6 +7,8 @@ struct WidgetSettingsView: View {
     @Environment(Store.self) private var store
     @Environment(CalendarService.self) private var calendarService
     @Environment(SharedViewState.self) private var sharedView
+    @Environment(AuthService.self) private var auth
+    @Environment(ProfileSettings.self) private var profile
     @Environment(\.dismiss) private var dismiss
     /// 0: 小 / 1: 中
     @State private var size = 0
@@ -95,8 +97,14 @@ struct WidgetSettingsView: View {
     /// プレビューの右上の切り替えボタン(ウィジェットと同じ)
     private var switcherForPreview: WidgetCalendarSwitch? {
         guard prefs.wrappedValue.canSwitch else { return nil }
-        guard let id = viewingPrefs.calendarId else { return WidgetCalendarSwitch(icon: nil) }
+        guard let id = viewingPrefs.calendarId else { return WidgetCalendarSwitch(icon: nil, me: me) }
         return WidgetCalendarSwitch(icon: activeCalendars.first { $0.id == id }?.icon ?? CalendarIcon.defaultName)
+    }
+
+    /// 自分のプロフィール(自分のカレンダーのアイコンに使う)。ログインしていなければ nil
+    private var me: DayOwner? {
+        guard let account = auth.account else { return nil }
+        return DayOwner(uid: account.uid, name: profile.displayName(for: account), avatar: profile.avatar)
     }
 
     private func sizeButton(_ title: String, sub: String, wide: Bool, value: Int) -> some View {
@@ -126,7 +134,12 @@ struct WidgetSettingsView: View {
                            note: ids.count > 1 ? "選んだ順(番号)に、ウィジェット右上のボタンで切り替わります。"
                                                : "2 つ以上選ぶと、ウィジェットの右上に切り替えボタンが出ます。") {
             calendarChip(id: "", name: "自分のカレンダー") {
-                Image(systemName: "calendar").font(.system(size: 13, weight: .semibold))
+                // 自分のプロフィールのアイコン(ログインしていなければ、カレンダーの記号)
+                if let me {
+                    UserAvatar(uid: me.uid, name: me.name, avatar: me.avatar, size: 18)
+                } else {
+                    Image(systemName: "calendar").font(.system(size: 13, weight: .semibold))
+                }
             }
             ForEach(activeCalendars) { cal in
                 calendarChip(id: cal.id, name: cal.name) {
@@ -208,11 +221,11 @@ struct WidgetSettingsView: View {
 
     private var itemsSection: some View {
         chipSection("表示する項目", note: itemsNote) {
+            itemChip("誕生日", \.showBirthdays)
+            itemChip("記念日", \.showAnniversaries)
+            itemChip("アラーム", \.showAlarms, scope: "自分のみ", unavailable: !includesOwn)
+            itemChip("給料日", \.showPayday, scope: "自分のみ", unavailable: !includesOwn)
             if size == 0 {
-                itemChip("誕生日", \.showBirthdays)
-                itemChip("記念日", \.showAnniversaries)
-                itemChip("アラーム", \.showAlarms, scope: "自分のみ", unavailable: !includesOwn)
-                itemChip("給料日", \.showPayday, scope: "自分のみ", unavailable: !includesOwn)
                 itemChip("共有者のアイコン", \.showOwnerIcons, scope: "共有のみ", unavailable: !includesShared)
             } else {
                 itemChip("労働時間", \.showHours, unavailable: workUnavailableReason != nil)

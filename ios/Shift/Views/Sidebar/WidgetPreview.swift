@@ -103,12 +103,21 @@ struct WidgetPreview: View {
             WeekBar(id: "5", col: 4, span: 1, lane: 1, text: "10:00-18:00", color: "#7a62d9", showsTime: true),
             WeekBar(id: "6", col: 5, span: 2, lane: 0, text: "デート", color: "#d9695f", showsTime: false),
         ]
-        return WeekContent(title: Self.title(days), days: days, dayNumbers: days.map { Rules.ymd($0).day },
-                           dayTypes: days.map { Rules.dayType($0, isHoliday: false) },
-                           todayCol: days.firstIndex(of: today), bars: bars,
-                           hours: prefs.showHours && workAvailable ? Rules.formatHours(32.5) : nil,
-                           pay: prefs.showEstimatedPay && workAvailable ? Money.yen(52_000) : nil,
-                           calendarId: prefs.calendarId)
+        var c = WeekContent(title: Self.title(days), days: days, dayNumbers: days.map { Rules.ymd($0).day },
+                            dayTypes: days.map { Rules.dayType($0, isHoliday: false) },
+                            todayCol: days.firstIndex(of: today), bars: bars,
+                            hours: prefs.showHours && workAvailable ? Rules.formatHours(32.5) : nil,
+                            pay: prefs.showEstimatedPay && workAvailable ? Money.yen(52_000) : nil,
+                            calendarId: prefs.calendarId)
+        // 曜日の両脇の印(誕生日・記念日・アラーム・給料日)。オン・オフが分かるように、別々の日に置く
+        let shared = prefs.calendarId != nil
+        var marks = Array(repeating: WeekDayMarks(), count: 7)
+        if prefs.showBirthdays { marks[1].annivs.append(DayAnnivIcon(id: "bd", asset: Anniversary.Icon.cake.asset, color: "#e8890c")) }
+        if prefs.showAnniversaries { marks[3].annivs.append(DayAnnivIcon(id: "an", asset: Anniversary.Icon.heart.asset, color: "#d9695f")) }
+        if prefs.showAlarms && !shared { marks[2].alarm = true; marks[4].alarm = true }
+        if prefs.showPayday && !shared { marks[5].payday = true }
+        c.marks = marks
+        return c
     }
 
     private static func title(_ days: [String]) -> String {

@@ -114,6 +114,8 @@ struct DayContent: Equatable {
 struct WidgetCalendarSwitch: Equatable {
     /// 共有カレンダーのアイコン(記号の名前、"記号|#色"、または "img:" + base64)。nil は自分のカレンダー
     let icon: String?
+    /// 自分のカレンダーのとき、自分のプロフィールのアイコン(なければ、カレンダーの記号)
+    var me: DayOwner? = nil
 }
 
 struct WeekBar: Identifiable, Equatable {
@@ -145,6 +147,15 @@ struct WeekContent: Equatable {
     var calendarId: String?
     /// 右上の切り替えボタン(カレンダーを 2 つ以上選んでいるときだけ)
     var switcher: WidgetCalendarSwitch?
+    /// 日ごとの印(記念日・誕生日、アラーム、給料日)。曜日の両脇に小さく出す。7 日ぶん(古い作りでは空)
+    var marks: [WeekDayMarks] = []
+}
+
+/// 中(1週間)で、曜日の両脇に出す印。左に記念日・誕生日(2 個まで)、右に給料日とアラーム
+struct WeekDayMarks: Equatable {
+    var annivs: [DayAnnivIcon] = []
+    var alarm = false
+    var payday = false
 }
 
 /// ウィジェットのタップで開く、その日の予定一覧のリンク(共有カレンダーを見ているときは、そのカレンダーで開く)
@@ -251,11 +262,22 @@ extension WidgetSource {
         let pay = totals.reduce(0) { $0 + $1.pay }
         let s = Rules.ymd(days[0]), e = Rules.ymd(days[6])
         let title = s.month == e.month ? "\(s.month)月\(s.day)日〜\(e.day)日" : "\(s.month)月\(s.day)日〜\(e.month)月\(e.day)日"
-        return WeekContent(title: title, days: days, dayNumbers: days.map { Rules.ymd($0).day },
-                           dayTypes: days.map { Rules.dayType($0, isHoliday: isHoliday($0)) },
-                           todayCol: days.firstIndex(of: today), bars: bars,
-                           hours: prefs.showHours && canShowWork ? Rules.formatHours(hours) : nil,
-                           pay: prefs.showEstimatedPay && canShowWork ? Money.yen(pay) : nil,
-                           calendarId: prefs.calendarId)
+        // 日ごとの印。アラームは自分のカレンダーだけ(共有カレンダーでは alarms が空)
+        let marks = days.map { d -> WeekDayMarks in
+            let annivs = store.anniversaries(on: d)
+                .filter { $0.kind == .birthday ? prefs.showBirthdays : prefs.showAnniversaries }
+                .prefix(2).map { DayAnnivIcon(id: $0.id, asset: $0.icon.asset, color: $0.color) }
+            return WeekDayMarks(annivs: Array(annivs),
+                                alarm: prefs.showAlarms && alarms.contains { $0.date == d },
+                                payday: prefs.showPayday && !store.daySummary(date: d, isHoliday: isHoliday).paydays.isEmpty)
+        }
+        var content = WeekContent(title: title, days: days, dayNumbers: days.map { Rules.ymd($0).day },
+                                  dayTypes: days.map { Rules.dayType($0, isHoliday: isHoliday($0)) },
+                                  todayCol: days.firstIndex(of: today), bars: bars,
+                                  hours: prefs.showHours && canShowWork ? Rules.formatHours(hours) : nil,
+                                  pay: prefs.showEstimatedPay && canShowWork ? Money.yen(pay) : nil,
+                                  calendarId: prefs.calendarId)
+        content.marks = marks
+        return content
     }
 }
