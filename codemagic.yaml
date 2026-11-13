@@ -66,8 +66,11 @@ workflows:
       - name: Add certificates to keychain
         script: keychain add-certificates
       - name: Set build number
+        # ビルド番号は、タグの数字にそろえる(testflight-v3-75 なら 75)。Codemagic の通し番号は使わない
         script: |
-          sed -i '' "s/CURRENT_PROJECT_VERSION: \".*\"/CURRENT_PROJECT_VERSION: \"$BUILD_NUMBER\"/" ios/project.yml
+          NUM=$(echo "${CM_TAG:-}" | sed -nE 's/^testflight-v[0-9]+-([0-9]+)$/\1/p')
+          if [ -z "$NUM" ]; then echo "タグ(testflight-vX-番号)からビルド番号を取れません: '${CM_TAG:-}'"; exit 1; fi
+          sed -i '' "s/CURRENT_PROJECT_VERSION: \".*\"/CURRENT_PROJECT_VERSION: \"$NUM\"/" ios/project.yml
           grep CURRENT_PROJECT_VERSION ios/project.yml
       - name: Generate Xcode project
         script: cd ios && xcodegen generate
