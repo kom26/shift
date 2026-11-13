@@ -32,10 +32,11 @@ struct MediumWeekView: View {
                                     .font(.app(12, weight: content.todayCol == i ? .heavy : .semibold).monospacedDigit())
                                     .foregroundStyle(content.todayCol == i ? Theme.accent
                                                      : (content.dayTypes[i] == .normal ? Color.primary : content.dayTypes[i].color))
+                                    // 日付の左にアラーム、右に給料日
+                                    .overlay(alignment: .leading) { alarmMark(i) }
+                                    .overlay(alignment: .trailing) { paydayMark(i) }
                             }
                             .frame(width: colW)
-                            // 曜日の行の右に、その日の印(アラーム、右上の角に給料日。アプリのカレンダーと同じ並び)
-                            .overlay(alignment: .top) { dayMarks(i) }
                         }
                     }
                     bars(colW: colW)
@@ -57,32 +58,33 @@ struct MediumWeekView: View {
         (Rules.weekday(content.days[0]) + i) % 7
     }
 
+    /// 日付の左に出す、アラームのベル(日付から 2pt 離す)
     @ViewBuilder
-    private func dayMarks(_ i: Int) -> some View {
-        if i < content.marks.count {
-            let m = content.marks[i]
-            HStack(spacing: 1) {
-                Spacer(minLength: 0)
-                if m.alarm {
-                    Image(systemName: "bell.fill")
-                        .font(.system(size: 7.5))
-                        .foregroundStyle(Theme.alarm)
-                }
-                if m.payday {
-                    Image("CoinStack")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 8, height: 8)
-                        .foregroundStyle(Color(red: 0.95, green: 0.7, blue: 0.1))
-                }
-            }
-            .padding(.horizontal, 3)
-            .frame(height: 11)
+    private func alarmMark(_ i: Int) -> some View {
+        if i < content.marks.count, content.marks[i].alarm {
+            Image(systemName: "bell.fill")
+                .font(.system(size: 7.5))
+                .foregroundStyle(Theme.alarm)
+                .fixedSize()
+                .alignmentGuide(.leading) { d in d[.trailing] + 2 }
         }
     }
 
-    /// 日の列の右下に、記念日・誕生日のアイコンを右詰めで並べる(2 個まで)
+    /// 日付の右に出す、給料日のコイン(日付から 2pt 離す)
+    @ViewBuilder
+    private func paydayMark(_ i: Int) -> some View {
+        if i < content.marks.count, content.marks[i].payday {
+            Image("CoinStack")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 8, height: 8)
+                .foregroundStyle(Color(red: 0.95, green: 0.7, blue: 0.1))
+                .alignmentGuide(.trailing) { d in d[.leading] - 2 }
+        }
+    }
+
+    /// 日の列の右下に、記念日・誕生日のアイコンを右詰めで並べる(2 個まで。3 個目からは「+n」)
     private func annivMarks(colW: CGFloat, height: CGFloat) -> some View {
         HStack(spacing: 0) {
             ForEach(0..<7, id: \.self) { i in
@@ -95,6 +97,11 @@ struct MediumWeekView: View {
                                 .scaledToFit()
                                 .frame(width: 8, height: 8)
                                 .foregroundStyle(Color(hex: a.color))
+                        }
+                        if content.marks[i].annivMore > 0 {
+                            Text("+\(content.marks[i].annivMore)")
+                                .font(.app(7.5, weight: .bold))
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }

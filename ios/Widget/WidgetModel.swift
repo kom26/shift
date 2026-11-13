@@ -156,9 +156,11 @@ struct WeekContent: Equatable {
     var more: [Int] = []
 }
 
-/// 中(1週間)で出す、日ごとの印。曜日の行の右にアラームと給料日(右上の角)、日の列の右下に記念日・誕生日(2 個まで)
+/// 中(1週間)で出す、日ごとの印。日付の左にアラーム、右に給料日、日の列の右下に記念日・誕生日(2 個まで、3 個目からは「+n」)
 struct WeekDayMarks: Equatable {
     var annivs: [DayAnnivIcon] = []
+    /// 出しきれなかった記念日・誕生日の数(「+n」)
+    var annivMore = 0
     var alarm = false
     var payday = false
 }
@@ -280,10 +282,10 @@ extension WidgetSource {
         let title = s.month == e.month ? "\(s.month)月\(s.day)日〜\(e.day)日" : "\(s.month)月\(s.day)日〜\(e.month)月\(e.day)日"
         // 日ごとの印。アラームは自分のカレンダーだけ(共有カレンダーでは alarms が空)
         let marks = days.map { d -> WeekDayMarks in
-            let annivs = store.anniversaries(on: d)
+            let all = store.anniversaries(on: d)
                 .filter { $0.kind == .birthday ? prefs.showBirthdays : prefs.showAnniversaries }
-                .prefix(2).map { DayAnnivIcon(id: $0.id, asset: $0.icon.asset, color: $0.color) }
-            return WeekDayMarks(annivs: Array(annivs),
+            let annivs = all.prefix(2).map { DayAnnivIcon(id: $0.id, asset: $0.icon.asset, color: $0.color) }
+            return WeekDayMarks(annivs: Array(annivs), annivMore: max(0, all.count - 2),
                                 alarm: prefs.showAlarms && alarms.contains { $0.date == d },
                                 payday: prefs.showPayday && !store.daySummary(date: d, isHoliday: isHoliday).paydays.isEmpty)
         }
