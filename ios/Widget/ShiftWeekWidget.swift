@@ -136,6 +136,18 @@ struct MediumWeekView: View {
         let size = min(9, FixedWidthTime.fitSize(width: colW - 2 - 4))
         return ZStack(alignment: .topLeading) {
             ForEach(content.bars.filter(\.link)) { b in linkBar(b, colW: colW, size: size) }
+            // 5 件以上ある日は、4 段目に「ほか○件」
+            ForEach(Array(content.more.enumerated()), id: \.offset) { col, n in
+                if n > 0 {
+                    Text("ほか\(n)件")
+                        .font(.app(min(9, size), weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(width: max(0, colW - 2), height: barH)
+                        .offset(x: colW * CGFloat(col) + 1, y: CGFloat(WeekContent.maxLanes - 1) * (barH + laneGap))
+                }
+            }
             ForEach(content.bars.filter { !$0.link }) { b in
                 Group {
                     if b.showsTime {

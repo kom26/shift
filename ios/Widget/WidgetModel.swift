@@ -135,6 +135,9 @@ struct WeekBar: Identifiable, Equatable {
 }
 
 struct WeekContent: Equatable {
+    /// 予定のバーを並べる段の数(1 日に 5 件以上ある日は、3 段まで出して、4 段目に「ほか○件」)
+    static let maxLanes = 4
+
     let title: String
     let days: [String]
     let dayNumbers: [Int]
@@ -149,6 +152,8 @@ struct WeekContent: Equatable {
     var switcher: WidgetCalendarSwitch?
     /// 日ごとの印(記念日・誕生日、アラーム、給料日)。曜日の両脇に小さく出す。7 日ぶん(古い作りでは空)
     var marks: [WeekDayMarks] = []
+    /// 日ごとの、出しきれなかった予定の数(「ほか○件」を、4 段目に出す)。7 日ぶん(0 なら出さない)
+    var more: [Int] = []
 }
 
 /// 中(1週間)で、曜日の両脇に出す印。左に記念日・誕生日(2 個まで)、右に給料日とアラーム
@@ -243,9 +248,20 @@ extension WidgetSource {
         // 開始・締切も、バーとして並べる(自分のカレンダーだけ)
         let taskBars = sharedCal != nil ? [] : store.taskMarkers(linked: true)
         let rows = SpanLayout.rows(events: store.visibleEvents + taskBars, weekCells: days.map { Optional($0) })
+        // 1 日に 4 件までは、4 段で全部出す。5 件以上ある日は、3 段まで出して、4 段目に「ほか○件」を出す
+        let maxLanes = WeekContent.maxLanes
+        var total = Array(repeating: 0, count: 7)
+        for row in rows { for s in row { for c in s.col..<min(7, s.col + s.span) { total[c] += 1 } } }
+        var shown = Array(repeating: 0, count: 7)
+        var lastLaneUsed = Array(repeating: false, count: 7)
         var bars: [WeekBar] = []
-        for (lane, row) in rows.enumerated() where lane < 3 {
+        for (lane, row) in rows.enumerated() where lane < maxLanes {
             for s in row {
+                let cols = s.col..<min(7, s.col + s.span)
+                // 4 段目は、「ほか○件」を出す日にかかるなら、出さない(その日の「ほか」に数える)
+                if lane == maxLanes - 1, cols.contains(where: { total[$0] > maxLanes }) { continue }
+                cols.forEach { shown[$0] += 1 }
+                if lane == maxLanes - 1 { cols.forEach { lastLaneUsed[$0] = true } }
                 let ev = s.event
                 let mark = ev.taskMarker
                 // 開始・締切は、カレンダーと同じ矢印形のタグで、タイトルを出す
@@ -278,6 +294,8 @@ extension WidgetSource {
                                   pay: prefs.showEstimatedPay && canShowWork ? Money.yen(pay) : nil,
                                   calendarId: prefs.calendarId)
         content.marks = marks
+        // 4 段目が空いている日だけ、出しきれなかった数を「ほか○件」で出す
+        content.more = (0..<7).map { lastLaneUsed[$0] ? 0 : max(0, total[$0] - shown[$0]) }
         return content
     }
 }
