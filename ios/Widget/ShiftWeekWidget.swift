@@ -64,7 +64,7 @@ struct MediumWeekView: View {
     private func alarmMark(_ i: Int) -> some View {
         if i < content.marks.count, content.marks[i].alarm {
             Image(systemName: "bell.fill")
-                .font(.system(size: 7.5))
+                .font(.system(size: 9))
                 .foregroundStyle(Theme.alarm)
                 .fixedSize()
                 .alignmentGuide(.leading) { d in d[.trailing] + 2 }
