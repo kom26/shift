@@ -38,6 +38,8 @@ struct WidgetPreview: View {
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
             .allowsHitTesting(false)
+            // ウィジェットと同じく、端末の文字の大きさの設定に左右されないようにする
+            .dynamicTypeSize(.large)
     }
 
     @ViewBuilder

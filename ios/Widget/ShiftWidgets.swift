@@ -75,10 +75,15 @@ struct ShiftWidgetView: View {
     let entry: ShiftEntry
 
     var body: some View {
-        switch family {
-        case .systemMedium: MediumWeekView(content: entry.week, offset: entry.weekOffset)
-        default: SmallDayView(content: entry.day, offset: entry.dayOffset)
+        Group {
+            switch family {
+            case .systemMedium: MediumWeekView(content: entry.week, offset: entry.weekOffset)
+            default: SmallDayView(content: entry.day, offset: entry.dayOffset)
+            }
         }
+        // 端末の「文字を大きく」に合わせて文字だけが大きくなると、決まった大きさの枠からはみ出して崩れるので、
+        // ウィジェットの中は、いつも標準の文字の大きさで描く(バーの丸ゴシックは Font.custom で、文字の設定に合わせて大きくなるため)
+        .dynamicTypeSize(.large)
     }
 }
 

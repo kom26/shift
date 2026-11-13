@@ -76,6 +76,8 @@ struct SmallDayView: View {
                         .foregroundStyle(content.weekdayType.color)
                 }
                 .lineLimit(1)
+                // 端末の「拡大表示」でウィジェットが狭くなっても、切れずに少し縮めて収める
+                .minimumScaleFactor(0.75)
                 if !content.annivs.isEmpty {
                     HStack(spacing: 2) {
                         ForEach(content.annivs.prefix(2)) { a in
@@ -120,7 +122,6 @@ struct SmallDayView: View {
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
                         .background(RoundedRectangle(cornerRadius: 5).fill(Theme.payFill))
-                        .fixedSize()
                     }
                     if let a = content.alarm {
                         // ベルと時刻だけを角丸の四角で囲み、「+2」は囲みの外に出す(カレンダーと同じベル bell.fill)
@@ -145,6 +146,8 @@ struct SmallDayView: View {
                     }
                     Spacer(minLength: 0)
                 }
+                // 狭いときは、給料日・アラームの文字を少し縮めて収める
+                .minimumScaleFactor(0.75)
                 .padding(.top, 3)
             }
         }
