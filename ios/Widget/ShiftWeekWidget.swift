@@ -9,6 +9,8 @@ struct MediumWeekView: View {
     private let barH: CGFloat = 15
     private let laneGap: CGFloat = 2
     private let sidePad: CGFloat = 12
+    /// 曜日・日付・予定のバーを、まとめて下へずらす量
+    static let gridY: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,6 +49,8 @@ struct MediumWeekView: View {
                     dayLinks(colW: colW, height: geo.size.height)
                 }
             }
+            // 曜日・日付・予定のバーを、まとめて下へずらす量(見出しとの間)
+            .offset(y: Self.gridY)
             footer
         }
         .padding(.horizontal, sidePad)
@@ -79,7 +83,7 @@ struct MediumWeekView: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 8, height: 8)
+                .frame(width: 9, height: 9)
                 .foregroundStyle(Color(red: 0.95, green: 0.7, blue: 0.1))
                 .alignmentGuide(.trailing) { d in d[.leading] - 2 }
         }
@@ -154,6 +158,9 @@ struct MediumWeekView: View {
             }
             .monospacedDigit()
             .frame(height: 14)
+            // 全体の左右の余白より、少し内側に寄せ、少し下げる
+            .padding(.horizontal, 7)
+            .offset(y: 3.5)
         }
     }
 
