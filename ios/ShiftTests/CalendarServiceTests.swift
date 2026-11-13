@@ -702,4 +702,23 @@ struct MemberColorTests {
         view.setColor(nil, for: groups)
         #expect(view.overrides.isEmpty)
     }
+
+    @Test func myOwnSharedItemsCanBeRecoloredOnTheSharedCalendar() async throws {
+        let service = CalendarService(backing: FakeCalendars())
+        await service.start(uid: "me")
+        let made = try #require(await service.create(NewCalendar(name: "家族", displayName: "わたし", kind: .mutual,
+                                                                  requireApproval: false, sharedKeys: [])))
+        let backing = RecordingEvents()
+        backing.docs[made.calendar.id] = [item("me_1", owner: "me", key: "w:cafe", date: "2026-11-10", color: "#111111"),
+                                          item("you_1", owner: "you", key: "w:a", date: "2026-11-10", color: "#222222")]
+        let view = SharedViewState(events: backing, calendars: service, defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        await view.open(made.calendar)
+
+        let mine = view.colorGroups(ownerUid: "me")
+        #expect(mine.count == 1)
+        #expect(mine.first?.sample.name == "職場A")
+        view.setColor("#333333", for: mine)
+        #expect(view.store?.events.first { $0.id == "me_1" }?.color == "#333333")
+        #expect(view.store?.events.first { $0.id == "you_1" }?.color == "#222222")
+    }
 }
