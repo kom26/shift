@@ -9,6 +9,9 @@ struct WorkplaceEditor: View {
 
     @State private var name: String
     @State private var color: String
+    /// 給与の単価。先頭が「最初」、そのあとに改定が日付の昇順
+    @State private var rates: [PayRate]
+    /// 下の 4 つは「今日の時点」の単価の入力欄
     @State private var wage: String
     @State private var transport: String
     @State private var bonus: [String]
@@ -22,19 +25,30 @@ struct WorkplaceEditor: View {
     @State private var isDaily: Bool
     @State private var dailyMonthly: Bool
     @State private var confirmApply = false
+    /// 単価を変えて保存したときの「いつからの設定ですか?」
+    @State private var askRateDate = false
+    /// 「これまでの予定」のうち、入力ミスを直すと給与が変わる数
+    @State private var pastCount = 0
+    /// 「日付を選ぶ」で開く改定の画面
+    @State private var pickingRate: RateEditTarget?
+    /// 改定の画面で追加したら、閉じたあとに保存を続ける
+    @State private var continueSave = false
     @FocusState private var focus: String?
 
-    private static let dayLabels = ["日", "月", "火", "水", "木", "金", "土"]
+    private let today = Rules.today()
 
     init(workplace: Workplace?) {
         self.workplace = workplace
         _name = State(initialValue: workplace?.name ?? "")
         _color = State(initialValue: workplace?.color ?? Store.defaultColors[1])
-        _wage = State(initialValue: Self.text(workplace?.hourlyWage))
-        _transport = State(initialValue: Self.text(workplace?.transport))
-        let b = workplace?.weekdayBonus ?? []
-        _bonus = State(initialValue: (0..<7).map { Self.text($0 < b.count ? b[$0] : 0) })
-        _holidayBonus = State(initialValue: Self.text(workplace?.holidayBonus))
+        let rates = workplace?.payRates
+            ?? [PayRate(id: "base", from: "", hourlyWage: 0, transport: 0, weekdayBonus: [], holidayBonus: 0)]
+        _rates = State(initialValue: rates)
+        let r = rates.last(where: { $0.from <= Rules.today() }) ?? rates[0]
+        _wage = State(initialValue: Self.text(r.hourlyWage))
+        _transport = State(initialValue: Self.text(r.transport))
+        _bonus = State(initialValue: (0..<7).map { Self.text($0 < r.weekdayBonus.count ? r.weekdayBonus[$0] : 0) })
+        _holidayBonus = State(initialValue: Self.text(r.holidayBonus))
         _rules = State(initialValue: (workplace?.breakRules ?? []).map { BreakRuleDraft(rule: $0) })
         _breakFromNight = State(initialValue: workplace?.breakFromNight ?? true)
         _closingDay = State(initialValue: workplace?.closingDay ?? 0)
@@ -44,9 +58,6 @@ struct WorkplaceEditor: View {
         _isDaily = State(initialValue: workplace?.isDaily ?? false)
         _dailyMonthly = State(initialValue: workplace?.dailyPaidMonthly ?? false)
     }
-
-    /// 締め日・給料日の設定を出すか(時給、または月払いの日給)
-    private var usesCycle: Bool { !isDaily || dailyMonthly }
 
     private static func text(_ v: Int?) -> String {
         guard let v, v > 0 else { return "" }
@@ -63,34 +74,65 @@ struct WorkplaceEditor: View {
         return trimmed != workplace.name || color != workplace.color
     }
 
-    /// 数字だけを受け付ける(負数・小数なし)
-    private func digits(_ text: Binding<String>) -> Binding<String> {
-        Binding(
-            get: { text.wrappedValue },
-            set: { text.wrappedValue = String($0.filter { $0.isASCII && $0.isNumber }.prefix(7)) }
-        )
+    // MARK: 単価
+
+    /// 今日の時点で使っている単価の位置
+    private var todayIndex: Int { rates.lastIndex(where: { $0.from <= today }) ?? 0 }
+    private var currentRate: PayRate { rates[todayIndex] }
+
+    /// 入力欄の単価(id・日付は今日の時点のもの)
+    private var draftRate: PayRate {
+        var r = currentRate
+        r.hourlyWage = Int(wage) ?? 0
+        r.transport = Int(transport) ?? 0
+        r.weekdayBonus = Workplace.normalizedBonus(bonus.map { Int($0) ?? 0 })
+        r.holidayBonus = Int(holidayBonus) ?? 0
+        return r
     }
 
-    private func moneyRow(_ label: String, _ text: Binding<String>, key: String, unit: String = "円") -> some View {
-        HStack {
-            Text(label)
-            Spacer()
-            TextField("0", text: digits(text))
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 100)
-                .focused($focus, equals: key)
-            Text(unit).foregroundStyle(.secondary)
-        }
+    private var rateEdited: Bool { !draftRate.sameAmounts(currentRate) }
+
+    /// 入力欄を、今日の時点の単価にそろえる(履歴の画面で直したあと)
+    private func syncFieldsFromRates() {
+        let r = currentRate
+        wage = Self.text(r.hourlyWage)
+        transport = Self.text(r.transport)
+        bonus = (0..<7).map { Self.text($0 < r.weekdayBonus.count ? r.weekdayBonus[$0] : 0) }
+        holidayBonus = Self.text(r.holidayBonus)
     }
 
-    @ViewBuilder
-    private var dayOptions: some View {
-        Text("末日").tag(0)
-        ForEach(1...31, id: \.self) { d in
-            Text("\(d)日").tag(d)
-        }
+    /// 今日の時点の区切りの、始まりの文言(「最初から」または「2026年10月1日から」)
+    private var currentFromLabel: String {
+        currentRate.from.isEmpty ? "最初から" : WorkplaceSummary.date(currentRate.from) + "から"
     }
+
+    /// 確認に出す、何を変えたかの文
+    private var rateChangeMessage: String {
+        let a = currentRate, b = draftRate
+        var head: String
+        if a.hourlyWage != b.hourlyWage {
+            head = "基本時給を \(WorkplaceSummary.yen(a.hourlyWage)) から \(WorkplaceSummary.yen(b.hourlyWage)) に変えました。"
+        } else {
+            var items: [String] = []
+            if a.transport != b.transport { items.append("交通費") }
+            if a.weekdayBonus != b.weekdayBonus || a.holidayBonus != b.holidayBonus { items.append("曜日・祝日加給") }
+            head = items.joined(separator: "・") + "を変えました。"
+        }
+        head += "入力ミスを直すときは、これまでの予定 \(pastCount)件の給与も変わります"
+        return head
+    }
+
+    /// 先の日付の改定(いちばん近いもの)の文言
+    private var upcomingText: String? {
+        guard let next = rates.first(where: { $0.from > today }) else { return nil }
+        let prev = rates.last(where: { $0.from < next.from }) ?? rates[0]
+        if next.hourlyWage != prev.hourlyWage {
+            return "\(WorkplaceSummary.date(next.from))から \(WorkplaceSummary.yen(next.hourlyWage))に変わります"
+        }
+        return "\(WorkplaceSummary.date(next.from))から 設定が変わります"
+    }
+
+    // MARK: 画面
 
     var body: some View {
         NavigationStack {
@@ -102,11 +144,11 @@ struct WorkplaceEditor: View {
                 Section("色") {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
-                        ForEach(Store.defaultColors, id: \.self) { c in
-                            ColorDot(hex: c, size: 24)
-                                .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
-                                .onTapGesture { color = c }
-                        }
+                            ForEach(Store.defaultColors, id: \.self) { c in
+                                ColorDot(hex: c, size: 24)
+                                    .overlay(Circle().stroke(Color.primary, lineWidth: color == c ? 2 : 0).padding(-3))
+                                    .onTapGesture { color = c }
+                            }
                         }
                         .padding(.horizontal, 5)
                         .padding(.vertical, 5)
@@ -120,84 +162,60 @@ struct WorkplaceEditor: View {
                             .font(.app(12))
                             .foregroundStyle(.secondary)
                     } else {
-                        moneyRow("基本時給", $wage, key: "wage")
-                        moneyRow("交通費(片道)", $transport, key: "transport")
-                        Text("1予定ごとに往復(×2)で計算します")
-                            .font(.app(12))
-                            .foregroundStyle(.secondary)
+                        MoneyRow(label: "基本時給", text: $wage, focus: $focus, key: "wage")
+                        MoneyRow(label: "交通費(片道)", text: $transport, focus: $focus, key: "transport")
+                        NavigationLink {
+                            BonusPage(bonus: $bonus, holidayBonus: $holidayBonus)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("曜日・祝日加給")
+                                Text(WorkplaceSummary.bonus(weekday: bonus.map { Int($0) ?? 0 },
+                                                            holiday: Int(holidayBonus) ?? 0))
+                                    .font(.app(13))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        NavigationLink {
+                            WageHistoryPage(rates: $rates, today: today)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("給与の履歴")
+                                    if let upcomingText {
+                                        Text(upcomingText)
+                                            .font(.app(13))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Text("\(rates.count)件")
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 } header: {
                     Text("給与")
-                }
-                if !isDaily {
-                Section("曜日別の加給(円/時)") {
-                    ForEach(0..<7, id: \.self) { i in
-                        moneyRow(Self.dayLabels[i] + "曜日", $bonus[i], key: "bonus\(i)", unit: "円/時")
+                } footer: {
+                    if !isDaily {
+                        Text("交通費は1予定ごとに往復(×2)で計算します")
                     }
                 }
-                Section("祝日の加給") {
-                    moneyRow("祝日", $holidayBonus, key: "holiday", unit: "円/時")
-                }
-                Section {
-                    ForEach($rules) { $rule in
-                        BreakRuleRow(rule: $rule, focus: $focus) {
-                            rules.removeAll { $0.id == rule.id }
+                Section("勤務と支払い") {
+                    if !isDaily {
+                        NavigationLink {
+                            BreakPage(rules: $rules, breakFromNight: $breakFromNight)
+                        } label: {
+                            LabeledContent("休憩", value: WorkplaceSummary.breaks(BreakRuleDraft.clean(rules)))
                         }
                     }
-                    .onDelete { rules.remove(atOffsets: $0) }
-                    Button("＋ 独自の休憩ルールを追加") {
-                        rules.append(BreakRuleDraft())
-                    }
-                    if BreakRuleDraft.hasDuplicateThreshold(rules) {
-                        Label("時間(しきい値)が同じルールがあります。一番下の行が使われます", systemImage: "exclamationmark.triangle")
-                            .font(.app(12))
-                            .foregroundStyle(Color.orange)
-                    }
-                    if rules.isEmpty {
-                        Text("設定がなければ法定(6時間超45分、8時間超60分)")
-                            .font(.app(12))
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text("独自の休憩ルール")
-                }
-                }
-                Section {
-                    if isDaily {
-                        TwoWayPicker("支払い", selection: $dailyMonthly, first: ("日払い", false), second: ("月払い", true))
-                    }
-                    if usesCycle {
-                        Picker("締め日", selection: $closingDay) {
-                            dayOptions
-                        }
-                        .pickerStyle(.menu)
-                        Toggle("給料日を設定する", isOn: $paydayOn)
-                        if paydayOn {
-                            Picker("支払い月", selection: $paydayOffset) {
-                                Text("当月").tag(0)
-                                Text("翌月").tag(1)
-                                Text("翌々月").tag(2)
-                            }
-                            .pickerStyle(.menu)
-                            Picker("給料日", selection: $paydayDay) {
-                                dayOptions
-                            }
-                            .pickerStyle(.menu)
-                        }
-                        Text("例: 末日締め・翌月25日払い")
-                            .font(.app(12))
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text("給料日")
-                }
-                if !isDaily {
-                    Section("休憩を引く時間帯の既定") {
-                        Picker("休憩を引く時間帯", selection: $breakFromNight) {
-                            Text("深夜帯から引く").tag(true)
-                            Text("深夜帯以外から引く").tag(false)
-                        }
-                        .pickerStyle(.menu)
+                    NavigationLink {
+                        PaydayPage(isDaily: isDaily, dailyMonthly: $dailyMonthly, closingDay: $closingDay,
+                                   paydayOn: $paydayOn, paydayDay: $paydayDay, paydayOffset: $paydayOffset)
+                    } label: {
+                        LabeledContent("給料日", value: WorkplaceSummary.payday(
+                            isDaily: isDaily, dailyMonthly: dailyMonthly, closingDay: closingDay,
+                            paydayDay: paydayOn ? paydayDay : nil, offset: paydayOffset))
                     }
                 }
             }
@@ -211,6 +229,40 @@ struct WorkplaceEditor: View {
                 }
             }
             .keyboardDismissBar { focus = nil }
+            .onChange(of: rates) { syncFieldsFromRates() }
+            .confirmationDialog("いつからの設定ですか?", isPresented: $askRateDate, titleVisibility: .visible) {
+                Button("今日(\(WorkplaceSummary.monthDay(today)))から") {
+                    var r = draftRate
+                    r.id = UUID().uuidString
+                    r.from = today
+                    rates = PayRate.upsert(r, into: rates)
+                    finishSaveAfterDialog()
+                }
+                Button("日付を選ぶ") {
+                    var r = draftRate
+                    r.id = UUID().uuidString
+                    r.from = today
+                    pickingRate = RateEditTarget(rate: r, isNew: true)
+                }
+                Button("\(currentFromLabel)(入力ミスを直す)") {
+                    overwriteCurrentRate()
+                    finishSaveAfterDialog()
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text(rateChangeMessage)
+            }
+            .sheet(item: $pickingRate, onDismiss: {
+                if continueSave {
+                    continueSave = false
+                    finishSave()
+                }
+            }) { target in
+                RateEditSheet(target: target, existing: rates) { saved in
+                    rates = PayRate.upsert(saved, into: rates)
+                    continueSave = true
+                }
+            }
             .confirmationDialog(
                 "タイトルが『\(workplace?.name ?? "")』の予定 \(affectedCount) 件にも変更を反映しますか?",
                 isPresented: $confirmApply, titleVisibility: .visible
@@ -223,8 +275,30 @@ struct WorkplaceEditor: View {
         .presentationDetents([.large])
     }
 
+    // MARK: 保存
+
     private func save() {
         focus = nil
+        if let workplace, !isDaily, rateEdited {
+            // 今日の時点の区切りに入る、今日より前の予定があれば、いつからの設定か聞く
+            let from = currentRate.from.isEmpty ? nil : currentRate.from
+            pastCount = store.eventCount(forWorkplace: workplace.id, from: from, through: Rules.addDays(today, -1))
+            if pastCount > 0 {
+                askRateDate = true
+                return
+            }
+        }
+        overwriteCurrentRate()
+        finishSave()
+    }
+
+    /// 入力欄の単価で、今日の時点の区切りを書き換える
+    private func overwriteCurrentRate() {
+        guard rateEdited else { return }
+        rates[todayIndex] = draftRate
+    }
+
+    private func finishSave() {
         if workplace != nil, changed, affectedCount >= 1 {
             confirmApply = true
         } else {
@@ -232,19 +306,26 @@ struct WorkplaceEditor: View {
         }
     }
 
+    /// 確認が閉じきる前に次の確認を出すと出ないことがあるので、少し待ってから続ける
+    private func finishSaveAfterDialog() {
+        if workplace != nil, changed, affectedCount >= 1 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { confirmApply = true }
+        } else {
+            commit(applyToEvents: false)
+        }
+    }
+
     private func built(id: String) -> Workplace {
-        Workplace(id: id, name: trimmed, color: color,
-                  hourlyWage: Int(wage) ?? 0,
-                  transport: Int(transport) ?? 0,
-                  weekdayBonus: bonus.map { Int($0) ?? 0 },
-                  holidayBonus: Int(holidayBonus) ?? 0,
-                  breakRules: BreakRuleDraft.clean(rules),
-                  breakFromNight: breakFromNight,
-                  closingDay: closingDay,
-                  paydayDay: (paydayOn && usesCycle) ? paydayDay : nil,
-                  paydayMonthOffset: paydayOffset,
-                  payType: isDaily ? .daily : .hourly,
-                  dailyPaidMonthly: isDaily && dailyMonthly)
+        var w = Workplace(id: id, name: trimmed, color: color,
+                          breakRules: BreakRuleDraft.clean(rules),
+                          breakFromNight: breakFromNight,
+                          closingDay: closingDay,
+                          paydayDay: (paydayOn && (!isDaily || dailyMonthly)) ? paydayDay : nil,
+                          paydayMonthOffset: paydayOffset,
+                          payType: isDaily ? .daily : .hourly,
+                          dailyPaidMonthly: isDaily && dailyMonthly)
+        w.payRates = rates
+        return w
     }
 
     private func commit(applyToEvents: Bool) {
@@ -255,53 +336,5 @@ struct WorkplaceEditor: View {
             store.addWorkplace(built(id: UUID().uuidString))
         }
         dismiss()
-    }
-}
-
-private struct BreakRuleRow: View {
-    @Binding var rule: BreakRuleDraft
-    var focus: FocusState<String?>.Binding
-    let onDelete: () -> Void
-
-    var body: some View {
-        HStack(spacing: 4) {
-            TextField("0", text: Binding(
-                get: { rule.hours },
-                set: { input in
-                    var seenDot = false
-                    let cleaned = input.filter { ch in
-                        if ch == "." && !seenDot { seenDot = true; return true }
-                        return ch.isASCII && ch.isNumber
-                    }
-                    rule.hours = String(cleaned.prefix(5))
-                }))
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 40)
-                .focused(focus, equals: "rule-h-" + rule.id)
-            Text("時間").lineLimit(1).fixedSize()
-            Picker("条件", selection: $rule.comparison) {
-                Text("以上").tag(BreakComparison.atLeast)
-                Text("を超える").tag(BreakComparison.over)
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .fixedSize()
-            Spacer(minLength: 0)
-            TextField("0", text: Binding(
-                get: { rule.minutes },
-                set: { input in
-                    rule.minutes = String(input.filter { $0.isASCII && $0.isNumber }.prefix(3))
-                }))
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 34)
-                .focused(focus, equals: "rule-m-" + rule.id)
-            Text("分").lineLimit(1).fixedSize()
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash")
-            }
-            .buttonStyle(.borderless)
-        }
     }
 }

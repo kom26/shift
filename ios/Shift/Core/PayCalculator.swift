@@ -70,11 +70,14 @@ enum PayCalculator {
                                 total: Double(wage), netMinutes: span, nightMinutes: 0, overtimeMinutes: 0)
         }
 
+        // 時給・交通費・加給は、予定の開始日の時点の設定を使う(途中の昇給で過去が変わらないように)
+        let w = workplace.resolved(on: event.startDate)
+
         let brk: Int
         if let wh = event.workHours {
             brk = max(0, Int((Double(span) - wh * 60).rounded()))
         } else {
-            brk = BreakRules.minutes(span: span, rules: workplace.breakRules)
+            brk = BreakRules.minutes(span: span, rules: w.breakRules)
         }
         let net = span - brk
         guard net > 0 else { return nil }
@@ -82,7 +85,7 @@ enum PayCalculator {
         let n = nightOverlap(start: s, span: span)
         let d = span - n
 
-        let fromNight = event.breakInNight ?? workplace.breakFromNight
+        let fromNight = event.breakInNight ?? w.breakFromNight
         let nn: Int
         if fromNight {
             let takeN = min(brk, n)
@@ -93,12 +96,12 @@ enum PayCalculator {
         }
 
         let overtime = max(0, net - 480)
-        let wage = Double(workplace.hourlyWage)
+        let wage = Double(w.hourlyWage)
         let bonusRate: Int
         if isHoliday {
-            bonusRate = workplace.holidayBonus
-        } else if let sd = event.startDate, workplace.weekdayBonus.count == 7 {
-            bonusRate = workplace.weekdayBonus[Rules.weekday(sd)]
+            bonusRate = w.holidayBonus
+        } else if let sd = event.startDate, w.weekdayBonus.count == 7 {
+            bonusRate = w.weekdayBonus[Rules.weekday(sd)]
         } else {
             bonusRate = 0
         }
@@ -107,7 +110,7 @@ enum PayCalculator {
         let night = Double(nn) / 60 * wage * 0.25
         let ot = Double(overtime) / 60 * wage * 0.25
         let bonus = Double(net) / 60 * Double(bonusRate)
-        let transport = Double(workplace.transport) * 2  // 片道 × 2(往復)
+        let transport = Double(w.transport) * 2  // 片道 × 2(往復)
         let adjustment = Double(event.adjustment ?? 0)
         return PayBreakdown(base: base, night: night, overtime: ot, bonus: bonus, transport: transport,
                             total: base + night + ot + bonus + transport + adjustment,

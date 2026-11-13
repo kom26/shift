@@ -638,6 +638,16 @@ final class Store {
         return events.filter { $0.workplaceId == id && $0.title == name }.count
     }
 
+    /// 職場の予定のうち、開始日が from...through(nil は端なし)に入る数
+    func eventCount(forWorkplace id: String, from: String?, through: String?) -> Int {
+        events.filter { ev in
+            guard ev.placed, ev.workplaceId == id, let sd = ev.startDate else { return false }
+            if let from, sd < from { return false }
+            if let through, sd > through { return false }
+            return true
+        }.count
+    }
+
     private func persistWorkplaces() {
         if let data = try? JSONEncoder().encode(workplaces) { defaults.set(data, forKey: Keys.workplaces) }
         notifyChanged()
