@@ -196,7 +196,7 @@ struct AnniversaryEditor: View {
                     Toggle(a.kind == .birthday ? "生まれ年を入力" : "年を入力", isOn: $knowsYear)
                     if knowsYear {
                         Picker("年", selection: $yearValue) {
-                            ForEach((1900...thisYear).reversed(), id: \.self) { Text("\($0)年").tag($0) }
+                            ForEach((1900...thisYear).reversed(), id: \.self) { Text(verbatim: "\($0)年").tag($0) }
                         }
                     }
                     Picker("月", selection: $a.month) {

@@ -80,7 +80,7 @@ struct DaySheet: View {
                 }
                 .padding(.top, 16)
                 .overlay(alignment: .top) {
-                    Text("\(p.year)年").font(.app(11)).foregroundStyle(.secondary)
+                    Text(verbatim: "\(p.year)年").font(.app(11)).foregroundStyle(.secondary)
                 }
                 .overlay(alignment: .topLeading) {
                     if date == Rules.today() {

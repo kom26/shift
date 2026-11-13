@@ -110,7 +110,7 @@ struct ProfileEditSheet: View {
                         Toggle("生まれ年も入力", isOn: $knowsYear)
                         if knowsYear {
                             Picker("年", selection: $birthYear) {
-                                ForEach((1900...Rules.ymd(Rules.today()).year).reversed(), id: \.self) { Text("\($0)年").tag($0) }
+                                ForEach((1900...Rules.ymd(Rules.today()).year).reversed(), id: \.self) { Text(verbatim: "\($0)年").tag($0) }
                             }
                         }
                         Picker("月", selection: $birthMonth) {

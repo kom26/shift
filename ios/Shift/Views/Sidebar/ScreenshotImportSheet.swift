@@ -269,7 +269,7 @@ struct ScreenshotImportSheet: View {
                         Spacer()
                         Picker("年", selection: $year) {
                             ForEach((Calendar.current.component(.year, from: Date()) - 1)...(Calendar.current.component(.year, from: Date()) + 1), id: \.self) {
-                                Text("\($0)年").tag($0)
+                                Text(verbatim: "\($0)年").tag($0)
                             }
                         }
                         .pickerStyle(.menu)
