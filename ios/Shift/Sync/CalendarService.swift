@@ -189,6 +189,15 @@ protocol CalendarBacking: AnyObject {
                     shareManual: Bool) async throws
     /// 持ち主が、カレンダーの名前・アイコン・許可制を変える(招待に写してある分も合わせる)
     func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws
+    /// カレンダー本体の名前・アイコン・許可制を見張る(持ち主が変えたら、開いたままの端末にもすぐ届く)。戻り値で見張りをやめる
+    func listenInfo(calendarId: String, onChange: @escaping (CalendarInfo) -> Void) -> () -> Void
+}
+
+/// カレンダー本体の、持ち主が変えられる項目
+struct CalendarInfo: Equatable {
+    var name: String
+    var icon: String
+    var requireApproval: Bool
 }
 
 /// 一覧にだけ残っていて、中ではもう参加者でなくなっていた共有カレンダー
@@ -204,6 +213,7 @@ extension CalendarBacking {
     func goneCalendars(uid: String) async -> [GoneCalendar] { [] }
     func addNotice(calendarId: String, kind: String, name: String, byUid: String) async throws {}
     func notices(calendarId: String) async throws -> [CalendarNotice] { [] }
+    func listenInfo(calendarId: String, onChange: @escaping (CalendarInfo) -> Void) -> () -> Void { {} }
 }
 
 /// 共有カレンダーの、退会・削除のお知らせ 1 件
@@ -234,6 +244,8 @@ final class CalendarService {
     @ObservationIgnored var onApproved: ((SharedCalendar) -> Void)?
     /// 参加していた共有カレンダーが削除された・外されたと分かったとき
     @ObservationIgnored var onGone: ((GoneCalendar) -> Void)?
+    /// 共有カレンダーの名前・アイコン・許可制が変わったとき(開いている画面の見出しを合わせる)
+    @ObservationIgnored var onInfoChange: ((SharedCalendar) -> Void)?
     /// ログイン中の自分
     var myUid: String? { uid }
     var errorMessage: String?
@@ -242,6 +254,8 @@ final class CalendarService {
     private var uid: String?
     /// 承認待ちのカレンダーごとの、参加の状態の見張り
     @ObservationIgnored private var statusListeners: [String: () -> Void] = [:]
+    /// 参加しているカレンダーごとの、名前・アイコンの見張り
+    @ObservationIgnored private var infoListeners: [String: () -> Void] = [:]
 
     init(backing: CalendarBacking) {
         self.backing = backing
@@ -271,6 +285,7 @@ final class CalendarService {
 
     /// 承認待ちのカレンダーだけ、参加の状態を見張る。承認されたら、すぐ見られるようにする(アプリを閉じなくてよい)
     private func syncStatusListeners() {
+        syncInfoListeners()
         let waiting = Set(calendars.filter { $0.status == .pending }.map(\.id))
         for (id, stop) in statusListeners where uid == nil || !waiting.contains(id) {
             stop()
@@ -282,6 +297,32 @@ final class CalendarService {
                 Task { @MainActor in self?.applyStatus(status, for: id) }
             }
         }
+    }
+
+    /// 参加している(承認済みの)カレンダーの、名前・アイコン・許可制を見張る。
+    /// 持ち主が変えたとき、ほかの人の端末に、アプリを開き直さなくても届くようにする
+    private func syncInfoListeners() {
+        let active = Set(calendars.filter { $0.status == .active }.map(\.id))
+        for (id, stop) in infoListeners where uid == nil || !active.contains(id) {
+            stop()
+            infoListeners[id] = nil
+        }
+        guard uid != nil else { return }
+        for id in active where infoListeners[id] == nil {
+            infoListeners[id] = backing.listenInfo(calendarId: id) { [weak self] info in
+                Task { @MainActor in self?.applyInfo(info, for: id) }
+            }
+        }
+    }
+
+    private func applyInfo(_ info: CalendarInfo, for id: String) {
+        guard let i = calendars.firstIndex(where: { $0.id == id }) else { return }
+        let c = calendars[i]
+        guard c.name != info.name || c.icon != info.icon || c.requireApproval != info.requireApproval else { return }
+        calendars[i].name = info.name
+        calendars[i].icon = info.icon
+        calendars[i].requireApproval = info.requireApproval
+        onInfoChange?(calendars[i])
     }
 
     private func applyStatus(_ status: MemberStatus?, for id: String) {
@@ -311,6 +352,7 @@ final class CalendarService {
         calendars = SharedCalendar.ordered(merged)
         syncStatusListeners()
         onChange?()
+        for c in list { onInfoChange?(c) }
         for c in list where before[c.id] == .pending && c.status == .active { onApproved?(c) }
         for g in await backing.goneCalendars(uid: uid) { onGone?(g) }
     }
@@ -325,6 +367,7 @@ final class CalendarService {
             var made = try await self.backing.create(uid: uid, spec: spec)
             made.calendar.mySharedKeys = spec.sharedKeys
             self.calendars = SharedCalendar.ordered(self.calendars + [made.calendar])
+            self.syncStatusListeners()
             self.onChange?()
             return made
         }
@@ -419,6 +462,7 @@ final class CalendarService {
         do {
             try await backing.deleteCalendar(calendarId: calendar.id, uid: uid)
             calendars.removeAll { $0.id == calendar.id }
+            syncStatusListeners()
             onChange?()
             return true
         } catch {
@@ -482,6 +526,7 @@ final class CalendarService {
                 self.calendars[i].name = trimmed
                 self.calendars[i].icon = CalendarIcon.resolved(icon)
                 self.calendars[i].requireApproval = requireApproval
+                self.onInfoChange?(self.calendars[i])
             }
             self.onChange?()
             return true

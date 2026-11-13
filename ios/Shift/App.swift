@@ -37,6 +37,7 @@ struct ShiftApp: App {
             pub?.schedule()
             shared?.syncOverlay()
         }
+        cal.onInfoChange = { [weak shared] c in shared?.calendarInfoChanged(c) }
         s.onLocalChange = { [weak a, weak s, weak pub] in
             a?.localChanged()
             pub?.schedule()
@@ -110,6 +111,8 @@ struct ShiftApp: App {
                     if phase == .active {
                         Task { await updater.check() }
                         sync.retryIfNeeded()
+                        // 共有の予定に付けた画像で、送れていなかったものを送り直す
+                        Task { await AttachmentCloud.retryPending() }
                         // 承認や参加者の変更など、閉じている間に変わった参加の状態を取り直す
                         Task {
                             await calendars.refresh()

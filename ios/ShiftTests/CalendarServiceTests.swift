@@ -92,6 +92,17 @@ private final class FakeCalendars: CalendarBacking {
         calendars[calendarId]?.name = name
         calendars[calendarId]?.icon = icon
         calendars[calendarId]?.requireApproval = requireApproval
+        let info = CalendarInfo(name: name, icon: icon, requireApproval: requireApproval)
+        for handler in (infoHandlers[calendarId] ?? [:]).values { handler(info) }
+    }
+
+    /// カレンダー本体の見張り(テストでは、持ち主が変えたときに、見張っている全員に知らせる)
+    var infoHandlers: [String: [UUID: (CalendarInfo) -> Void]] = [:]
+
+    func listenInfo(calendarId: String, onChange: @escaping (CalendarInfo) -> Void) -> () -> Void {
+        let key = UUID()
+        infoHandlers[calendarId, default: [:]][key] = onChange
+        return { [weak self] in self?.infoHandlers[calendarId]?[key] = nil }
     }
 
     func updateMine(calendarId: String, uid: String, displayName: String, sharedKeys: [String], avatar: String,
@@ -199,6 +210,30 @@ struct CalendarServiceTests {
         #expect(owner.calendars.first?.icon == "house.fill")
         #expect(owner.calendars.first?.requireApproval == false)
         #expect(backing.calendars[calendar.id]?.name == "カップル")
+    }
+
+    @Test func iconChangeReachesOtherMembersWithoutRestartingTheApp() async throws {
+        let backing = FakeCalendars()
+        let owner = CalendarService(backing: backing)
+        await owner.start(uid: "me")
+        let made = await owner.create(spec("家族"))
+        let guest = CalendarService(backing: backing)
+        await guest.start(uid: "you")
+        var changed: [String] = []
+        guest.onInfoChange = { changed.append($0.icon) }
+        _ = await guest.join(code: made!.invite, displayName: "あなた", sharedKeys: [])
+        #expect(guest.calendars.first?.icon != "house.fill")
+
+        // 持ち主がアイコンと名前を変えると、開いたままの参加者にも届く
+        #expect(await owner.updateCalendar(made!.calendar, name: "うち", icon: "house.fill", requireApproval: false))
+        try await Task.sleep(nanoseconds: 200_000_000)
+        #expect(guest.calendars.first?.icon == "house.fill")
+        #expect(guest.calendars.first?.name == "うち")
+        #expect(changed == ["house.fill"])
+
+        // 抜けたら、見張りもやめる
+        await guest.leave(made!.calendar)
+        #expect(backing.infoHandlers[made!.calendar.id]?.count == 1)
     }
 
     @Test func approvalReachesAWaitingMemberWithoutRestartingTheApp() async throws {

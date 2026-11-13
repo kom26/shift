@@ -263,6 +263,17 @@ final class FirestoreCalendarBacking: CalendarBacking {
         return { registration.remove() }
     }
 
+    func listenInfo(calendarId: String, onChange: @escaping (CalendarInfo) -> Void) -> () -> Void {
+        let registration = calendar(calendarId).addSnapshotListener { snap, _ in
+            // 読めなかったとき(通信・退会したあと)や、消されたカレンダーは何も伝えない(一覧からの片づけは、別の仕組みで行う)
+            guard let snap, snap.exists, let data = snap.data() else { return }
+            onChange(CalendarInfo(name: data["name"] as? String ?? "",
+                                  icon: CalendarIcon.resolved(data["icon"] as? String ?? ""),
+                                  requireApproval: data["requireApproval"] as? Bool ?? false))
+        }
+        return { registration.remove() }
+    }
+
     func updateCalendar(calendarId: String, uid: String, name: String, icon: String, requireApproval: Bool) async throws {
         // 招待には、名前と許可制を写してある(参加の前に見せる・参加の状態を決めるのに使う)ので、同じ内容にそろえる
         let invites = try await calendar(calendarId).collection("invites").getDocuments().documents

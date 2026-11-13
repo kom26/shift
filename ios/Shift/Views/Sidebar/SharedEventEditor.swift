@@ -437,9 +437,11 @@ struct SharedEventEditor: View {
     }
 
     /// 画像の置き場にする共有カレンダーの ID(保存先を切り替えているときは、切り替え先)
+    /// 画像の保存先。予定を保存する共有カレンダーと同じにする(そのカレンダーの参加者が読める場所)。
+    /// 自分のカレンダーに重ねている予定や、別のカレンダーを開いているときも、開いているカレンダーではなく、予定のあるカレンダーにする
     private var attachmentCalendarId: String? {
-        if let flow, !flow.isAtOrigin, let cid = flow.destination { return cid }
-        return shared.calendar?.id
+        if let cid = flow?.destination, !cid.isEmpty { return cid }
+        return shared.calendarId(of: target.event.id) ?? shared.calendar?.id
     }
 
     var body: some View {

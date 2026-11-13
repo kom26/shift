@@ -434,11 +434,19 @@ final class SharedViewState {
                                title: e.title, startDate: e.startDate, endDate: e.endDate, startTime: e.startTime,
                                endTime: e.endTime, allDay: e.allDay, name: e.name, color: e.color, barTime: e.barTime)
         made.placed = e.placed
-        // 画像は、共有カレンダーの同じ保存先を指す(コピーは、同じ画像を見る)
         made.memo = e.memo
         made.url = e.url
-        made.imageId = e.imageId
-        return await save(made.moved(to: date))
+        // コピーは、元の予定と同じ共有カレンダーに足す(重ねている予定のコピーも、そのカレンダーへ)
+        let target = calendarOf(id) ?? calendar
+        // 画像は、別の名前で複製する(同じ画像を指すと、片方を消したときに、もう片方の画像も消えてしまう)。
+        // 複製できなければ(通信が無く、端末にも無いとき)、同じ画像を指す
+        if let image = e.imageId, let cid = target?.id {
+            made.imageId = await AttachmentCloud.duplicate(image, calendarId: cid) ?? image
+        }
+        let ok = await save(made.moved(to: date), in: target)
+        // 保存できなかったら、複製した画像を片づける
+        if !ok, let copied = made.imageId, copied != e.imageId { await AttachmentCloud.remove(copied) }
+        return ok
     }
 
     /// 予定を作れる共有カレンダー(予定の保存先に選べるもの)
@@ -498,6 +506,14 @@ final class SharedViewState {
             }
         }
         await refresh()
+    }
+
+    /// 開いている共有カレンダーの名前・アイコン・許可制が変わった(持ち主が変えた)。見出しを合わせる
+    func calendarInfoChanged(_ cal: SharedCalendar) {
+        guard calendar?.id == cal.id else { return }
+        calendar?.name = cal.name
+        calendar?.icon = cal.icon
+        calendar?.requireApproval = cal.requireApproval
     }
 
     func close() {

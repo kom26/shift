@@ -144,7 +144,16 @@ struct AttachmentImageView: View {
             image = AttachmentStore.image(imageId)
             guard image == nil else { return }
             loading = true
-            if await AttachmentCloud.download(imageId) { image = AttachmentStore.image(imageId) }
+            // 付けた人の送信が、まだ終わっていないことがある(予定のほうが先に届く)。少し待って、何度か取り直す
+            for wait in [0, 2, 5, 10] {
+                if wait > 0 {
+                    do { try await Task.sleep(for: .seconds(wait)) } catch { break }
+                }
+                if await AttachmentCloud.download(imageId) {
+                    image = AttachmentStore.image(imageId)
+                    break
+                }
+            }
             loading = false
         }
     }

@@ -36,6 +36,17 @@ enum AttachmentCloud {
         } catch {}
     }
 
+    /// 共有カレンダーの予定に付けた画像のうち、まだ送れていないものを送り直す(アプリに戻ったときなど)。
+    /// 共有の予定は自分のデータに無いので、片づけ(sweep)の送り直しの対象にならないため、端末にある画像から探す。
+    /// ほかの人の画像は、取ってきたときに「送った」印を付けているので、ここでは送らない
+    static func retryPending() async {
+        guard uid != nil else { return }
+        let done = uploaded
+        for (id, _) in AttachmentStore.localFiles() where AttachmentStore.calendarId(of: id) != nil && !done.contains(id) {
+            await upload(id)
+        }
+    }
+
     /// 端末にない画像を、クラウドから取ってくる。取れたら true
     static func download(_ id: String) async -> Bool {
         guard let uid else { return false }
@@ -47,6 +58,21 @@ enum AttachmentCloud {
         } catch {
             return false
         }
+    }
+
+    /// 共有カレンダーの画像を、別の名前で複製する(予定をコピーしたとき。片方の予定を消したり画像を替えたりしても、
+    /// もう片方の画像が残るように)。端末に無ければ取ってくる。取れなければ nil
+    static func duplicate(_ id: String, calendarId: String) async -> String? {
+        if !AttachmentStore.exists(id) {
+            guard await download(id) else { return nil }
+        }
+        guard let data = AttachmentStore.data(id) else { return nil }
+        let newId = AttachmentStore.calendarImageId(calendarId: calendarId)
+        AttachmentStore.write(data, id: newId)
+        guard AttachmentStore.exists(newId) else { return nil }
+        // 送るのは待たない(送れなかったら、あとで送り直す)
+        Task { await upload(newId) }
+        return newId
     }
 
     /// 端末と、クラウドから消す
@@ -62,6 +88,7 @@ enum AttachmentCloud {
     static func sweep(referenced: Set<String>) async {
         guard let uid else { return }
         for id in referenced where AttachmentStore.exists(id) { await upload(id) }
+        await retryPending()
         let cutoff = Date().addingTimeInterval(-Double(pruneGraceDays) * 86_400)
         // 端末の中
         // 共有カレンダーの画像は、端末のキャッシュなので、ここでは片づけない
