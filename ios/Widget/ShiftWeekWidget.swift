@@ -40,7 +40,8 @@ struct MediumWeekView: View {
                         }
                     }
                     bars(colW: colW)
-                        .offset(y: 31)
+                        // 日付と 1 段目のバーの間を詰めて、下の記念日のアイコンとの間を空ける
+                        .offset(y: 28)
                     // 記念日・誕生日は、アプリのカレンダーと同じく、日の列の右下に並べる
                     annivMarks(colW: colW, height: geo.size.height)
                     dayLinks(colW: colW, height: geo.size.height)
