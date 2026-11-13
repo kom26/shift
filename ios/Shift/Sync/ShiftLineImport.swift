@@ -99,6 +99,22 @@ enum ShiftLineImport {
         }
     }
 
+    /// 3 日以上読み取れたときは、最初の日から最後の日までのあいだで抜けている日を、読み取れなかった日(missing)として足す。
+    /// 読み取れなかった日を黙って飛ばして取り込まないように、確認の画面で 1 日も欠けずに並べるため。日付順に並べる
+    static func fillGaps(_ lines: [ShiftLine], minDays: Int = 3) -> [ShiftLine] {
+        let dates = Set(lines.map(\.date))
+        guard dates.count >= minDays, let first = dates.min(), let last = dates.max() else { return lines }
+        var out = lines
+        var d = first
+        // 念のため、1 年分をこえて回さない
+        for _ in 0..<366 {
+            if d > last { break }
+            if !dates.contains(d) { out.append(ShiftLine(date: d, start: nil, end: nil, off: false, missing: true)) }
+            d = Rules.addDays(d, 1)
+        }
+        return out.sorted { ($0.date, $0.start ?? "", $0.name ?? "") < ($1.date, $1.start ?? "", $1.name ?? "") }
+    }
+
     /// 選んだ取り込み方を当てはめた行。24時をこえない行は、そのまま
     static func resolved(_ line: ShiftLine, _ choices: OvernightChoices) -> ShiftLine {
         guard let kind = line.overnightKind, let s = Rules.minutes(line.start), let e = Rules.minutes(line.end) else { return line }

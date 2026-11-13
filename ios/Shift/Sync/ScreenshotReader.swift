@@ -12,9 +12,11 @@ struct ShiftLine: Identifiable, Equatable {
     var off: Bool
     /// 表に書かれた名前(読み取る名前を指定したときだけ。何人か当てはまるときに、見分けるため)
     var name: String? = nil
+    /// 読み取れなかった日(読み取った最初の日と最後の日のあいだで、抜けていた日)。確認の画面で、時間を入れてもらう
+    var missing: Bool = false
 
     /// 同じ日でも、時間や名前が違えば、別の行
-    var id: String { [date, start ?? "", end ?? "", off ? "off" : "", name ?? ""].joined(separator: "|") }
+    var id: String { [date, start ?? "", end ?? "", off ? "off" : "", name ?? "", missing ? "missing" : ""].joined(separator: "|") }
 
     /// サーバーの返事(辞書の配列)から作る。形のおかしい行は捨てて、同じ日・同じ時間・同じ名前は 1 件にして、日付順に並べる
     static func parse(_ raw: Any?) -> [ShiftLine] {
@@ -34,7 +36,8 @@ struct ShiftLine: Identifiable, Equatable {
     }
 
     private static func cleanTime(_ s: String) -> String? {
-        guard let m = Rules.minutes(s.trimmingCharacters(in: .whitespaces)), m >= 0, m <= 30 * 60 + 59 else { return nil }
+        // 24:30〜31:00 などの夜勤もあるので、予定の終了時刻の上限(36:00)まで受ける
+        guard let m = Rules.minutes(s.trimmingCharacters(in: .whitespaces)), m >= 0, m <= 36 * 60 else { return nil }
         return String(format: "%02d:%02d", m / 60, m % 60)
     }
 }

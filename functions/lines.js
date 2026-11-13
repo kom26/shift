@@ -3,6 +3,8 @@
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^\d{1,2}:\d{2}$/;
+/** 時刻の上限(36:00。アプリの予定の終了時刻の上限と同じ) */
+const MAX_MINUTES = 36 * 60;
 
 /** AI の返事の文字列から、JSON の配列を取り出す(前後の説明やコードブロックが付いていても読む) */
 export function extractJson(text) {
@@ -22,7 +24,8 @@ function validDate(s) {
 function normalizeTime(s) {
   if (typeof s !== "string" || !TIME.test(s.trim())) return null;
   const [h, m] = s.trim().split(":").map(Number);
-  if (m > 59 || h > 30) return null; // 25:00 などの営業日の表記は、30 時まで受ける
+  // 25:00〜31:00 などの営業日の表記は、アプリの予定と同じく 36:00 まで受ける(24:30〜31:00 のような夜勤がある)
+  if (m > 59 || h * 60 + m > MAX_MINUTES) return null;
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 

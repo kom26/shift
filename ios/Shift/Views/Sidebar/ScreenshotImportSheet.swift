@@ -151,7 +151,7 @@ struct ScreenshotImportSheet: View {
 
     /// 読み取り完了。チェックマークを見せてから、ボタンで確認・変更の画面へ
     private var doneView: some View {
-        ReadDoneView(workCount: mode == .tasks ? taskLines.count : lines.filter { !$0.off }.count) {
+        ReadDoneView(workCount: mode == .tasks ? taskLines.count : lines.filter { !$0.off && !$0.missing }.count) {
             step = .review
             // 24時をこえる時間があれば、取り込む前に、取り込み方を確認する(予定のときだけ)
             showSpanSheet = mode == .events && !overnightGroups.isEmpty
@@ -419,13 +419,16 @@ struct ScreenshotImportSheet: View {
             var result = try await reader.read(images: datas, options: options)
             // 年月の表記がない写真は、選んだ年月に合わせる
             if yearMonthOn { result = ShiftLineImport.alignYearMonth(result, year: year, month: month) }
+            // 読み取れなかった日も、最初の日から最後の日まで 1 日も欠けずに並べる(黙って飛ばして取り込まないため)
+            result = ShiftLineImport.fillGaps(result)
             guard !result.isEmpty else {
                 errorMessage = "日付と時間を読み取れませんでした。別の画像で試してください"
                 step = .pick
                 return
             }
             lines = result
-            included = Set(result.filter { !$0.off }.map(\.id))
+            // 読み取れなかった日は、時間を入れるまで取り込まない
+            included = Set(result.filter { !$0.off && !$0.missing }.map(\.id))
             edited = [:]
             dupChoices = [:]
             spanChoices = OvernightChoices()
@@ -557,6 +560,13 @@ struct ScreenshotImportSheet: View {
                     .foregroundStyle(Theme.deltaUp)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 0, trailing: 0))
+                if unreadCount > 0 {
+                    Text("うち\(unreadCount)日は読み取れませんでした。赤い日をタップして時間を入力してください(休みの日はそのままで取り込まれません)。")
+                        .font(.app(13, weight: .semibold))
+                        .foregroundStyle(.red)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 0))
+                }
             }
             if !overnightGroups.isEmpty {
                 Section {
@@ -616,7 +626,11 @@ struct ScreenshotImportSheet: View {
             }
         }
         .sheet(item: $lineEdit) { target in
-            EventEditor(original: target.event, isNew: false, onCommit: { edited[target.id] = $0 })
+            EventEditor(original: target.event, isNew: false, onCommit: { e in
+                edited[target.id] = e
+                // 読み取れなかった日は、時間を入れたら取り込む
+                if lines.contains(where: { $0.id == target.id && $0.missing }) { included.insert(target.id) }
+            })
         }
     }
 
@@ -626,6 +640,9 @@ struct ScreenshotImportSheet: View {
         if kinds.count == 2 { return "日をまたぐ予定・24時以降の予定があります。" }
         return kinds.contains(.afterMidnight) ? "24時以降に開始する予定があります。" : "日をまたぐ予定があります。"
     }
+
+    /// 読み取れなかった日のうち、まだ時間を入れていない日の数
+    private var unreadCount: Int { lines.filter { $0.missing && edited[$0.id] == nil }.count }
 
     private var rangeText: String {
         guard let first = lines.first?.date, let last = lines.last?.date else { return "" }
@@ -642,7 +659,31 @@ struct ScreenshotImportSheet: View {
     @ViewBuilder
     private func lineRow(_ line: ShiftLine) -> some View {
         let on = included.contains(line.id)
-        if line.off {
+        if line.missing && edited[line.id] == nil {
+            // 読み取れなかった日。タップすると、予定追加と同じ画面で時間を入れられる
+            Button {
+                if let e = draft(line) { lineEdit = LineEdit(id: line.id, event: e) }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                    Text(dateText(line.date)).fontWeight(.semibold).frame(width: 84, alignment: .leading)
+                    Text("読み取れませんでした").foregroundStyle(.red)
+                    Spacer(minLength: 4)
+                    Text("時間を入力")
+                        .font(.app(11, weight: .bold))
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.red.opacity(0.12), in: Capsule())
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                }
+                .font(.app(15))
+                .foregroundStyle(Color.primary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .listRowBackground(Color.red.opacity(0.06))
+        } else if line.off {
             HStack(spacing: 10) {
                 Image(systemName: "minus.circle").foregroundStyle(.tertiary)
                 Text(dateText(line.date)).fontWeight(.semibold).frame(width: 84, alignment: .leading)

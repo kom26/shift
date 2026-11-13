@@ -35,6 +35,28 @@ struct ScreenshotImportTests {
         #expect(ShiftLine.parse("x").isEmpty)
     }
 
+    @Test func parsingKeepsLateNightTimesUpTo36() {
+        let raw: [[String: Any]] = [
+            ["date": "2026-11-02", "start": "22:00", "end": "31:00", "off": false],
+            ["date": "2026-11-06", "start": "24:30", "end": "31:00", "off": false],
+            ["date": "2026-11-07", "start": "24:30", "end": "37:00", "off": false],
+        ]
+        let lines = ShiftLine.parse(raw)
+        #expect(lines.map(\.date) == ["2026-11-02", "2026-11-06"])
+        #expect(lines[0].end == "31:00" && lines[1].start == "24:30" && lines[1].end == "31:00")
+    }
+
+    @Test func gapsBetweenFirstAndLastDayAreListedAsMissing() {
+        let lines = [line("2026-11-22", nil, nil, off: true), line("2026-11-25", nil, nil, off: true),
+                     line("2026-11-27", "24:30", "31:00")]
+        let filled = ShiftLineImport.fillGaps(lines)
+        #expect(filled.map(\.date) == ["2026-11-22", "2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26", "2026-11-27"])
+        #expect(filled.filter(\.missing).map(\.date) == ["2026-11-23", "2026-11-24", "2026-11-26"])
+        #expect(filled.filter(\.missing).allSatisfy { !$0.off && $0.start == nil && $0.end == nil })
+        // 2 日分しか読めなかったときは、埋めない
+        #expect(ShiftLineImport.fillGaps([line("2026-11-01", nil, nil, off: true), line("2026-11-05", nil, nil, off: true)]).count == 2)
+    }
+
     @Test func sameDayWithDifferentTimesOrNamesKeepsEveryLine() {
         let raw: [[String: Any]] = [
             ["date": "2026-11-08", "start": "18:00", "end": "22:00", "off": false],

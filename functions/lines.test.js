@@ -111,3 +111,21 @@ test("開始・締切の読み取り: タイトルの補足(note)は整えて残
   assert.equal(b.note.length, 200);
   assert.equal(normalizeTasks([{ title: "C", dueDate: "2026-10-21" }])[0].note, "");
 });
+
+test("24 時をこえる夜勤の時刻(24:30〜31:00 など)は、36:00 まで残す", () => {
+  const lines = normalizeLines([
+    { date: "2026-11-02", start: "22:00", end: "31:00", off: false },
+    { date: "2026-11-06", start: "24:30", end: "31:00", off: false },
+    { date: "2026-11-07", start: "24:30", end: "36:00", off: false },
+    { date: "2026-11-08", start: "24:30", end: "36:01", off: false },
+    { date: "2026-11-09", start: "24:30", end: "37:00", off: false },
+  ]);
+  assert.deepEqual(
+    lines.map((l) => [l.date, l.start, l.end]),
+    [
+      ["2026-11-02", "22:00", "31:00"],
+      ["2026-11-06", "24:30", "31:00"],
+      ["2026-11-07", "24:30", "36:00"],
+    ],
+  );
+});
