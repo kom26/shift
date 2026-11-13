@@ -356,7 +356,13 @@ struct CalendarDetailSheet: View {
                     // 作るときと同じ項目を、管理できる人はここから変えられる
                     Section("カレンダー名") {
                         CalendarNameField(name: $calName, icon: $calIcon)
-                        Button { showCalendarBackground = true } label: {
+                        // 背景は参加者みんなに出るので、このカレンダーを開いて、その予定を見ながら選ぶ
+                        Button {
+                            Task {
+                                if sharedView.calendar?.id != calendar.id { await sharedView.open(calendar) }
+                                showCalendarBackground = true
+                            }
+                        } label: {
                             HStack {
                                 Text("カレンダー背景").foregroundStyle(.primary)
                                 Spacer()
@@ -372,7 +378,8 @@ struct CalendarDetailSheet: View {
                                     set: { key in
                                         calendarBackgroundKey = key
                                         Task { await sharedView.setBackground(key, in: calendar.id) }
-                                    }))
+                                    }),
+                                previewStore: sharedView.calendar?.id == calendar.id ? sharedView.store : nil)
                         }
                     }
                     Section {

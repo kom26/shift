@@ -35,6 +35,9 @@ enum EventColor {
         })
     }
 
+    /// 半透明の fill の下に敷く色。カレンダー背景の色ではなく、いつも標準の背景にして、どの背景でもバーの色を同じにする
+    static let base = Color(.systemBackground)
+
     static func fill(_ hex: String) -> Color {
         Color(UIColor { trait in
             UIColor(Color(hex: hex)).withAlphaComponent(trait.userInterfaceStyle == .dark ? 0.22 : 0.30)

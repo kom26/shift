@@ -137,6 +137,8 @@ struct ScreenshotImportSheet: View {
         .presentationDetents([.large])
         .presentationBackground(Color(.systemGroupedBackground))
         .interactiveDismissDisabled(step == .reading)
+        // 画像を選んで読み取りを始めたら、取り込みの途中(ウィジェットから開いたとき、この画面は残す)
+        .tracksUnsaved(step != .pick)
         // 文字を打ったあとに、キーボードを閉じるボタンを出す(ほかの画面と同じ)
         .keyboardDismissBar { titleFocused = false; nameFocused = false }
         .sheet(isPresented: $choosing) {

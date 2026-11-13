@@ -68,6 +68,8 @@ struct RootView: View {
     @State private var showFilter = false
     /// 写真の一覧(開いているカレンダーの写真)
     @State private var showPhotos = false
+    /// ウィジェットの設定(ドロワーから)
+    @State private var showWidgetSettings = false
     @State private var showDrawer = false
     @State private var showLabels = false
     @State private var showWorkplaces = false
@@ -101,6 +103,8 @@ struct RootView: View {
     @State private var reviewCalendar: SharedCalendar?
     @State private var paydayTarget: PaydayTarget?
     @State private var dayTarget: DayTarget?
+    /// 予定一覧の高さ。開くときは半分(出しきれない日は、一覧の側で全画面に広げる)。日を移っても、そのまま
+    @State private var dayDetent: PresentationDetent = .medium
     @State private var pagerCommand: PagerCommand?
     @State private var selectedDate: String?
     @State private var selectTodayAfterMove = false
@@ -258,7 +262,15 @@ struct RootView: View {
             // ウィジェットで見ていたカレンダー(自分か、共有か)で、その日を選んだ状態にして、その日の予定一覧を開く
             let shared = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
                 .first { $0.name == "cal" }?.value
-            Task { await openDayFromWidget(date, sharedId: shared) }
+            // ドロワーは閉じる。入力の途中の画面があれば、その画面をそのまま見せる(入力を消さない)
+            showDrawer = false
+            guard !UnsavedEdits.shared.any else { return }
+            // 何も入力していない画面は閉じてから、カレンダーとその日の予定一覧を見せる
+            let closed = closeAllSheets()
+            Task {
+                if closed { try? await Task.sleep(for: .milliseconds(500)) }
+                await openDayFromWidget(date, sharedId: shared)
+            }
         }
         // 開始・締切の編集画面は、予定の編集画面と同じ階層に置く(予定一覧が開いたままでも、その上に開けるように)
         .taskEditorSheet($taskEditing)
@@ -271,14 +283,16 @@ struct RootView: View {
             FirstTutorialView(onStart: { tutorialDone = true; showTutorial = false },
                               onLater: { showTutorial = false })
         }
-        .sheet(item: $dayTarget) { t in
+        .sheet(item: $dayTarget, onDismiss: { dayDetent = .medium }) { t in
             DaySheet(date: t.date, canAdd: !sharedView.isOpen || sharedView.canCreate, onSelectPayday: { date in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { paydayTarget = PaydayTarget(date: date) }
-            }, makeAddTarget: dayAddTarget, makeEditTarget: dayEditTarget, addEditor: { AnyView(dayAddEditor($0)) })
+            }, makeAddTarget: dayAddTarget, makeEditTarget: dayEditTarget, addEditor: { AnyView(dayAddEditor($0)) },
+            onStep: stepDay, detent: $dayDetent)
             .environment(displayStore)
             .id(t.date)
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(isPresented: $showWidgetSettings) { NavigationStack { WidgetSettingsView() } }
         .alert(inviteAlertTitle, isPresented: $showJoinNeedsAccount) {
             Button("アカウント登録") { showSettings = true }
             Button("あとで", role: .cancel) {}
@@ -363,6 +377,35 @@ struct RootView: View {
                 }
             }
         }
+    }
+
+    /// 開いている画面(シート)を閉じる。ウィジェットから開いたとき、何も入力していない画面を閉じて、予定一覧を出すため。
+    /// 予定一覧の上に重ねた画面もまとめて閉じるよう、予定一覧も閉じる(すぐ開き直す)。閉じたものがあれば true
+    @discardableResult
+    private func closeAllSheets() -> Bool {
+        let anyOpen = editing != nil || taskEditing != nil || sharedEditing != nil || sharedDetail != nil
+            || paydayTarget != nil || dayTarget != nil || calendarDetail != nil || reviewCalendar != nil
+            || showSettings || showWidgetSettings || showFilter || showPhotos || showLabels || showWorkplaces
+            || showTasks || showCreateCalendar || showShotImport
+        editing = nil
+        taskEditing = nil
+        sharedEditing = nil
+        sharedDetail = nil
+        paydayTarget = nil
+        dayTarget = nil
+        calendarDetail = nil
+        reviewCalendar = nil
+        showSettings = false
+        showWidgetSettings = false
+        showFilter = false
+        showPhotos = false
+        showLabels = false
+        showWorkplaces = false
+        showTasks = false
+        showCreateCalendar = false
+        showShotImport = false
+        addMenuOpen = false
+        return anyOpen
     }
 
     /// 待っている招待があり、ログインしていれば、先頭から参加画面を開く(ほかのシートが開いていれば閉じてから)
@@ -473,6 +516,7 @@ struct RootView: View {
                 drawerRow(title: "職場の管理", icon: "briefcase") { closeDrawer { showWorkplaces = true } }
                 drawerRow(title: "ラベルの管理", icon: "tag") { closeDrawer { showLabels = true } }
                 drawerRow(title: "タスク・開始・締切管理", icon: "checklist") { closeDrawer { showTasks = true } }
+                drawerRow(title: "ウィジェット", icon: "rectangle.3.group") { closeDrawer { showWidgetSettings = true } }
                 drawerRow(title: "設定", icon: "gearshape") { closeDrawer { showSettings = true } }
                 Spacer(minLength: 0)
             }
@@ -899,6 +943,28 @@ struct RootView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// 予定一覧で、隣の日へ(左右のスワイプ・矢印)。一覧はそのまま中身を差し替え、カレンダーの選択もその日に移す。
+    /// 見ている月(週表示では週)の外に出たら、カレンダーもその月(週)へ動かす
+    private func stepDay(_ delta: Int) {
+        guard let current = dayTarget?.date else { return }
+        let d = Rules.addDays(current, delta)
+        dayTarget = DayTarget(date: d)
+        let outside = mode == .month
+            ? d.prefix(7) != anchor.prefix(7)
+            : Rules.weekStart(of: d, startMonday: startMonday) != Rules.weekStart(of: anchor, startMonday: startMonday)
+        guard outside else {
+            selectedDate = d
+            return
+        }
+        selectTodayAfterMove = false
+        anchor = d
+        // 日付が動いたときの「選択を外す」処理のあとに、その日を選ぶ
+        Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            selectedDate = d
+        }
     }
 
     /// 日付セルのタップ: スタンプ中は配置、そうでなければ選択。選択中の日をもう一度タップで一覧

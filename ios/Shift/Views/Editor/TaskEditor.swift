@@ -164,6 +164,8 @@ struct TaskEditor: View {
             // 時間の入力中は、キーボードの上の左に「指定なし」を出す(押すと、その時間は「指定なし」になる)
             .keyboardDismissBar(leading: openPanel.map { p in (title: "指定なし", action: { clearTime(p) }) }) { closeTimePanel() }
             .onDisappear { attachments.discardIfUncommitted() }
+            // 入力の途中か(ウィジェットから開いたとき、途中の画面は残す)
+            .tracksUnsaved(build())
             .onChange(of: startDay) { _, new in
                 if hasDue, dueDay < new { dueDay = new }
             }
@@ -191,7 +193,8 @@ struct TaskEditor: View {
         }
     }
 
-    private func commit() {
+    /// いまの入力で作った開始・締切(保存するときと同じ)
+    private func build() -> TaskItem {
         var t = original
         t.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         t.color = color
@@ -205,6 +208,11 @@ struct TaskEditor: View {
         t.dueDate = dates.due
         t.dueTime = TaskItem.orderedDueTime(startDate: t.startDate, startTime: t.startTime, dueDate: t.dueDate,
                                             dueTime: hasDue && dueTimed ? dueTime : nil)
+        return t
+    }
+
+    private func commit() {
+        let t = build()
         attachments.commit(keeping: t.imageId)
         store.rememberColor(color)
         if let onCommit {

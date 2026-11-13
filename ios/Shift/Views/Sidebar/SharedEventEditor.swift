@@ -492,6 +492,8 @@ struct SharedEventEditor: View {
             }
             .environment(\.locale, Locale(identifier: "ja_JP"))
             .onDisappear { attachments.discardIfUncommitted() }
+            // 入力の途中か(ウィジェットから開いたとき、途中の画面は残す)
+            .tracksUnsaved(built())
             .navigationTitle(target.isNew ? "共有カレンダーに追加" : "共有の予定を編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

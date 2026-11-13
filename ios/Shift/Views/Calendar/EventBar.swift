@@ -50,8 +50,9 @@ struct EventBar: View {
                     bottomLeadingRadius: span.isStart ? r : 0,
                     bottomTrailingRadius: span.isEnd ? r : 0,
                     topTrailingRadius: span.isEnd ? r : 0))
+            // 半透明の色の下地は、カレンダー背景ではなく、いつも標準の背景(背景を変えても、バーの色が変わらないように)
             .background(
-                calBg,
+                EventColor.base,
                 in: UnevenRoundedRectangle(
                     topLeadingRadius: span.isStart ? r : 0,
                     bottomLeadingRadius: span.isStart ? r : 0,
@@ -98,7 +99,7 @@ struct EventBarPreview: View {
             .frame(height: height)
             .foregroundStyle(EventColor.text(event.color))
             .background(EventColor.fill(event.color), in: shape)
-            .background(calBg, in: shape)
+            .background(EventColor.base, in: shape)
             .clipShape(shape)
     }
 }

@@ -50,7 +50,8 @@ struct CalendarSettingsView: View {
                 Toggle("週の始まりを月曜にする", isOn: $startMonday)
                 Button { showCalendarBackground = true } label: {
                     HStack {
-                        Text("カレンダー背景").foregroundStyle(.primary)
+                        // 共有カレンダーの背景は、それぞれの共有カレンダーの設定で選ぶ(参加者みんなに同じ背景が出る)
+                        Text("自分のカレンダーの背景").foregroundStyle(.primary)
                         Spacer()
                         Text(CalendarBackground.name(calendarBackgroundKey)).font(.app(14)).foregroundStyle(.secondary)
                         Image(systemName: "chevron.right").font(.app(13)).foregroundStyle(.tertiary)
@@ -95,7 +96,7 @@ struct CalendarSettingsView: View {
         .keyboardDismissBar { gapFocused = false }
         .sheet(isPresented: $showBarFont) { BarFontSheet() }
         .sheet(isPresented: $showCalendarBackground) {
-            CalendarBackgroundSheet(title: "カレンダー背景", selection: $calendarBackgroundKey)
+            CalendarBackgroundSheet(title: "自分のカレンダーの背景", selection: $calendarBackgroundKey)
         }
     }
 }

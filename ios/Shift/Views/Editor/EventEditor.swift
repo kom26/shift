@@ -237,6 +237,8 @@ struct EventEditor: View {
             }
             .keyboardDismissBar { closeTimePanel() }
             .onDisappear { attachments.discardIfUncommitted() }
+            // 入力の途中か(ウィジェットから開いたとき、途中の画面は残す)
+            .tracksUnsaved(build())
             .onAppear {
                 guard !didSetup else { return }
                 didSetup = true

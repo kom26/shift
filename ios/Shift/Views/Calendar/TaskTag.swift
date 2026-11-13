@@ -21,7 +21,7 @@ struct TaskTagBar: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: height)
             .background(isStart ? calBg : EventColor.fill(color), in: shape)
-            .background(calBg, in: shape)
+            .background(EventColor.base, in: shape)
             .overlay { if isStart { shape.stroke(Color(hex: color), lineWidth: 1.2) } }
             .clipShape(shape)
     }

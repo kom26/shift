@@ -347,7 +347,7 @@ struct WeekView: View {
         .padding(.vertical, 4)
         .frame(minWidth: w, minHeight: h, alignment: .topLeading)
         .background(EventColor.fill(ev.color), in: shape)
-        .background(calBg, in: shape)
+        .background(EventColor.base, in: shape)
         .clipShape(shape)
     }
 
@@ -366,7 +366,7 @@ struct WeekView: View {
         .padding(2)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(EventColor.fill(ev.color), in: RoundedRectangle(cornerRadius: 3))
-        .background(calBg, in: RoundedRectangle(cornerRadius: 3))
+        .background(EventColor.base, in: RoundedRectangle(cornerRadius: 3))
         .overlay(RoundedRectangle(cornerRadius: 3).stroke(Color(hex: ev.color).opacity(0.55), lineWidth: 1))
     }
 }

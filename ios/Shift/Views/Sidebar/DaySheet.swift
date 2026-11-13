@@ -19,6 +19,12 @@ struct DaySheet: View {
     let makeAddTarget: (String) -> DayEditTarget?
     let makeEditTarget: (ShiftEvent) -> DayEditTarget?
     let addEditor: (DayEditTarget) -> AnyView
+    /// 隣の日へ(-1: 前の日 / 1: 次の日)。日付の見出しや、予定のないところを左右にスワイプしたとき
+    let onStep: (Int) -> Void
+    /// シートの高さ(半分か全画面か)。日を移っても変わらないよう、開いている側で持つ
+    @Binding var detent: PresentationDetent
+    /// 全画面に広げるかを、もう決めたか(開いたとき・日を移ったときの 1 回だけ。自分で縮めたら、そのまま)
+    @State private var sizeChecked = false
     @State private var adding: DayEditTarget?
     /// 編集を開いている開始・締切・タスク
     @State private var taskEdit: TaskEditTarget?
@@ -27,19 +33,104 @@ struct DaySheet: View {
          onSelectPayday: @escaping (String) -> Void = { _ in },
          makeAddTarget: @escaping (String) -> DayEditTarget? = { _ in nil },
          makeEditTarget: @escaping (ShiftEvent) -> DayEditTarget? = { _ in nil },
-         addEditor: @escaping (DayEditTarget) -> AnyView = { _ in AnyView(EmptyView()) }) {
+         addEditor: @escaping (DayEditTarget) -> AnyView = { _ in AnyView(EmptyView()) },
+         onStep: @escaping (Int) -> Void = { _ in },
+         detent: Binding<PresentationDetent> = .constant(.medium)) {
         self.date = date
         self.canAdd = canAdd
         self.onSelectPayday = onSelectPayday
         self.makeAddTarget = makeAddTarget
         self.makeEditTarget = makeEditTarget
         self.addEditor = addEditor
+        self.onStep = onStep
+        _detent = detent
     }
 
-    private var dateText: String {
+    /// 1 行の高さの目安(予定は、時刻とタイトルの 2 段ぶん。記念日・開始締切は 1 段)
+    private static let eventRowHeight: CGFloat = 56
+    private static let smallRowHeight: CGFloat = 48
+
+    /// 半分の高さで、予定が出しきれないときは、全画面に広げる(普段は半分のまま。自分で縮めたあとは広げ直さない)
+    private func expandIfNeeded(listHeight: CGFloat, events: Int, others: Int) {
+        guard !sizeChecked, listHeight > 0 else { return }
+        sizeChecked = true
+        guard detent == .medium else { return }
+        let needed = CGFloat(events) * Self.eventRowHeight + CGFloat(others) * Self.smallRowHeight
+        if needed > listHeight { detent = .large }
+    }
+
+    /// 日付の見出し。月日を大きく、曜日は土日祝の色で。その上に、年(真ん中)と「今日」(月日の左端にそろえる)。祝日名は下に小さく。
+    /// 左右の矢印か、見出しを左右にスワイプして、隣の日へ
+    private var dateHeader: some View {
         let p = Rules.ymd(date)
+        let holiday = holidays.name(on: date)
+        let type = Rules.dayType(date, isHoliday: holiday != nil)
         let wd = Rules.weekdayLabels(startMonday: false)[Rules.weekday(date)]
-        return "\(p.year)年\(p.month)月\(p.day)日 (\(wd))"
+        return HStack(spacing: 0) {
+            stepButton(-1)
+            Spacer(minLength: 0)
+            VStack(spacing: 1) {
+                // 月日の上に、年(月日の真ん中)と「今日」(月日の左端にそろえる)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(p.month)月\(p.day)日")
+                        .font(.app(24, weight: .bold).monospacedDigit())
+                    Text("(\(wd))")
+                        .font(.app(17, weight: .semibold))
+                        .foregroundStyle(type == .normal ? Color.secondary : type.color)
+                }
+                .padding(.top, 16)
+                .overlay(alignment: .top) {
+                    Text("\(p.year)年").font(.app(11)).foregroundStyle(.secondary)
+                }
+                .overlay(alignment: .topLeading) {
+                    if date == Rules.today() {
+                        Text("今日")
+                            .font(.app(10, weight: .bold))
+                            .foregroundStyle(Theme.onAccent)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(Theme.accent, in: Capsule())
+                    }
+                }
+                if let holiday {
+                    Text(holiday).font(.app(11, weight: .semibold)).foregroundStyle(type.color)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            Spacer(minLength: 0)
+            stepButton(1)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .gesture(daySwipe)
+    }
+
+    private func stepButton(_ delta: Int) -> some View {
+        Button { step(delta) } label: {
+            Image(systemName: delta < 0 ? "chevron.left" : "chevron.right")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(delta < 0 ? "前の日" : "次の日")
+    }
+
+    /// 左へスワイプで次の日、右へスワイプで前の日(横に大きく動かしたときだけ。縦のスクロールやシートの上げ下げとは分ける)
+    private var daySwipe: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { v in
+                let dx = v.translation.width, dy = v.translation.height
+                guard abs(dx) > 50, abs(dx) > abs(dy) * 1.5 else { return }
+                step(dx < 0 ? 1 : -1)
+            }
+    }
+
+    private func step(_ delta: Int) {
+        UISelectionFeedbackGenerator().selectionChanged()
+        onStep(delta)
     }
 
     var body: some View {
@@ -64,7 +155,7 @@ struct DaySheet: View {
                 if canAdd { addToolbarItem }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
         .presentationBackground(Color(.systemBackground))
         // 半分の高さのあいだは、後ろのカレンダーにも触れる(予定をつかんで、カレンダーへ運べるように)
         .presentationBackgroundInteraction(.enabled(upThrough: .medium))
@@ -118,19 +209,17 @@ struct DaySheet: View {
     private func dayContent(summary: DaySummary, annivs: [Anniversary]) -> some View {
         let taskRows = store.taskRows(on: date)
         VStack(spacing: 0) {
-                Text(dateText)
-                    .font(.app(14))
-                    .foregroundStyle(Color.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
-                    .background(Color(.secondarySystemBackground))
+                dateHeader
                 badges(summary)
+                    .contentShape(Rectangle())
+                    .gesture(daySwipe)
                 if summary.events.isEmpty && annivs.isEmpty && taskRows.isEmpty {
-                    Spacer()
+                    // 予定のない日は、どこを左右にスワイプしても、隣の日へ
                     Text("予定はありません")
                         .foregroundStyle(Color.secondary)
-                    Spacer()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(daySwipe)
                 } else {
                     List {
                         // 記念日・誕生日(タップで詳細。メモもそこで見られる)
@@ -191,8 +280,21 @@ struct DaySheet: View {
                                 .tint(swipeDeleteTint)
                             }
                         }
+                        // 予定の下の余白。左右にスワイプで、隣の日へ(予定の行は、左へのスワイプが削除なので使わない)。
+                        // スクロールを止めないよう、ほかのジェスチャーと同時に受ける
+                        Color.clear
+                            .frame(height: 160)
+                            .contentShape(Rectangle())
+                            .simultaneousGesture(daySwipe)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .accessibilityHidden(true)
                     }
                     .listStyle(.plain)
+                    // 開いたとき(日を移ったときも)、半分の高さで予定が出しきれなければ、全画面に広げる
+                    .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { h in
+                        expandIfNeeded(listHeight: h, events: summary.events.count, others: annivs.count + taskRows.count)
+                    }
                 }
         }
     }

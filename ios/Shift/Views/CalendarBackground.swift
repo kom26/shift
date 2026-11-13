@@ -14,19 +14,20 @@ enum CalendarBackground {
     /// 自分のカレンダーの背景(共有カレンダーは、共有カレンダーごとに別で持つ)
     static let personalKey = "calendarBackground"
 
+    /// 色は、白(ダークは標準の暗い色)を多めに混ぜた、ごく薄い色
     static let options: [Option] = [
         Option(key: "", name: "標準", light: "#ffffff", dark: "#1c1c1e"),
-        Option(key: "cream", name: "クリーム", light: "#fffbf1", dark: "#26231b"),
-        Option(key: "sakura", name: "さくら", light: "#fef4f6", dark: "#2a2024"),
-        Option(key: "peach", name: "ピーチ", light: "#fff6ee", dark: "#2a221b"),
-        Option(key: "lemon", name: "レモン", light: "#fffbe0", dark: "#282619"),
-        Option(key: "mint", name: "ミント", light: "#f0faf1", dark: "#1b2a1f"),
-        Option(key: "blue", name: "あお", light: "#eff7fd", dark: "#1a2531"),
-        Option(key: "aqua", name: "みずいろ", light: "#ecf8f6", dark: "#192a27"),
-        Option(key: "lavender", name: "ラベンダー", light: "#f4f0fd", dark: "#231f31"),
-        Option(key: "lilac", name: "ライラック", light: "#f9f1fa", dark: "#2a2030"),
-        Option(key: "gray", name: "ライトグレー", light: "#f3f4f7", dark: "#2a2b30"),
-        Option(key: "beige", name: "ベージュ", light: "#f8f4ed", dark: "#292419"),
+        Option(key: "cream", name: "クリーム", light: "#fffcf6", dark: "#22211c"),
+        Option(key: "sakura", name: "さくら", light: "#fef8f9", dark: "#251f22"),
+        Option(key: "peach", name: "ピーチ", light: "#fff9f4", dark: "#25201c"),
+        Option(key: "lemon", name: "レモン", light: "#fffceb", dark: "#24221b"),
+        Option(key: "mint", name: "ミント", light: "#f5fcf6", dark: "#1b251f"),
+        Option(key: "blue", name: "あお", light: "#f5fafe", dark: "#1b222a"),
+        Option(key: "aqua", name: "みずいろ", light: "#f3faf9", dark: "#1a2524"),
+        Option(key: "lavender", name: "ラベンダー", light: "#f8f5fe", dark: "#211e2a"),
+        Option(key: "lilac", name: "ライラック", light: "#fbf6fc", dark: "#251f2a"),
+        Option(key: "gray", name: "ライトグレー", light: "#f7f8fa", dark: "#25262a"),
+        Option(key: "beige", name: "ベージュ", light: "#faf8f3", dark: "#24211b"),
     ]
 
     static func option(_ key: String) -> Option? { options.first { $0.key == key } }
@@ -55,9 +56,12 @@ extension EnvironmentValues {
 /// カレンダー背景を、実際のカレンダーを見ながら選ぶ(カレンダーは操作できない。下に候補を横スクロールで並べる)
 struct CalendarBackgroundSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(Store.self) private var envStore
     @AppStorage("startMonday") private var startMonday = false
     let title: String
     @Binding var selection: String
+    /// プレビューに出す予定の入れ物。共有カレンダーでは、その共有カレンダーの中身(nil なら、自分のカレンダー)
+    var previewStore: Store? = nil
 
     var body: some View {
         let bg = CalendarBackground.color(selection)
@@ -67,6 +71,7 @@ struct CalendarBackgroundSheet: View {
                 MonthView(anchor: Rules.today(), startMonday: startMonday, summaryOn: false, selectedDate: nil,
                           onSelectDay: { _ in }, onSelectEvent: { _ in }, onTapEvent: { _, _ in }, onDropEvent: { _, _ in },
                           onSelectPayday: { _ in }, onLongPressDay: { _ in })
+                    .environment(previewStore ?? envStore)
                     .environment(\.calendarBackground, bg)
                     .background(bg)
                     .allowsHitTesting(false)
