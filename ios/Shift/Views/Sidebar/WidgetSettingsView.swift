@@ -14,8 +14,10 @@ struct WidgetSettingsView: View {
     @State private var size = 0
     /// プレビュー。false は仮の予定でのイメージ、true はいま設定している内容での本当の表示
     @State private var previewReal = false
-    /// プレビューで見ているカレンダーの位置(小・中)。プレビューをタップすると、ウィジェットの切り替えボタンと同じく次へ進む
+    /// プレビューで見ているカレンダーの位置(小・中)。プレビューの右上の切り替えボタンで、次へ進む
     @State private var previewIndex = [0, 0]
+    /// プレビューで、今日(今週)からいくつ進めたか(小・中)。プレビューの前へ・次へのボタンで動く
+    @State private var previewOffset = [0, 0]
     /// 画面の中で直している設定。「保存」を押すまで、ウィジェットには渡さない
     @State private var small = WidgetPrefs.load(WidgetPrefsKey.small)
     @State private var medium = WidgetPrefs.load(WidgetPrefsKey.medium)
@@ -80,9 +82,10 @@ struct WidgetSettingsView: View {
             }
             WidgetPreview(size: size, prefs: viewingPrefs, real: previewReal,
                           workAvailable: workAvailable(viewingPrefs.calendarId),
-                          switcher: switcherForPreview)
-                .contentShape(Rectangle())
-                .onTapGesture { if prefs.wrappedValue.canSwitch { previewIndex[size] += 1 } }
+                          switcher: switcherForPreview,
+                          offset: previewOffset[size],
+                          calendarIndex: prefs.wrappedValue.wrapped(previewIndex[size]),
+                          actions: previewActions)
                 .frame(height: 166)
             Picker("プレビュー", selection: $previewReal) {
                 Text("表示イメージ").tag(false)
@@ -95,13 +98,26 @@ struct WidgetSettingsView: View {
         .padding(.bottom, 10)
     }
 
+    /// プレビューの中のボタン(前へ・次へ・今日へ・切り替え)。本物のウィジェットには触れず、プレビューだけ動かす
+    private var previewActions: WidgetPreviewActions {
+        let s = size
+        return WidgetPreviewActions(
+            step: { previewOffset[s] += $0 },
+            reset: { previewOffset[s] = 0 },
+            cycle: { if prefs.wrappedValue.canSwitch { previewIndex[s] += 1 } })
+    }
+
     /// プレビューの右上の切り替えボタン(ウィジェットと同じ)。
-    /// 表示イメージでは、自分のカレンダーも自分のアイコンにせず、カレンダーの記号にする(仮の予定に自分の顔が出ると紛らわしい)
+    /// 表示イメージでは、本当のアイコン(自分の顔や、共有カレンダーのアイコン)は出さず、見本のアイコンにする。
+    /// 数だけ、選んだカレンダーと同じ
     private var switcherForPreview: WidgetCalendarSwitch? {
         guard prefs.wrappedValue.canSwitch else { return nil }
-        guard let id = viewingPrefs.calendarId else {
-            return WidgetCalendarSwitch(icon: previewReal ? nil : CalendarIcon.defaultName, me: previewReal ? me : nil)
+        if !previewReal {
+            // 自分のカレンダーは、カレンダーの記号(アイコンも顔も無いとき)。共有カレンダーは、見本のアイコン
+            guard viewingPrefs.calendarId != nil else { return WidgetCalendarSwitch(icon: nil, me: nil) }
+            return WidgetCalendarSwitch(icon: WidgetPreview.sampleIcon(prefs.wrappedValue.wrapped(previewIndex[size])))
         }
+        guard let id = viewingPrefs.calendarId else { return WidgetCalendarSwitch(icon: nil, me: me) }
         return WidgetCalendarSwitch(icon: activeCalendars.first { $0.id == id }?.icon ?? CalendarIcon.defaultName)
     }
 

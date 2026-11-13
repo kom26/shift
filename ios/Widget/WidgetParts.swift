@@ -1,4 +1,45 @@
+import AppIntents
 import SwiftUI
+
+/// アプリの設定画面のプレビューで、ウィジェットのボタンを押したときの動き。
+/// 本物のウィジェットでは nil で、ボタンは AppIntent で動く(プレビューで AppIntent を動かすと、本物のウィジェットの表示が変わってしまう)
+struct WidgetPreviewActions {
+    /// 前へ(-1)・次へ(1)
+    var step: (Int) -> Void
+    /// 「今日へ」「今週へ」
+    var reset: () -> Void
+    /// 右上のカレンダーの切り替え
+    var cycle: () -> Void
+}
+
+private struct WidgetPreviewActionsKey: EnvironmentKey {
+    static let defaultValue: WidgetPreviewActions? = nil
+}
+
+extension EnvironmentValues {
+    var widgetPreviewActions: WidgetPreviewActions? {
+        get { self[WidgetPreviewActionsKey.self] }
+        set { self[WidgetPreviewActionsKey.self] = newValue }
+    }
+}
+
+/// ウィジェットのボタン。ウィジェットでは AppIntent、設定画面のプレビューでは、その場の動き
+struct WidgetActionButton<Intent: AppIntent, Label: View>: View {
+    @Environment(\.widgetPreviewActions) private var preview
+    let intent: Intent
+    let previewAction: (WidgetPreviewActions) -> Void
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        if let preview {
+            Button { previewAction(preview) } label: { label() }
+                .buttonStyle(.plain)
+        } else {
+            Button(intent: intent) { label() }
+                .buttonStyle(.plain)
+        }
+    }
+}
 
 /// 前へ・次へなどの小さな丸ボタン
 struct WidgetStepButtonLabel: View {

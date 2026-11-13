@@ -5,6 +5,8 @@ import AppIntents
 struct MediumWeekView: View {
     let content: WeekContent
     let offset: Int
+    /// 設定画面のプレビューのとき(日付のタップでアプリを開かない)
+    @Environment(\.widgetPreviewActions) private var previewActions
 
     private let barH: CGFloat = 15
     private let laneGap: CGFloat = 2
@@ -46,7 +48,8 @@ struct MediumWeekView: View {
                         .offset(y: 28)
                     // 記念日・誕生日は、アプリのカレンダーと同じく、日の列の右下に並べる
                     annivMarks(colW: colW, height: geo.size.height)
-                    dayLinks(colW: colW, height: geo.size.height)
+                    // 日付をタップすると、その日の予定一覧をアプリで開く(設定画面のプレビューでは開かない)
+                    if previewActions == nil { dayLinks(colW: colW, height: geo.size.height) }
                 }
             }
             // 曜日・日付・予定のバーを、まとめて下へずらす量(見出しとの間)
@@ -68,10 +71,13 @@ struct MediumWeekView: View {
     @ViewBuilder
     private func alarmMark(_ i: Int) -> some View {
         if i < content.marks.count, content.marks[i].alarm {
+            // 調整台の 11pt は、11pt の枠の中にベルを描いた大きさ(ベル自体は約 9pt)。
+            // 記号を文字の大きさ 11 で出すと一回り大きくなるので、9pt の枠に収める
             Image(systemName: "bell.fill")
-                .font(.system(size: 11))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 9, height: 9)
                 .foregroundStyle(Theme.alarm)
-                .fixedSize()
                 .padding(.trailing, 2)
                 .frame(width: 0, alignment: .trailing)
         }
@@ -85,7 +91,7 @@ struct MediumWeekView: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 9, height: 9)
+                .frame(width: 10, height: 10)
                 .foregroundStyle(Color(red: 0.95, green: 0.7, blue: 0.1))
                 .padding(.leading, 2)
                 .frame(width: 0, alignment: .leading)
@@ -103,7 +109,7 @@ struct MediumWeekView: View {
                                 .renderingMode(.template)
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 8, height: 8)
+                                .frame(width: 10, height: 10)
                                 .foregroundStyle(Color(hex: a.color))
                         }
                         if content.marks[i].annivMore > 0 {
@@ -128,18 +134,20 @@ struct MediumWeekView: View {
                 .lineLimit(1)
             Spacer(minLength: 0)
             if offset != 0 {
-                Button(intent: ResetWeekIntent()) { WidgetBackLabel(text: "今週へ") }
-                    .buttonStyle(.plain)
+                WidgetActionButton(intent: ResetWeekIntent(), previewAction: { $0.reset() }) { WidgetBackLabel(text: "今週へ") }
             }
-            Button(intent: StepWeekIntent(delta: -1)) { WidgetStepButtonLabel(systemName: "chevron.left") }
-                .buttonStyle(.plain)
-            Button(intent: StepWeekIntent(delta: 1)) { WidgetStepButtonLabel(systemName: "chevron.right") }
-                .buttonStyle(.plain)
+            WidgetActionButton(intent: StepWeekIntent(delta: -1), previewAction: { $0.step(-1) }) {
+                WidgetStepButtonLabel(systemName: "chevron.left")
+            }
+            WidgetActionButton(intent: StepWeekIntent(delta: 1), previewAction: { $0.step(1) }) {
+                WidgetStepButtonLabel(systemName: "chevron.right")
+            }
             // カレンダーの切り替え(2 つ以上選んでいるときだけ)。小と同じく、いつも右上(前へ・次への右)
             if let sw = content.switcher {
-                Button(intent: CycleCalendarIntent(size: "medium")) { WidgetCalendarSwitchLabel(sw: sw) }
-                    .buttonStyle(.plain)
-                    .padding(.leading, 2)
+                WidgetActionButton(intent: CycleCalendarIntent(size: "medium"), previewAction: { $0.cycle() }) {
+                    WidgetCalendarSwitchLabel(sw: sw)
+                }
+                .padding(.leading, 2)
             }
         }
         .frame(height: 22)

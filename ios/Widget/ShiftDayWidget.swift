@@ -99,8 +99,9 @@ struct SmallDayView: View {
                 Spacer(minLength: 0)
                 // 右上: カレンダーの切り替え(2 つ以上選んでいるときだけ)
                 if let sw = content.switcher {
-                    Button(intent: CycleCalendarIntent(size: "small")) { WidgetCalendarSwitchLabel(sw: sw, size: 19, badge: 9) }
-                        .buttonStyle(.plain)
+                    WidgetActionButton(intent: CycleCalendarIntent(size: "small"), previewAction: { $0.cycle() }) {
+                        WidgetCalendarSwitchLabel(sw: sw, size: 19, badge: 9)
+                    }
                 }
             }
             .frame(height: 18)
@@ -155,20 +156,23 @@ struct SmallDayView: View {
 
     private var nav: some View {
         HStack {
-            Button(intent: StepDayIntent(delta: -1)) { WidgetStepButtonLabel(systemName: "chevron.left") }
-                .buttonStyle(.plain)
+            WidgetActionButton(intent: StepDayIntent(delta: -1), previewAction: { $0.step(-1) }) {
+                WidgetStepButtonLabel(systemName: "chevron.left")
+            }
             Spacer()
             if offset != 0 {
-                Button(intent: ResetDayIntent()) { WidgetBackLabel(text: "今日へ") }
-                    .buttonStyle(.plain)
+                WidgetActionButton(intent: ResetDayIntent(), previewAction: { $0.reset() }) {
+                    WidgetBackLabel(text: "今日へ")
+                }
             } else {
                 Text("今日")
                     .font(.app(10.5, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button(intent: StepDayIntent(delta: 1)) { WidgetStepButtonLabel(systemName: "chevron.right") }
-                .buttonStyle(.plain)
+            WidgetActionButton(intent: StepDayIntent(delta: 1), previewAction: { $0.step(1) }) {
+                WidgetStepButtonLabel(systemName: "chevron.right")
+            }
         }
         .frame(height: 22)
     }

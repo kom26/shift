@@ -72,6 +72,8 @@ struct CalendarBackgroundSheet: View {
                           onSelectDay: { _ in }, onSelectEvent: { _ in }, onTapEvent: { _, _ in }, onDropEvent: { _, _ in },
                           onSelectPayday: { _ in }, onLongPressDay: { _ in })
                     .environment(previewStore ?? envStore)
+                    // 共有カレンダーのプレビューは、共有カレンダーの見え方にする(重複の印などを出さない。メインの画面と同じ)
+                    .environment(\.isSharedView, previewStore != nil)
                     .environment(\.calendarBackground, bg)
                     .background(bg)
                     .allowsHitTesting(false)
