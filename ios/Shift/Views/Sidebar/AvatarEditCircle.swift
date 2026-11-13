@@ -166,3 +166,19 @@ struct ProfileEditSheet: View {
         .presentationBackground(Color(.systemGroupedBackground))
     }
 }
+
+/// 「自分のカレンダー」のアイコン。自分のプロフィールのアイコン(写真・絵文字・頭文字)。
+/// ログインしていなければ、カレンダーの記号(アクセント色)
+struct MyCalendarIcon: View {
+    @Environment(AuthService.self) private var auth
+    @Environment(ProfileSettings.self) private var profile
+    var size: CGFloat = 24
+
+    var body: some View {
+        if let account = auth.account {
+            UserAvatar(uid: account.uid, name: profile.displayName(for: account), avatar: profile.avatar, size: size)
+        } else {
+            Image(systemName: "calendar").foregroundStyle(Theme.accent).frame(width: size)
+        }
+    }
+}

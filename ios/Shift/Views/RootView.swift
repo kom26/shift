@@ -417,7 +417,7 @@ struct RootView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
                     .padding(.top, 12)
-                drawerRow(title: "自分のカレンダー", icon: "calendar", selected: !sharedView.isOpen) {
+                drawerRow(title: "自分のカレンダー", icon: "calendar", mine: true, selected: !sharedView.isOpen) {
                     sharedView.close()
                     closeDrawer()
                 }
@@ -563,10 +563,11 @@ struct RootView: View {
         .background(Theme.accent)
     }
 
-    private func drawerRow(title: String, icon: String, caption: String? = nil, selected: Bool = false, action: @escaping () -> Void) -> some View {
+    /// mine: 自分のカレンダーの行(アイコンは、自分のプロフィールのアイコン)
+    private func drawerRow(title: String, icon: String, mine: Bool = false, caption: String? = nil, selected: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                CalendarIconView(icon: icon, size: 24)
+                if mine { MyCalendarIcon(size: 24) } else { CalendarIconView(icon: icon, size: 24) }
                 // 状態(参加待ち・承認待ち)は、名前の下の小さな文字で出す。名前が長くても、切れない
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.app(16, weight: selected ? .semibold : .regular)).lineLimit(2)

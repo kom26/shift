@@ -135,11 +135,7 @@ struct WidgetSettingsView: View {
                                                : "2 つ以上選ぶと、ウィジェットの右上に切り替えボタンが出ます。") {
             calendarChip(id: "", name: "自分のカレンダー") {
                 // 自分のプロフィールのアイコン(ログインしていなければ、カレンダーの記号)
-                if let me {
-                    UserAvatar(uid: me.uid, name: me.name, avatar: me.avatar, size: 18)
-                } else {
-                    Image(systemName: "calendar").font(.system(size: 13, weight: .semibold))
-                }
+                MyCalendarIcon(size: 18)
             }
             ForEach(activeCalendars) { cal in
                 calendarChip(id: cal.id, name: cal.name) {

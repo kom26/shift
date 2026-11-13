@@ -249,14 +249,14 @@ struct DestinationSection: View {
     }
 }
 
-/// 保存先のアイコン。自分のカレンダーはカレンダーの記号、共有カレンダーはそのアイコン
+/// 保存先のアイコン。自分のカレンダーは自分のプロフィールのアイコン、共有カレンダーはそのアイコン
 struct DestinationIcon: View {
     let choice: DestinationChoice
     var size: CGFloat = 24
 
     var body: some View {
         if choice.calendarId == nil {
-            Image(systemName: "calendar").foregroundStyle(Theme.accent).frame(width: size)
+            MyCalendarIcon(size: size)
         } else {
             CalendarIconView(icon: choice.icon.isEmpty ? CalendarIcon.defaultName : choice.icon, size: size)
         }
