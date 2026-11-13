@@ -60,14 +60,13 @@ struct DaySheet: View {
     }
 
     /// 日付の見出し。月日を大きく、曜日は土日祝の色で。その上に、年(真ん中)と「今日」(月日の左端にそろえる)。祝日名は下に小さく。
-    /// 左右の矢印か、見出しを左右にスワイプして、隣の日へ
+    /// 見出しを左右にスワイプして、隣の日へ(矢印は出さない。全画面のとき、戻るボタンに見えてしまうため)
     private var dateHeader: some View {
         let p = Rules.ymd(date)
         let holiday = holidays.name(on: date)
         let type = Rules.dayType(date, isHoliday: holiday != nil)
         let wd = Rules.weekdayLabels(startMonday: false)[Rules.weekday(date)]
         return HStack(spacing: 0) {
-            stepButton(-1)
             Spacer(minLength: 0)
             VStack(spacing: 1) {
                 // 月日の上に、年(月日の真ん中)と「今日」(月日の左端にそろえる)
@@ -97,25 +96,21 @@ struct DaySheet: View {
                 }
             }
             .accessibilityElement(children: .combine)
+            // VoiceOver では、上下のスワイプで隣の日へ
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: step(1)
+                case .decrement: step(-1)
+                @unknown default: break
+                }
+            }
             Spacer(minLength: 0)
-            stepButton(1)
         }
+        .frame(minHeight: 44)
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .gesture(daySwipe)
-    }
-
-    private func stepButton(_ delta: Int) -> some View {
-        Button { step(delta) } label: {
-            Image(systemName: delta < 0 ? "chevron.left" : "chevron.right")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Theme.accent)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(delta < 0 ? "前の日" : "次の日")
     }
 
     /// 左へスワイプで次の日、右へスワイプで前の日(横に大きく動かしたときだけ。縦のスクロールやシートの上げ下げとは分ける)
