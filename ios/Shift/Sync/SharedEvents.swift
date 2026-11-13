@@ -108,6 +108,16 @@ struct SharedEvent: Equatable, Identifiable {
     }
 }
 
+/// 共有カレンダーの、色を変える単位 1 つ(ほかの人の職場・ラベル 1 つか、共有カレンダーの中で作った予定)。
+/// 職場名・ラベル名は持たない(画面に出さない)
+struct SharedColorGroup: Identifiable, Equatable {
+    let key: String
+    /// 例に出す予定(元の色も、ここから取る)
+    let sample: SharedEvent
+    let count: Int
+    var id: String { key }
+}
+
 /// 共有カレンダーの予定のクラウド側(テストでは差し替える)
 protocol SharedEventsBacking: AnyObject {
     func fetch(calendarId: String) async throws -> [SharedEvent]
@@ -626,6 +636,36 @@ final class SharedViewState {
             overrides = map
             rebuild()
         }
+        rebuildOverlay()
+    }
+
+    /// 開いている共有カレンダーの予定を、色を変える単位(colorKey)ごとにまとめる。
+    /// ownerUid が nil なら、共有カレンダーの中で作った予定。予定の多い順(「種類 1」「種類 2」…の順)
+    func colorGroups(ownerUid: String?) -> [SharedColorGroup] {
+        let list = items.values.filter {
+            ownerUid == nil ? $0.isCalendarOwned : (!$0.isCalendarOwned && $0.ownerUid == ownerUid)
+        }
+        let grouped = Dictionary(grouping: list, by: { Self.colorKey(for: $0) })
+        return grouped.compactMap { key, events -> SharedColorGroup? in
+            // 例に出すのは、日付のある予定のうち、いちばん新しいもの
+            let sample = events.filter(\.placed).max { ($0.startDate, $0.id) < ($1.startDate, $1.id) } ?? events.first
+            return sample.map { SharedColorGroup(key: key, sample: $0, count: events.count) }
+        }
+        .sorted { $0.count != $1.count ? $0.count > $1.count : $0.key < $1.key }
+    }
+
+    /// まとめて色を変える(開いている共有カレンダーだけ)。元の色と同じなら、元に戻す。nil で全部元に戻す
+    func setColor(_ color: String?, for groups: [SharedColorGroup]) {
+        guard let cid = calendar?.id, !groups.isEmpty else { return }
+        var all = Self.loadOverrides(defaults: defaults)
+        var map = all[cid] ?? [:]
+        for g in groups {
+            map[g.key] = (color == nil || color == g.sample.color) ? nil : color
+        }
+        all[cid] = map
+        if let data = try? JSONEncoder().encode(all) { defaults.set(data, forKey: Self.overridesKey) }
+        overrides = map
+        rebuild()
         rebuildOverlay()
     }
 

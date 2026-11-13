@@ -659,3 +659,47 @@ struct ProfileAndAvatarTests {
         #expect(backing.membersByCalendar[made.calendar.id]?.first { $0.id == "you" }?.avatar == "img:GUEST")
     }
 }
+
+/// 共有カレンダーの「参加者ごとの色」
+@MainActor
+struct MemberColorTests {
+    private func item(_ id: String, owner: String, key: String, date: String, color: String) -> SharedEvent {
+        SharedEvent(id: id, ownerUid: owner, sourceKey: key, title: id, startDate: date, endDate: date,
+                    startTime: nil, endTime: nil, allDay: true, name: "職場A", color: color)
+    }
+
+    @Test func groupsEachMembersItemsAndRecolorsThemAtOnce() async throws {
+        let service = CalendarService(backing: FakeCalendars())
+        await service.start(uid: "me")
+        let made = try #require(await service.create(NewCalendar(name: "家族", displayName: "わたし", kind: .mutual,
+                                                                  requireApproval: false, sharedKeys: [])))
+        let backing = RecordingEvents()
+        backing.docs[made.calendar.id] = [
+            item("you_1", owner: "you", key: "w:a", date: "2026-11-10", color: "#111111"),
+            item("you_2", owner: "you", key: "w:a", date: "2026-11-12", color: "#111111"),
+            item("you_3", owner: "you", key: "l:b", date: "2026-11-11", color: "#222222"),
+            SharedEvent.newInCalendar(uid: "you", date: "2026-11-10"),
+        ]
+        let view = SharedViewState(events: backing, calendars: service, defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        await view.open(made.calendar)
+
+        // 職場・ラベルごとに、予定の多い順。例に出すのは、いちばん新しい予定
+        let groups = view.colorGroups(ownerUid: "you")
+        let keys = groups.map { $0.key }
+        let counts = groups.map { $0.count }
+        #expect(keys == ["you|w:a", "you|l:b"])
+        #expect(counts == [2, 1])
+        #expect(groups.first?.sample.id == "you_2")
+        // 共有カレンダーの中で作った予定は、参加者の予定とは別
+        #expect(view.colorGroups(ownerUid: nil).count == 1)
+
+        // まとめて変える。元の色と同じになる種類は、変えたことにしない
+        view.setColor("#222222", for: groups)
+        #expect(view.overrides["you|w:a"] == "#222222")
+        #expect(view.overrides["you|l:b"] == nil)
+        #expect(view.store?.events.first { $0.id == "you_1" }?.color == "#222222")
+
+        view.setColor(nil, for: groups)
+        #expect(view.overrides.isEmpty)
+    }
+}

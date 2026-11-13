@@ -322,7 +322,13 @@ struct CalendarDetailSheet: View {
                 Form {
                     ownerSection
                     if calendar.status == .active {
-                        OvernightLookSection(value: overnightBinding)
+                        OvernightLookSection(value: overnightBinding) {
+                            NavigationLink {
+                                MemberColorsView(calendar: calendar, members: members, myUid: uid)
+                            } label: {
+                                Text("参加者ごとの色")
+                            }
+                        }
                     }
                     memberSections
                     dangerSection

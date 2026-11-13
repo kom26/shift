@@ -1,21 +1,24 @@
 import SwiftUI
 
 /// 共有カレンダーの設定の「自分だけの見え方」。24時をこえる予定を、この端末でどう見せるか選ぶ
-struct OvernightLookSection: View {
+/// extra: 段の下に足す行(参加者ごとの色)
+struct OvernightLookSection<Extra: View>: View {
     @Binding var value: OvernightDisplay
+    @ViewBuilder var extra: () -> Extra
 
     var body: some View {
         Section {
             NavigationLink {
                 OvernightLookView(kind: .lateEnd, value: $value)
             } label: {
-                LabeledContent("日付をまたぐ予定", value: Self.name(value.lateEnd))
+                LabeledContent("日付をまたぐ予定", value: OvernightNames.name(value.lateEnd))
             }
             NavigationLink {
                 OvernightLookView(kind: .afterMidnight, value: $value)
             } label: {
-                LabeledContent("開始が24時以降の予定", value: Self.name(value.afterMidnight))
+                LabeledContent("開始が24時以降の予定", value: OvernightNames.name(value.afterMidnight))
             }
+            extra()
         } header: {
             Text("自分だけの見え方")
         } footer: {
@@ -23,6 +26,9 @@ struct OvernightLookSection: View {
         }
     }
 
+}
+
+enum OvernightNames {
     static func name(_ c: LateEndChoice?) -> String {
         switch c {
         case nil: "予定作成者の表示のまま"
