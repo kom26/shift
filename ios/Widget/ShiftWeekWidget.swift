@@ -10,7 +10,7 @@ struct MediumWeekView: View {
     private let laneGap: CGFloat = 2
     private let sidePad: CGFloat = 12
     /// 曜日・日付・予定のバーを、まとめて下へずらす量
-    static let gridY: CGFloat = 0
+    static let gridY: CGFloat = 2
 
     var body: some View {
         VStack(spacing: 0) {
