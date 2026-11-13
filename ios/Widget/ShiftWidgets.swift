@@ -23,14 +23,23 @@ struct ShiftProvider: TimelineProvider {
         let today = Rules.today()
         let dayOffset = WidgetOffset(key: "day").current(today: today)
         let weekOffset = WidgetOffset(key: "week").current(today: today)
-        // 小と中で、見るカレンダーや表示する項目を別々に決められる
+        // 小と中で、見るカレンダーや表示する項目を別々に決められる。
+        // カレンダーを複数選んでいるときは、右上のボタンで切り替えた位置のカレンダーを見る
         let data = WidgetBridge.read()
-        let daySource = WidgetSource.load(prefs: data?.small ?? WidgetPrefs())
-        let weekSource = WidgetSource.load(prefs: data?.medium ?? WidgetPrefs())
-        return ShiftEntry(date: now,
-                          day: daySource.dayContent(Rules.addDays(today, dayOffset)), dayOffset: dayOffset,
-                          week: weekSource.weekContent(containing: Rules.addDays(today, 7 * weekOffset), today: today),
-                          weekOffset: weekOffset)
+        let smallPrefs = (data?.small ?? WidgetPrefs()).viewing(WidgetCalendarCursor(size: "small").index)
+        let mediumPrefs = (data?.medium ?? WidgetPrefs()).viewing(WidgetCalendarCursor(size: "medium").index)
+        var day = WidgetSource.load(prefs: smallPrefs).dayContent(Rules.addDays(today, dayOffset))
+        var week = WidgetSource.load(prefs: mediumPrefs).weekContent(containing: Rules.addDays(today, 7 * weekOffset), today: today)
+        day.switcher = Self.switcher(smallPrefs, data: data)
+        week.switcher = Self.switcher(mediumPrefs, data: data)
+        return ShiftEntry(date: now, day: day, dayOffset: dayOffset, week: week, weekOffset: weekOffset)
+    }
+
+    /// 右上の切り替えボタン。カレンダーが 1 つだけなら出さない
+    static func switcher(_ prefs: WidgetPrefs, data: WidgetData?) -> WidgetCalendarSwitch? {
+        guard prefs.canSwitch else { return nil }
+        guard let id = prefs.calendarId else { return WidgetCalendarSwitch(icon: nil) }
+        return WidgetCalendarSwitch(icon: data?.shared?.first { $0.id == id }?.icon ?? "person.2.fill")
     }
 
     func placeholder(in context: Context) -> ShiftEntry { entry() }

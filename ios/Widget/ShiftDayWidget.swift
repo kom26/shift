@@ -8,7 +8,7 @@ struct SmallDayView: View {
 
     private var lineCap: Int {
         let n = content.events.count
-        if content.pay != nil { return n <= 3 ? n : 3 }
+        if hasSubRow { return n <= 3 ? n : 3 }
         return n <= 4 ? n : 4
     }
 
@@ -18,15 +18,6 @@ struct SmallDayView: View {
         let compact = content.events.count >= 3
         VStack(alignment: .leading, spacing: 0) {
             header
-            if let pay = content.pay {
-                Text(pay)
-                    .font(.app(10, weight: .semibold))
-                    .foregroundStyle(Theme.payText)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Theme.payFill))
-                    .padding(.top, 3)
-            }
             if content.events.isEmpty {
                 Spacer(minLength: 0)
                 Text("予定なし")
@@ -35,63 +26,128 @@ struct SmallDayView: View {
                     .frame(maxWidth: .infinity)
                 Spacer(minLength: 0)
             } else {
+                // 予定の行は、日付の下から「前へ・次へ」ボタンの上までの空きを、ぴったり使い切る高さにする(自動)。
+                // 1 件のときだけは、2 件のときの 1 行と同じ高さにする(空の 2 行目を置いて、同じ割り方にする)
                 VStack(alignment: .leading, spacing: compact ? 2 : 3) {
                     ForEach(shown) { line in
-                        EventLineView(line: line, compact: compact)
+                        EventLineView(line: line, compact: compact, stretch: true)
+                    }
+                    if shown.count == 1 {
+                        Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                     if rest > 0 {
                         Text("ほか\(rest)件")
-                            .font(.app(10))
+                            .font(.app(11))
                             .foregroundStyle(.secondary)
-                            .padding(.leading, 8)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .padding(.trailing, 8)
+                            // 「ほか」の行だけ、下の余白を 3pt 詰めて、矢印ボタンに近づける
+                            .padding(.bottom, -3)
                     }
                 }
-                .padding(.top, 5)
+                .frame(maxHeight: .infinity)
+                // 下の矢印ボタンに接しないよう、少し空ける
+                .padding(.bottom, 6)
+                // 日付の下の行(給料日・アラーム)があるときは、その行と1つ目の予定の間を、予定どうしの間と同じにする
+                .padding(.top, hasSubRow ? (compact ? 2 : 3) : 5)
                 Spacer(minLength: 0)
             }
             nav
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
+        .padding(.horizontal, 11)
+        .padding(.top, 11)
         .padding(.bottom, 8)
         .widgetURL(widgetDayURL(content.date, calendarId: content.calendarId))
     }
 
+    /// 日付の下の行(給料日・アラーム)があるか
+    private var hasSubRow: Bool { content.pay != nil || content.alarm != nil }
+
+    /// 日付の行。日付と曜日の右に記念日のアイコン(2 個まで、3 個目からは「+n」)。
+    /// その下の行に、給料日(左)とアラーム(右)を出す
     private var header: some View {
         let p = Rules.ymd(content.date)
-        return HStack(spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text("\(p.month)/\(p.day)").font(.app(13, weight: .bold))
-                Text("(\(content.weekday))")
-                    .font(.app(11, weight: .semibold))
-                    .foregroundStyle(content.weekdayType.color)
-            }
-            .lineLimit(1)
-            if !content.annivs.isEmpty {
-                HStack(spacing: 2) {
-                    ForEach(content.annivs) { a in
-                        Image(a.asset)
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 11, height: 11)
-                            .foregroundStyle(Color(hex: a.color))
-                    }
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text("\(p.month)/\(p.day)").font(.app(17, weight: .bold))
+                    Text("(\(content.weekday))")
+                        .font(.app(10, weight: .semibold))
+                        .foregroundStyle(content.weekdayType.color)
                 }
-                .fixedSize()
+                .lineLimit(1)
+                if !content.annivs.isEmpty {
+                    HStack(spacing: 2) {
+                        ForEach(content.annivs.prefix(2)) { a in
+                            Image(a.asset)
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 11, height: 11)
+                                .foregroundStyle(Color(hex: a.color))
+                        }
+                        if content.annivs.count > 2 {
+                            Text("+\(content.annivs.count - 2)")
+                                .font(.app(9, weight: .bold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .fixedSize()
+                }
+                Spacer(minLength: 0)
+                // 右上: カレンダーの切り替え(2 つ以上選んでいるときだけ)
+                if let sw = content.switcher {
+                    Button(intent: CycleCalendarIntent(size: "small")) { WidgetCalendarSwitchLabel(sw: sw) }
+                        .buttonStyle(.plain)
+                }
             }
-            Spacer(minLength: 0)
-            if let a = content.alarm {
-                Text("🔔 \(a.first)" + (a.more > 0 ? " +\(a.more)" : ""))
-                    .font(.app(10, weight: .semibold))
-                    .foregroundStyle(Theme.alarm)
-                    .lineLimit(1)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Theme.alarm.opacity(0.16)))
+            .frame(height: 18)
+            if hasSubRow {
+                HStack(spacing: 4) {
+                    if let pay = content.pay {
+                        HStack(spacing: 3) {
+                            Image("CoinStack")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 11, height: 11)
+                                .foregroundStyle(Color(red: 0.95, green: 0.7, blue: 0.1))
+                            Text(pay)
+                                .font(.app(9.5, weight: .semibold))
+                                .foregroundStyle(Theme.payText)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(RoundedRectangle(cornerRadius: 5).fill(Theme.payFill))
+                        .fixedSize()
+                    }
+                    if let a = content.alarm {
+                        // ベルと時刻だけを角丸の四角で囲み、「+2」は囲みの外に出す(カレンダーと同じベル bell.fill)
+                        HStack(spacing: 2) {
+                            HStack(spacing: 1) {
+                                Image(systemName: "bell.fill").font(.app(11))
+                                Text(a.first)
+                                    .font(.app(10, weight: .semibold))
+                                    .lineLimit(1)
+                            }
+                            .padding(.leading, 2)
+                            .padding(.trailing, 3)
+                            .padding(.vertical, 1)
+                            .background(RoundedRectangle(cornerRadius: 5).fill(Theme.alarm.opacity(0.16)))
+                            if a.more > 0 {
+                                Text("+\(a.more)")
+                                    .font(.app(10, weight: .semibold))
+                                    .lineLimit(1)
+                            }
+                        }
+                        .foregroundStyle(Theme.alarm)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 3)
             }
         }
-        .frame(height: 18)
     }
 
     private var nav: some View {
@@ -169,41 +225,58 @@ struct WidgetAvatar: View {
 struct EventLineView: View {
     let line: DayEventLine
     let compact: Bool
+    /// 行を縦に広げる(中の文字は行の真ん中)
+    var stretch: Bool = false
+
+    /// 共有アイコンがあって、タイトルが隠れてしまうときは、文字を小さくして収める(7 文字ぶんが入る 0.65 倍まで)
+    private var titleScale: CGFloat { (line.owner != nil || line.icon != nil) ? 0.65 : 1 }
 
     var body: some View {
         let color = EventColor.text(line.color)
-        HStack(spacing: 6) {
+        // 3 件以上(1 行)で共有アイコンがあるときは、アイコンの左右の隙間を詰めて、タイトルを広く見せる
+        let tightAvatar = compact && (line.owner != nil || line.icon != nil)
+        HStack(spacing: tightAvatar ? 3 : 6) {
             // 共有した人(共有カレンダーの中で作った予定は、共有カレンダー)のアイコンは、バーの一番左に、バーに収まる大きさで出す
             if let owner = line.owner { WidgetOwnerAvatar(owner: owner, size: compact ? 14 : 22) }
             else if let icon = line.icon { WidgetAvatar(icon: icon, color: color, size: compact ? 14 : 22) }
             Group {
             if compact {
-                HStack(spacing: 6) {
+                // 行の高さは、中身の文字(開始・締切の記号や等幅の時刻)に左右されないよう固定する
+                // タイトルと時刻の間は、最低 4pt(以前は 12pt)まで詰めて、タイトルを広く使う
+                HStack(spacing: 2) {
                     Text(line.title)
                         .font(.app(11.5, weight: .semibold))
                         .lineLimit(1)
+                        .minimumScaleFactor(titleScale)
                     Spacer(minLength: 0)
                     sub(size: 9.5)
                 }
+                .frame(height: stretch ? nil : 16)
                 .padding(.vertical, 2)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(line.title)
                         .font(.app(12, weight: .semibold))
                         .lineLimit(1)
+                        .minimumScaleFactor(titleScale)
+                        .frame(height: 16, alignment: .leading)
                     HStack(spacing: 4) {
                         sub(size: 10)
                     }
+                    .frame(height: 13, alignment: .leading)
+                    // 時刻・終日の行は、少し上げる(2 件のとき、下に空きがあるため)
+                    .offset(y: -4)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 3)
             }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .foregroundStyle(color)
-        .padding(.leading, line.taskStart == false ? 12 : 8)
+        .padding(.leading, line.taskStart == false ? 12 : (tightAvatar ? 4 : 8))
         .padding(.trailing, line.taskStart == true ? 12 : 8)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxHeight: stretch ? .infinity : nil)
         .background { lineBackground }
     }
 

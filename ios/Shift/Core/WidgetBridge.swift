@@ -56,6 +56,24 @@ enum WidgetBridge {
     }
 }
 
+/// ウィジェット右上のボタンで切り替えた、いま見ているカレンダーの位置(何番目か)。小と中で別々。
+/// 日付が変わっても戻さない(最後に見ていたカレンダーのまま)
+struct WidgetCalendarCursor {
+    /// "small" / "medium"
+    let size: String
+    var defaults: UserDefaults? = WidgetBridge.defaults
+
+    private var key: String { "calendar." + size + ".index" }
+
+    var index: Int { defaults?.integer(forKey: key) ?? 0 }
+
+    /// 次のカレンダーへ。count はいま選んでいるカレンダーの数
+    func advance(count: Int) {
+        let n = max(1, count)
+        defaults?.set(((index % n) + 1) % n, forKey: key)
+    }
+}
+
 /// ウィジェットで「前へ・次へ」を押したときの表示位置。押した日だけ有効で、日付が変わると今日に戻る
 struct WidgetOffset {
     let key: String

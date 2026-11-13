@@ -106,6 +106,14 @@ struct DayContent: Equatable {
     var annivs: [DayAnnivIcon] = []
     /// 共有カレンダーを見ているときの ID(タップで、そのカレンダーで開く)
     var calendarId: String?
+    /// 右上の切り替えボタン(カレンダーを 2 つ以上選んでいるときだけ)
+    var switcher: WidgetCalendarSwitch?
+}
+
+/// 右上の切り替えボタンに出す、いま見ているカレンダー
+struct WidgetCalendarSwitch: Equatable {
+    /// 共有カレンダーのアイコン(記号の名前、"記号|#色"、または "img:" + base64)。nil は自分のカレンダー
+    let icon: String?
 }
 
 struct WeekBar: Identifiable, Equatable {
@@ -135,6 +143,8 @@ struct WeekContent: Equatable {
     let hours: String?
     let pay: String?
     var calendarId: String?
+    /// 右上の切り替えボタン(カレンダーを 2 つ以上選んでいるときだけ)
+    var switcher: WidgetCalendarSwitch?
 }
 
 /// ウィジェットのタップで開く、その日の予定一覧のリンク(共有カレンダーを見ているときは、そのカレンダーで開く)
@@ -168,7 +178,7 @@ extension WidgetSource {
                          isAllDay: false, showsTime: row.time != nil, owner: nil, icon: nil, taskStart: row.isStart)
         }
         let paid = summary.paydays.reduce(0) { $0 + $1.amount }
-        let pay = (summary.paydays.isEmpty || !prefs.showPayday) ? nil : "給料日 " + Money.yen(paid)
+        let pay = (summary.paydays.isEmpty || !prefs.showPayday) ? nil : Money.yen(paid)
         let fires = prefs.showAlarms ? alarms.filter { $0.date == ds }.map(\.fireTime).sorted() : []
         let alarm = fires.first.map { first -> DayAlarmBadge in
             let f = DateFormatter()

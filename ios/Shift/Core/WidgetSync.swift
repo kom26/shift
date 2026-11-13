@@ -8,7 +8,7 @@ enum WidgetSync {
         let startMonday = UserDefaults.standard.bool(forKey: "startMonday")
         let small = WidgetPrefs.load(WidgetPrefsKey.small)
         let medium = WidgetPrefs.load(WidgetPrefsKey.medium)
-        let wanted = Set([small.calendarId, medium.calendarId].compactMap { $0 })
+        let wanted = Set(small.sharedCalendarIds + medium.sharedCalendarIds)
         var kept = WidgetBridge.read()?.shared ?? []
         if let shared {
             let ids = Set(shared.map(\.id))

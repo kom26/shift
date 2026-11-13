@@ -26,6 +26,8 @@ struct WidgetPreview: View {
     let real: Bool
     /// 労働時間・見込み給料を出せるか(イメージのとき、出せないものは出さない)
     let workAvailable: Bool
+    /// 右上の切り替えボタン(カレンダーを 2 つ以上選んでいるとき)
+    var switcher: WidgetCalendarSwitch? = nil
 
     private var width: CGFloat { size == 0 ? 158 : 338 }
 
@@ -40,19 +42,25 @@ struct WidgetPreview: View {
 
     @ViewBuilder
     private var content: some View {
-        let today = Rules.today()
-        if real {
-            let source = WidgetSource.load(prefs: prefs)
-            if size == 0 {
-                SmallDayView(content: source.dayContent(today), offset: 0)
-            } else {
-                MediumWeekView(content: source.weekContent(containing: today, today: today), offset: 0)
-            }
-        } else if size == 0 {
-            SmallDayView(content: sampleDay(today), offset: 0)
+        if size == 0 {
+            SmallDayView(content: dayContent(), offset: 0)
         } else {
-            MediumWeekView(content: sampleWeek(today), offset: 0)
+            MediumWeekView(content: weekContent(), offset: 0)
         }
+    }
+
+    private func dayContent() -> DayContent {
+        let today = Rules.today()
+        var c = real ? WidgetSource.load(prefs: prefs).dayContent(today) : sampleDay(today)
+        c.switcher = switcher
+        return c
+    }
+
+    private func weekContent() -> WeekContent {
+        let today = Rules.today()
+        var c = real ? WidgetSource.load(prefs: prefs).weekContent(containing: today, today: today) : sampleWeek(today)
+        c.switcher = switcher
+        return c
     }
 
     // MARK: 仮の予定
@@ -75,7 +83,7 @@ struct WidgetPreview: View {
         if prefs.showBirthdays { annivs.append(DayAnnivIcon(id: "bd", asset: Anniversary.Icon.cake.asset, color: "#e8890c")) }
         if prefs.showAnniversaries { annivs.append(DayAnnivIcon(id: "an", asset: Anniversary.Icon.heart.asset, color: "#d9695f")) }
         let alarm = prefs.showAlarms && !shared ? DayAlarmBadge(first: "7:30", more: 0) : nil
-        let pay = prefs.showPayday ? "給料日 " + Money.yen(182_000) : nil
+        let pay = prefs.showPayday && !shared ? Money.yen(182_000) : nil
         var c = DayContent(date: today, weekday: ["日", "月", "火", "水", "木", "金", "土"][Rules.weekday(today)],
                            weekdayType: Rules.dayType(today, isHoliday: false),
                            pay: pay, alarm: alarm, events: lines, annivs: annivs)

@@ -4,8 +4,9 @@ import Foundation
 enum WidgetSharedFeed {
     @MainActor
     static func refresh(store: Store, calendars: [SharedCalendar], sharedView: SharedViewState) async {
-        let ids = Set([WidgetPrefs.load(WidgetPrefsKey.small).calendarId,
-                       WidgetPrefs.load(WidgetPrefsKey.medium).calendarId].compactMap { $0 })
+        // 切り替えで見る共有カレンダーを、全部取ってくる
+        let ids = Set(WidgetPrefs.load(WidgetPrefsKey.small).sharedCalendarIds
+                      + WidgetPrefs.load(WidgetPrefsKey.medium).sharedCalendarIds)
         var fetched: [WidgetSharedCalendar] = []
         for id in ids {
             guard let cal = calendars.first(where: { $0.id == id && $0.status == .active }),

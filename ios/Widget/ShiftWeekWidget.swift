@@ -59,6 +59,11 @@ struct MediumWeekView: View {
                 .font(.app(12.5, weight: .bold))
                 .lineLimit(1)
             Spacer(minLength: 0)
+            // カレンダーの切り替え(2 つ以上選んでいるときだけ)。前へ・次への左に置く
+            if let sw = content.switcher {
+                Button(intent: CycleCalendarIntent(size: "medium")) { WidgetCalendarSwitchLabel(sw: sw) }
+                    .buttonStyle(.plain)
+            }
             if offset != 0 {
                 Button(intent: ResetWeekIntent()) { WidgetBackLabel(text: "今週へ") }
                     .buttonStyle(.plain)
