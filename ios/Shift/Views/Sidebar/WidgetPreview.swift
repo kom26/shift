@@ -157,7 +157,7 @@ struct WidgetPreview: View {
                     WeekBar(id: "5", col: 5, span: 1, lane: 1, text: "9:00-17:00", color: work, showsTime: true)]
         }
         let hours: [Double] = [32.5, 21, 27, 18.5]
-        let pays = [52_000, 33_600, 43_200, 31_450]
+        let pays: [Double] = [52_000, 33_600, 43_200, 31_450]
         var c = WeekContent(title: Self.title(days), days: days, dayNumbers: days.map { Rules.ymd($0).day },
                             dayTypes: days.map { Rules.dayType($0, isHoliday: false) },
                             todayCol: days.firstIndex(of: today), bars: bars,
