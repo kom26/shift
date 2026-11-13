@@ -46,11 +46,18 @@ struct EditorFlow {
 }
 
 /// 予定の編集。自分のカレンダーと共有カレンダーのどちらにも保存できて、「保存先」を切り替えると、
-/// 編集画面の形が切り替わる(共有は、職場・ラベル・メモ・休憩のない形)。実際に移るのは、保存したとき
+/// 編集画面の形が切り替わる(共有は、職場・ラベル・休憩のない形)。実際に移るのは、保存したとき
 struct EventEditorFlow: View {
     @Environment(Store.self) private var store
     @Environment(SharedViewState.self) private var sharedView
     @Environment(\.eventSaved) private var eventSaved
+
+    /// 画像の追加と取り外し。保存先を切り替えても続けて覚えておく(編集画面ごとに持つと、切り替えた時点で、足した画像が消える)
+    @State private var attachments = AttachmentSession()
+    /// 保存先を変えたときに作った、画像の写し(写し → 元の画像)。元の保存先に戻したときに、元の画像に戻す
+    @State private var copiedFrom: [String: String] = [:]
+    /// 保存先を切り替えている途中(画像を写している間)
+    @State private var switching = false
 
     private let isNew: Bool
     /// 保存されている自分の予定(共有の予定を開いたときは nil)
@@ -90,15 +97,23 @@ struct EventEditorFlow: View {
 
     var body: some View {
         Group {
-            if destination != nil {
-                SharedEventEditor(target: SharedEditTarget(event: sharedDraft, isNew: isNew), flow: flow)
-            } else {
-                EventEditor(original: ownDraft, isNew: isNew, flow: flow)
+            Group {
+                if destination != nil {
+                    SharedEventEditor(target: SharedEditTarget(event: sharedDraft, isNew: isNew), flow: flow,
+                                      session: attachments)
+                } else {
+                    EventEditor(original: ownDraft, isNew: isNew, flow: flow, session: attachments)
+                }
             }
+            // 保存先を切り替えると、編集画面を作り直す(入力は、切り替える前に写してある)
+            .id(destination ?? "")
         }
-        // 保存先を切り替えると、編集画面を作り直す(入力は、切り替える前に写してある)
-        .id(destination ?? "")
+        // 保存しないで閉じたら、この編集で足した画像(保存先を変えたときの写しも)を消す
+        .onDisappear { attachments.discardIfUncommitted() }
     }
+
+    /// 元の予定に付いていた画像
+    private var originImageId: String? { originOwn?.imageId ?? originShared?.imageId }
 
     // MARK: 保存先
 
@@ -121,13 +136,35 @@ struct EventEditorFlow: View {
     }
 
     private func request(_ dest: String?, _ draft: FlowDraft) {
-        guard dest != destination else { return }
+        guard dest != destination, !switching else { return }
         // 切り替えるときに、お知らせは出さない(職場・ラベルは、保存したときに共有の形で解除される)
-        apply(dest, draft)
+        switching = true
+        Task {
+            var common = Common(draft)
+            common.imageId = await relocatedImage(common.imageId, to: dest)
+            apply(dest, common)
+            switching = false
+        }
     }
 
-    private func apply(_ dest: String?, _ draft: FlowDraft) {
-        let common = Common(draft)
+    /// 画像を、保存先のカレンダーの置き場へ写す(共有カレンダーの画像は、その参加者だけが読める場所に置くため)。
+    /// 元の保存先に戻したときは、元の画像に戻す。写せなかったときは、画像を外す
+    private func relocatedImage(_ id: String?, to dest: String?) async -> String? {
+        guard let id, AttachmentStore.calendarId(of: id) != dest else { return id }
+        let source = copiedFrom[id] ?? id
+        if source == originImageId, AttachmentStore.calendarId(of: source) == dest {
+            if source != id { attachments.didRemove(id) }
+            return source
+        }
+        guard let copy = await AttachmentCloud.duplicate(id, calendarId: dest) else { return nil }
+        // この編集で足した画像や写しは、もう使わないので消す(元の予定の画像は、保存するまで残す)
+        if attachments.added.contains(id) { attachments.didRemove(id) }
+        attachments.didAdd(copy)
+        copiedFrom[copy] = source
+        return copy
+    }
+
+    private func apply(_ dest: String?, _ common: Common) {
         if let cid = dest {
             // 元の共有カレンダーに戻すときは、元の予定(同じ ID)から、それ以外は新しい予定として作る
             let base = (cid == origin ? originShared : nil) ?? sharedView.newDraft() ?? Self.placeholder
@@ -143,9 +180,13 @@ struct EventEditorFlow: View {
     private func finish(_ date: String?) {
         if !isNew, destination != origin {
             if origin == nil, let id = originOwn?.id {
+                // 自分の画像は、どの予定からも使われなくなったら、片づけ(sweep)で消える
                 store.delete(id: id)
-            } else if let id = originShared?.id {
-                Task { _ = await sharedView.delete(id: id) }
+            } else if let e = originShared {
+                // 共有カレンダーの画像は、片づけの対象にならないので、ここで消す(移した先には、写しが付いている)
+                Task {
+                    if await sharedView.delete(id: e.id), let image = e.imageId { await AttachmentCloud.remove(image) }
+                }
             }
         }
         eventSaved(date, destination)
@@ -161,6 +202,10 @@ struct EventEditorFlow: View {
         var endTime: String?
         var allDay: Bool
         var color: String
+        var memo: String
+        /// 空は無し
+        var url: String
+        var imageId: String?
 
         init(_ draft: FlowDraft) {
             switch draft {
@@ -173,6 +218,9 @@ struct EventEditorFlow: View {
                 endTime = e.endTime
                 allDay = e.allDay
                 color = e.color
+                memo = e.memo
+                url = e.url ?? ""
+                imageId = e.imageId
             case .shared(let s):
                 title = s.title
                 placed = s.placed && !s.startDate.isEmpty
@@ -182,6 +230,9 @@ struct EventEditorFlow: View {
                 endTime = s.endTime
                 allDay = s.allDay
                 color = s.color
+                memo = s.memo
+                url = s.url
+                imageId = s.imageId
             }
         }
 
@@ -193,10 +244,9 @@ struct EventEditorFlow: View {
             out.placed = placed
             out.updatedAt = base.updatedAt
             out.updatedByName = base.updatedByName
-            // メモ・URL・画像は、この画面では直さないので、そのまま残す
-            out.memo = base.memo
-            out.url = base.url
-            out.imageId = base.imageId
+            out.memo = memo
+            out.url = url
+            out.imageId = imageId
             return out
         }
 
@@ -209,6 +259,9 @@ struct EventEditorFlow: View {
             e.allDay = allDay
             e.startTime = allDay ? nil : startTime
             e.endTime = allDay ? nil : endTime
+            e.memo = memo
+            e.url = url.isEmpty ? nil : url
+            e.imageId = imageId
             // 職場・ラベルのない予定は、選んだ色をそのまま使う。ある予定は、色を変えたときだけ個別カラーにする
             if base.workplaceId == nil && base.labelId == nil {
                 e.ownColor = color != EventLabel.noneColor

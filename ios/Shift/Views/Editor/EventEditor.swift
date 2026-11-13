@@ -21,7 +21,9 @@ struct EventEditor: View {
     @State private var imageId: String?
     /// フォームのどこかをタップするたびに増やす(メモ・画像・URL の空の欄を閉じる合図)
     @State private var outsideTap = 0
-    @State private var attachments = AttachmentSession()
+    @State private var attachments: AttachmentSession
+    /// 画像の追加と取り外しを、この画面で持っているか(閉じたときに、この画面で片づける)
+    private let ownsSession: Bool
     @State private var color: String
     @State private var start: Date
     @State private var end: Date
@@ -58,13 +60,16 @@ struct EventEditor: View {
     enum Field: Hashable { case title, memo, breakMinutes, startTime, endTime, adjustment, dailyWage }
     enum TimePanel: Hashable { case start, end }
 
+    /// session: 画像の追加と取り外しを、呼んだ側(EventEditorFlow)が持つとき。閉じたときの片づけも、呼んだ側がする
     init(original: ShiftEvent, isNew: Bool, favoriteMode: Bool = false, onCommit: ((ShiftEvent) -> Void)? = nil,
-         flow: EditorFlow? = nil) {
+         flow: EditorFlow? = nil, session: AttachmentSession? = nil) {
         self.original = original
         self.isNew = isNew
         self.favoriteMode = favoriteMode
         self.onCommit = onCommit
         self.flow = flow
+        _attachments = State(initialValue: session ?? AttachmentSession())
+        ownsSession = session == nil
         _title = State(initialValue: original.title)
         _memo = State(initialValue: original.memo)
         _url = State(initialValue: original.url ?? "")
@@ -236,7 +241,7 @@ struct EventEditor: View {
                 }
             }
             .keyboardDismissBar { closeTimePanel() }
-            .onDisappear { attachments.discardIfUncommitted() }
+            .onDisappear { if ownsSession { attachments.discardIfUncommitted() } }
             // 入力の途中か(ウィジェットから開いたとき、途中の画面は残す)
             .tracksUnsaved(build())
             .onAppear {

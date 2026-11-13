@@ -54,7 +54,9 @@ struct SharedEventEditor: View {
     @State private var imageId: String?
     /// フォームのどこかをタップするたびに増やす(メモ・画像・URL の空の欄を閉じる合図)
     @State private var outsideTap = 0
-    @State private var attachments = AttachmentSession()
+    @State private var attachments: AttachmentSession
+    /// 画像の追加と取り外しを、この画面で持っているか(閉じたときに、この画面で片づける)
+    private let ownsSession: Bool
     @State private var saving = false
     @State private var failed = false
     @State private var confirmDelete = false
@@ -62,9 +64,12 @@ struct SharedEventEditor: View {
     enum Field: Hashable { case title, startTime, endTime }
     enum TimePanel: Hashable { case start, end }
 
-    init(target: SharedEditTarget, flow: EditorFlow? = nil) {
+    /// session: 画像の追加と取り外しを、呼んだ側(EventEditorFlow)が持つとき。閉じたときの片づけも、呼んだ側がする
+    init(target: SharedEditTarget, flow: EditorFlow? = nil, session: AttachmentSession? = nil) {
         self.target = target
         self.flow = flow
+        _attachments = State(initialValue: session ?? AttachmentSession())
+        ownsSession = session == nil
         let e = target.event
         _title = State(initialValue: e.title)
         _allDay = State(initialValue: e.allDay)
@@ -491,7 +496,7 @@ struct SharedEventEditor: View {
             }
             }
             .environment(\.locale, Locale(identifier: "ja_JP"))
-            .onDisappear { attachments.discardIfUncommitted() }
+            .onDisappear { if ownsSession { attachments.discardIfUncommitted() } }
             // 入力の途中か(ウィジェットから開いたとき、途中の画面は残す)
             .tracksUnsaved(built())
             .navigationTitle(target.isNew ? "共有カレンダーに追加" : "共有の予定を編集")

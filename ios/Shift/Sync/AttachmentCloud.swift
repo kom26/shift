@@ -60,14 +60,15 @@ enum AttachmentCloud {
         }
     }
 
-    /// 共有カレンダーの画像を、別の名前で複製する(予定をコピーしたとき。片方の予定を消したり画像を替えたりしても、
-    /// もう片方の画像が残るように)。端末に無ければ取ってくる。取れなければ nil
-    static func duplicate(_ id: String, calendarId: String) async -> String? {
+    /// 画像を、別の名前で複製する(予定をコピーしたとき。片方の予定を消したり画像を替えたりしても、
+    /// もう片方の画像が残るように)。calendarId の共有カレンダーの置き場に作る(nil は自分の置き場。予定の保存先を変えたとき)。
+    /// 端末に無ければ取ってくる。取れなければ nil
+    static func duplicate(_ id: String, calendarId: String?) async -> String? {
         if !AttachmentStore.exists(id) {
             guard await download(id) else { return nil }
         }
         guard let data = AttachmentStore.data(id) else { return nil }
-        let newId = AttachmentStore.calendarImageId(calendarId: calendarId)
+        let newId = calendarId.map { AttachmentStore.calendarImageId(calendarId: $0) } ?? UUID().uuidString
         AttachmentStore.write(data, id: newId)
         guard AttachmentStore.exists(newId) else { return nil }
         // 送るのは待たない(送れなかったら、あとで送り直す)
