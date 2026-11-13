@@ -80,6 +80,30 @@ struct WorkplaceRateTests {
         #expect(o.rateChanges.isEmpty)
     }
 
+    @Test func insertEarlierMovesBaseAfterEnd() {
+        // 最初 1,100円 だけのところに、9/30 までは 1,050円 だったと入れる
+        let a = Workplace(id: "w", name: "A", color: "#111", hourlyWage: 1100).payRates
+        let out = PayRate.insertEarlier(rate("2026-09-30", 1050), endingOn: "2026-09-30", into: a)
+        #expect(out.map(\.from) == ["", "2026-10-01"])
+        #expect(out.map(\.hourlyWage) == [1050, 1100])
+        #expect(out[0].id == "base")
+    }
+
+    @Test func insertEarlierRightBeforeNextChangeReplacesBase() {
+        // 最初 1,000円、10/1 から 1,100円。9/30 までは 1,050円 だった → 最初の 1,000円 は使われなくなる
+        let a = wp().payRates
+        let out = PayRate.insertEarlier(rate("2026-09-30", 1050), endingOn: "2026-09-30", into: a)
+        #expect(out.map(\.from) == ["", "2026-10-01", "2027-04-01"])
+        #expect(out.map(\.hourlyWage) == [1050, 1100, 1200])
+    }
+
+    @Test func insertEarlierWellBeforeNextChangeKeepsBaseInBetween() {
+        let a = wp().payRates
+        let out = PayRate.insertEarlier(rate("2026-03-31", 950), endingOn: "2026-03-31", into: a)
+        #expect(out.map(\.from) == ["", "2026-04-01", "2026-10-01", "2027-04-01"])
+        #expect(out.map(\.hourlyWage) == [950, 1000, 1100, 1200])
+    }
+
     @Test func summaries() {
         #expect(WorkplaceSummary.bonus(weekday: [100, 0, 0, 0, 0, 0, 100], holiday: 150) == "土日 +100円/時 ・ 祝日 +150円/時")
         #expect(WorkplaceSummary.bonus(weekday: [0, 50, 50, 50, 50, 50, 0], holiday: 0) == "平日 +50円/時")

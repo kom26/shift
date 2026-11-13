@@ -242,7 +242,7 @@ struct WorkplaceEditor: View {
                     var r = draftRate
                     r.id = UUID().uuidString
                     r.from = today
-                    pickingRate = RateEditTarget(rate: r, isNew: true)
+                    pickingRate = RateEditTarget(rate: r, mode: .add(autofill: false))
                 }
                 Button("\(currentFromLabel)(入力ミスを直す)") {
                     overwriteCurrentRate()

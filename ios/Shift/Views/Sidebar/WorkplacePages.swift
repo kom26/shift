@@ -221,7 +221,7 @@ struct WageHistoryPage: View {
             Section {
                 ForEach(Array(rates.indices.reversed()), id: \.self) { i in
                     Button {
-                        editing = RateEditTarget(rate: rates[i], isNew: false)
+                        editing = RateEditTarget(rate: rates[i], mode: .edit)
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 3) {
@@ -268,26 +268,60 @@ struct WageHistoryPage: View {
                     var r = rates[todayIndex]
                     r.id = UUID().uuidString
                     r.from = today
-                    editing = RateEditTarget(rate: r, isNew: true)
+                    editing = RateEditTarget(rate: r, mode: .add(autofill: true))
                 }
             } footer: {
-                Text("昇給・最低賃金の改定・契約の更新など。先の日付も入れられます。")
+                Text("昇給・最低賃金の改定・契約の更新など。過去の日付も、先の日付も入れられます。")
+            }
+            Section {
+                Button("＋ これより前の時給を入れる") {
+                    var r = rates[0]
+                    r.id = UUID().uuidString
+                    r.from = earliestEnd
+                    editing = RateEditTarget(rate: r, mode: .earlier(maxEnd: earliestEnd))
+                }
+            } footer: {
+                Text("いちばん古い設定より前の時給を、いつまでだったかと一緒に入れます。")
             }
         }
         .navigationTitle("給与の履歴")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editing) { target in
             RateEditSheet(target: target, existing: rates) { saved in
-                rates = PayRate.upsert(saved, into: rates)
+                if case .earlier = target.mode {
+                    rates = PayRate.insertEarlier(saved, endingOn: saved.from, into: rates)
+                } else {
+                    rates = PayRate.upsert(saved, into: rates)
+                }
             }
         }
+    }
+
+    /// 「前の時給」の終わりの日として選べる最後の日。
+    /// 次の改定の前日と、昨日のうち早いほう(いまの時給より前の時給を入れるため)
+    private var earliestEnd: String {
+        let yesterday = Rules.addDays(today, -1)
+        guard rates.count > 1 else { return yesterday }
+        return min(yesterday, Rules.addDays(rates[1].from, -1))
     }
 }
 
 struct RateEditTarget: Identifiable {
+    enum Mode {
+        /// 改定を追加。autofill なら、日付を変えたときに、その日の時点の設定を入れ直す
+        case add(autofill: Bool)
+        case edit
+        /// いちばん古い設定より前の時給を入れる。rate.from には「いつまで」の日を入れる
+        case earlier(maxEnd: String)
+    }
     var rate: PayRate
-    var isNew: Bool
+    var mode: Mode
     var id: String { rate.id }
+
+    var isNew: Bool {
+        if case .edit = mode { return false }
+        return true
+    }
 }
 
 extension PayRate {
@@ -296,6 +330,26 @@ extension PayRate {
         var out = a.filter { $0.id != r.id && $0.from != r.from }
         out.append(r)
         out.sort { $0.from < $1.from }
+        return out
+    }
+
+    /// いちばん古い設定より前に、end の日までの単価 r を入れる。
+    /// これまでの「最初」の単価は end の翌日からの改定になり、r が新しい「最初」になる
+    static func insertEarlier(_ r: PayRate, endingOn end: String, into a: [PayRate]) -> [PayRate] {
+        guard let base = a.first, base.from.isEmpty else { return a }
+        let start = Rules.addDays(end, 1)
+        var newBase = r
+        newBase.id = base.id
+        newBase.from = ""
+        var out = a
+        out[0] = newBase
+        // 次の改定がちょうど翌日から始まるなら、前の「最初」の単価はどこにも使われないので残さない
+        if a.count < 2 || a[1].from > start {
+            var moved = base
+            moved.id = UUID().uuidString
+            moved.from = start
+            out = upsert(moved, into: out)
+        }
         return out
     }
 }
@@ -316,6 +370,8 @@ struct RateEditSheet: View {
     @State private var bonus: [String]
     @State private var holidayBonus: String
     @State private var confirmOverwrite = false
+    /// 最後に自動で入れた単価(手で直していなければ、日付を変えたときに入れ直す)
+    @State private var prefill: PayRate
     @FocusState private var focus: String?
 
     init(target: RateEditTarget, existing: [PayRate], onSave: @escaping (PayRate) -> Void) {
@@ -323,6 +379,7 @@ struct RateEditSheet: View {
         self.existing = existing
         self.onSave = onSave
         let r = target.rate
+        _prefill = State(initialValue: r)
         _date = State(initialValue: Rules.parse(r.from) ?? Date())
         _wage = State(initialValue: Self.text(r.hourlyWage))
         _transport = State(initialValue: Self.text(r.transport))
@@ -335,10 +392,45 @@ struct RateEditSheet: View {
     private var isBase: Bool { target.rate.from.isEmpty }
     private var fromText: String { isBase ? "" : Rules.format(date) }
 
-    /// 同じ日付の、別の改定
+    private var isEarlier: Bool {
+        if case .earlier = target.mode { return true }
+        return false
+    }
+
+    private var autofill: Bool {
+        if case .add(let a) = target.mode { return a }
+        return false
+    }
+
+    /// 「前の時給」で選べる、いちばん遅い日
+    private var maxEndDate: Date {
+        if case .earlier(let maxEnd) = target.mode, let d = Rules.parse(maxEnd) { return d }
+        return Date()
+    }
+
+    /// 同じ日付の、別の改定(「前の時給」は日付の範囲を絞っているので、重ならない)
     private var clash: PayRate? {
-        guard !isBase else { return nil }
+        guard !isBase, !isEarlier else { return nil }
         return existing.first { $0.id != target.rate.id && $0.from == fromText }
+    }
+
+    private var title: String {
+        switch target.mode {
+        case .add: return "改定を追加"
+        case .earlier: return "前の時給を入れる"
+        case .edit: return isBase ? "最初の設定" : "改定を編集"
+        }
+    }
+
+    /// 日付を変えたら、手で直していない限り、その日の時点の設定を入れ直す
+    private func refill() {
+        guard autofill, built.sameAmounts(prefill) else { return }
+        let r = existing.last(where: { $0.from <= fromText }) ?? existing.first ?? prefill
+        wage = Self.text(r.hourlyWage)
+        transport = Self.text(r.transport)
+        bonus = (0..<7).map { Self.text($0 < r.weekdayBonus.count ? r.weekdayBonus[$0] : 0) }
+        holidayBonus = Self.text(r.holidayBonus)
+        prefill = r
     }
 
     private var built: PayRate {
@@ -353,12 +445,17 @@ struct RateEditSheet: View {
                 Section {
                     if isBase {
                         LabeledContent("適用する日", value: "最初から")
+                    } else if isEarlier {
+                        DatePicker("いつまで", selection: $date, in: ...maxEndDate, displayedComponents: .date)
+                            .environment(\.locale, Locale(identifier: "ja_JP"))
                     } else {
                         DatePicker("適用する日", selection: $date, displayedComponents: .date)
                             .environment(\.locale, Locale(identifier: "ja_JP"))
                     }
                 } footer: {
-                    if !isBase {
+                    if isEarlier {
+                        Text("この日までの予定を、ここに入れた時給で計算します")
+                    } else if !isBase {
                         Text("この日より前の予定は、これまでの設定のまま計算します")
                     }
                 }
@@ -372,13 +469,16 @@ struct RateEditSheet: View {
                 } header: {
                     Text("曜日・祝日加給(円/時)")
                 } footer: {
-                    if target.isNew {
-                        Text("いまの設定を入れてあります。変わるところだけ直してください。")
+                    if isEarlier {
+                        Text("いちばん古い設定を入れてあります。前の時給に直してください。")
+                    } else if autofill {
+                        Text("選んだ日の時点の設定を入れてあります。変わるところだけ直してください。")
                     }
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(target.isNew ? "改定を追加" : (isBase ? "最初の設定" : "改定を編集"))
+            .onChange(of: date) { refill() }
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }

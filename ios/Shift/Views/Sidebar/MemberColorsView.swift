@@ -8,8 +8,15 @@ struct MemberColorsView: View {
     let members: [CalendarMember]
     let myUid: String?
 
-    private var others: [CalendarMember] {
-        members.filter { $0.id != myUid && $0.status == .active }
+    /// 自分を先頭に、参加している人
+    private var people: [CalendarMember] {
+        let active = members.filter { $0.status == .active }
+        return active.filter { $0.id == myUid } + active.filter { $0.id != myUid }
+    }
+
+    private func name(_ m: CalendarMember) -> String {
+        let n = m.displayName.isEmpty ? "(名前なし)" : m.displayName
+        return m.id == myUid ? n + "(自分)" : n
     }
 
     var body: some View {
@@ -18,13 +25,14 @@ struct MemberColorsView: View {
                 Section { HStack { Spacer(); ProgressView(); Spacer() } }
             } else {
                 Section("参加者") {
-                    ForEach(others) { m in
+                    ForEach(people) { m in
                         NavigationLink {
-                            MemberColorDetail(title: m.displayName.isEmpty ? "(名前なし)" : m.displayName, ownerUid: m.id)
+                            MemberColorDetail(title: m.displayName.isEmpty ? "(名前なし)" : m.displayName, ownerUid: m.id,
+                                              isMe: m.id == myUid)
                         } label: {
                             HStack(spacing: 12) {
                                 UserAvatar(uid: m.id, name: m.displayName, avatar: m.avatar, size: 30)
-                                Text(m.displayName.isEmpty ? "(名前なし)" : m.displayName)
+                                Text(name(m))
                                 Spacer()
                                 dots(shared.colorGroups(ownerUid: m.id))
                             }
@@ -70,11 +78,11 @@ struct MemberColorDetail: View {
     let title: String
     /// nil は、共有カレンダーの中で作った予定
     let ownerUid: String?
-    /// まとめて変える色(開いたときは、種類 1 の今の色)
+    /// 自分の予定(共有カレンダーの上での見た目だけ変わる。自分のカレンダーの色は変わらない)
+    var isMe = false
+    /// まとめて変える色(開いたときは、種類 1 の今の色)。「この色にまとめる」を押すまで、変えない
     @State private var bulk = ""
     @State private var editing: SharedEvent?
-    /// こちらで bulk を入れ直したとき(戻したとき)は、まとめて変えない
-    @State private var ignoreNext = false
 
     private var groups: [SharedColorGroup] { shared.colorGroups(ownerUid: ownerUid) }
 
@@ -85,10 +93,17 @@ struct MemberColorDetail: View {
             } else {
                 Section {
                     ColorRow(color: $bulk, recent: store.customColors, onDeleteRecent: { store.removeCustomColor($0) })
+                    Button("この色にまとめる") {
+                        store.rememberColor(bulk)
+                        shared.setColor(bulk, for: groups)
+                    }
+                    .disabled(bulk.isEmpty || groups.allSatisfy { shared.color(for: $0.sample) == bulk })
                 } header: {
                     Text("まとめて変える")
                 } footer: {
-                    Text(ownerUid == nil ? "このカレンダーで作った予定を、すべてこの色にします。" : "\(title)さんの予定を、すべてこの色にします。")
+                    Text(ownerUid == nil ? "このカレンダーで作った予定を、すべてこの色にします。"
+                         : isMe ? "あなたの予定を、この共有カレンダーの上でだけ、すべてこの色にします。自分のカレンダーの色は変わりません。"
+                         : "\(title)さんの予定を、すべてこの色にします。")
                 }
                 Section {
                     ForEach(Array(groups.enumerated()), id: \.element.id) { i, g in
@@ -96,17 +111,12 @@ struct MemberColorDetail: View {
                             .foregroundStyle(.primary)
                     }
                 } header: {
-                    Text("予定の種類ごと")
-                } footer: {
-                    Text("押すと、予定を開いたときと同じ「予定の色・表示」が開きます。相手が登録している職場やラベルの名前は出しません。")
+                    Text(isMe ? "職場・ラベルごと" : "予定の種類ごと")
                 }
                 Section {
                     Button("作成者の色に戻す") {
                         shared.setColor(nil, for: groups)
-                        if let first = groups.first.map({ shared.color(for: $0.sample) }), first != bulk {
-                            ignoreNext = true
-                            bulk = first
-                        }
+                        if let first = groups.first { bulk = shared.color(for: first.sample) }
                     }
                     .disabled(!groups.contains { shared.color(for: $0.sample) != $0.sample.color })
                 }
@@ -115,13 +125,6 @@ struct MemberColorDetail: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { if bulk.isEmpty { bulk = groups.first.map { shared.color(for: $0.sample) } ?? "" } }
-        .onChange(of: bulk) { old, new in
-            // 開いたときに入れた色では、変えない(選んだときだけ、まとめて変える)
-            if ignoreNext { ignoreNext = false; return }
-            guard !old.isEmpty, !new.isEmpty else { return }
-            store.rememberColor(new)
-            shared.setColor(new, for: groups)
-        }
         .sheet(item: $editing) { SharedColorSheet(event: $0) }
     }
 
@@ -131,7 +134,8 @@ struct MemberColorDetail: View {
             EventBar(span: BarSpan(event: shown, col: 0, span: 1, isStart: true, isEnd: true), height: 18, fontSize: 10)
                 .frame(width: 96, height: 18)
             VStack(alignment: .leading, spacing: 2) {
-                Text("種類 \(number)").font(.app(15))
+                // 自分の予定は職場・ラベルの名前。ほかの人の予定は、名前を出さずに「種類 1」
+                Text(isMe ? (g.sample.name.isEmpty ? "指定なし" : g.sample.name) : "種類 \(number)").font(.app(15))
                 Text(verbatim: "\(g.count)件の予定").font(.app(12)).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
