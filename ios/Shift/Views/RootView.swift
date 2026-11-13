@@ -66,6 +66,8 @@ struct RootView: View {
     @State private var editing: EditorTarget?
     @State private var showSettings = false
     @State private var showFilter = false
+    /// 写真の一覧(開いているカレンダーの写真)
+    @State private var showPhotos = false
     @State private var showDrawer = false
     @State private var showLabels = false
     @State private var showWorkplaces = false
@@ -284,6 +286,12 @@ struct RootView: View {
             Text(inviteAlertMessage)
         }
         .sheet(isPresented: $showFilter) { FilterSheet() }
+        .sheet(isPresented: $showPhotos) {
+            PhotoAlbumView(shared: sharedView.isOpen, onShowDay: { date in
+                showPhotos = false
+                eventSaved(date: date, calendarId: sharedView.calendar?.id)
+            })
+        }
         .sheet(isPresented: $showLabels) { LabelManageView() }
         .sheet(isPresented: $showWorkplaces) { WorkplaceManageView() }
         .sheet(item: $sharedEditing) { sharedEditor($0) }
@@ -631,6 +639,7 @@ struct RootView: View {
                 }
                 Spacer(minLength: 0)
                 if sharedView.isOpen {
+                    photosButton
                     // 共有カレンダーでは、週計の代わりに、その共有カレンダーの設定(インフォ)を開く
                     Button { calendarDetail = sharedView.calendar } label: {
                         Image(systemName: "gearshape")
@@ -653,6 +662,7 @@ struct RootView: View {
                 }
                 }
                 if !sharedView.isOpen {
+                photosButton
                 Button { showFilter = true } label: {
                     Image(systemName: store.isFiltering || sharedView.isOverlaying
                           ? "line.3.horizontal.decrease.circle.fill"
@@ -668,6 +678,18 @@ struct RootView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    /// 写真の一覧を開く。自分のカレンダーでは絞り込みの左、共有カレンダーでは設定の左
+    private var photosButton: some View {
+        Button { showPhotos = true } label: {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.app(20))
+                .foregroundStyle(Color.primary)
+                .frame(minWidth: 36, minHeight: 36)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("写真")
     }
 
     private var stampFavorite: ShiftEvent? {
