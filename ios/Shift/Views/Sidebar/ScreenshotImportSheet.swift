@@ -153,7 +153,7 @@ struct ScreenshotImportSheet: View {
 
     /// 読み取り完了。チェックマークを見せてから、ボタンで確認・変更の画面へ
     private var doneView: some View {
-        ReadDoneView(workCount: mode == .tasks ? taskLines.count : lines.filter { !$0.off && !$0.missing }.count) {
+        ReadDoneView(summary: mode == .tasks ? ShiftLineImport.summary(tasks: taskLines) : ShiftLineImport.summary(lines)) {
             step = .review
             // 24時をこえる時間があれば、取り込む前に、取り込み方を確認する(予定のときだけ)
             showSpanSheet = mode == .events && !overnightGroups.isEmpty

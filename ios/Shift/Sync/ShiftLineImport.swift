@@ -115,6 +115,50 @@ enum ShiftLineImport {
         return out.sorted { ($0.date, $0.start ?? "", $0.name ?? "") < ($1.date, $1.start ?? "", $1.name ?? "") }
     }
 
+    /// 読み取り完了の画面に出す、読み取った期間と内訳
+    struct ReadSummary: Equatable {
+        /// 読み取った最初の日と最後の日(yyyy-MM-dd)。日付が 1 つも無ければ nil
+        var first: String?
+        var last: String?
+        /// 最初の日から最後の日までの日数
+        var days: Int
+        /// 日ごとに数える。時間のある予定がある日は勤務、休みだけの日は休み、読み取れなかった日はそれ
+        var work = 0
+        var off = 0
+        var missing = 0
+        /// 開始・締切を読み取ったときの件数(予定のときは nil)
+        var tasks: Int? = nil
+    }
+
+    /// 予定(勤務)の読み取り結果の、期間と内訳。同じ日に何件あっても、1 日と数える
+    static func summary(_ lines: [ShiftLine]) -> ReadSummary {
+        let dates = Set(lines.map(\.date))
+        var out = range(dates)
+        for d in dates {
+            let day = lines.filter { $0.date == d }
+            if day.contains(where: { !$0.off && !$0.missing }) {
+                out.work += 1
+            } else if day.contains(where: \.off) {
+                out.off += 1
+            } else {
+                out.missing += 1
+            }
+        }
+        return out
+    }
+
+    /// 開始・締切の読み取り結果の、期間と件数
+    static func summary(tasks: [TaskLine]) -> ReadSummary {
+        var out = range(Set(tasks.flatMap { [$0.startDate, $0.dueDate].compactMap { $0 } }))
+        out.tasks = tasks.count
+        return out
+    }
+
+    private static func range(_ dates: Set<String>) -> ReadSummary {
+        guard let first = dates.min(), let last = dates.max() else { return ReadSummary(days: 0) }
+        return ReadSummary(first: first, last: last, days: Rules.daysBetween(first, last) + 1)
+    }
+
     /// 選んだ取り込み方を当てはめた行。24時をこえない行は、そのまま
     static func resolved(_ line: ShiftLine, _ choices: OvernightChoices) -> ShiftLine {
         guard let kind = line.overnightKind, let s = Rules.minutes(line.start), let e = Rules.minutes(line.end) else { return line }

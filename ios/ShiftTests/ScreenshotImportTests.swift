@@ -57,6 +57,24 @@ struct ScreenshotImportTests {
         #expect(ShiftLineImport.fillGaps([line("2026-11-01", nil, nil, off: true), line("2026-11-05", nil, nil, off: true)]).count == 2)
     }
 
+    @Test func doneScreenCountsWorkOffAndUnreadDaysInTheRange() {
+        // 22 日(休み)〜27 日。23・24・26 日は読めず、25 日は休み、27 日は勤務 2 件
+        let lines = ShiftLineImport.fillGaps([line("2026-11-22", nil, nil, off: true), line("2026-11-25", nil, nil, off: true),
+                                              line("2026-11-27", "10:00", "15:00"), line("2026-11-27", "18:00", "22:00")])
+        let s = ShiftLineImport.summary(lines)
+        #expect(s.first == "2026-11-22" && s.last == "2026-11-27" && s.days == 6)
+        #expect(s.work == 1 && s.off == 2 && s.missing == 3)
+        #expect(s.tasks == nil)
+    }
+
+    @Test func doneScreenForTasksShowsTheRangeAndCount() {
+        let tasks = [TaskLine(title: "レポート", startDate: nil, dueDate: "2026-11-20"),
+                     TaskLine(title: "申込", startDate: "2026-11-02", dueDate: "2026-11-05")]
+        let s = ShiftLineImport.summary(tasks: tasks)
+        #expect(s.first == "2026-11-02" && s.last == "2026-11-20" && s.days == 19)
+        #expect(s.tasks == 2)
+    }
+
     @Test func sameDayWithDifferentTimesOrNamesKeepsEveryLine() {
         let raw: [[String: Any]] = [
             ["date": "2026-11-08", "start": "18:00", "end": "22:00", "off": false],
