@@ -56,4 +56,34 @@ struct WidgetPrefsTests {
         #expect(WidgetPrefs.load(WidgetPrefsKey.medium, defaults: defaults) == p)
         #expect(WidgetPrefs.load(WidgetPrefsKey.small, defaults: defaults) == WidgetPrefs())
     }
+
+    @Test func kindsStartAllShownAndCanBeTurnedOffOneByOne() {
+        let w = ["w1", "w2"], l = ["l1", Store.noLabelKey]
+        var p = WidgetPrefs()
+        #expect(p.shows("w1", workplace: true) && p.shows(Store.noLabelKey, workplace: false) && p.showTasks)
+
+        // 1 つ外すと、残りを見せる
+        p.toggleShown("w1", workplace: true, allWorkplaces: w, allLabels: l)
+        #expect(!p.shows("w1", workplace: true) && p.shows("w2", workplace: true) && p.shows("l1", workplace: false))
+
+        // 戻すと、絞らない(空)に戻る
+        p.toggleShown("w1", workplace: true, allWorkplaces: w, allLabels: l)
+        #expect(p.workplaceIds.isEmpty && p.labelIds.isEmpty)
+
+        // 全部外すと、何も見せない(空=全部 にならない)
+        for id in w { p.toggleShown(id, workplace: true, allWorkplaces: w, allLabels: l) }
+        for id in l { p.toggleShown(id, workplace: false, allWorkplaces: w, allLabels: l) }
+        #expect(p.labelIds == [WidgetPrefs.noneKey])
+        #expect(!p.shows("w1", workplace: true) && !p.shows("l1", workplace: false))
+
+        // そこから 1 つ入れると、それだけ見せる
+        p.toggleShown("l1", workplace: false, allWorkplaces: w, allLabels: l)
+        #expect(p.labelIds == ["l1"] && p.workplaceIds.isEmpty)
+    }
+
+    @Test func oldSavedPrefsShowTasks() throws {
+        let old = #"{"calendarIds":[""],"workplaceIds":[],"labelIds":[],"showBirthdays":true}"#
+        let p = try JSONDecoder().decode(WidgetPrefs.self, from: Data(old.utf8))
+        #expect(p.showTasks)
+    }
 }

@@ -46,6 +46,7 @@ struct WidgetSettingsView: View {
             }
         }
         .background(Color(.systemGroupedBackground))
+        .tracksUnsaved(hasChanges)
         .navigationTitle("ウィジェット")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -84,7 +85,7 @@ struct WidgetSettingsView: View {
                 .onTapGesture { if prefs.wrappedValue.canSwitch { previewIndex[size] += 1 } }
                 .frame(height: 166)
             Picker("プレビュー", selection: $previewReal) {
-                Text("イメージ").tag(false)
+                Text("表示イメージ").tag(false)
                 Text("いまの設定で表示").tag(true)
             }
             .pickerStyle(.segmented)
@@ -94,10 +95,13 @@ struct WidgetSettingsView: View {
         .padding(.bottom, 10)
     }
 
-    /// プレビューの右上の切り替えボタン(ウィジェットと同じ)
+    /// プレビューの右上の切り替えボタン(ウィジェットと同じ)。
+    /// 表示イメージでは、自分のカレンダーも自分のアイコンにせず、カレンダーの記号にする(仮の予定に自分の顔が出ると紛らわしい)
     private var switcherForPreview: WidgetCalendarSwitch? {
         guard prefs.wrappedValue.canSwitch else { return nil }
-        guard let id = viewingPrefs.calendarId else { return WidgetCalendarSwitch(icon: nil, me: me) }
+        guard let id = viewingPrefs.calendarId else {
+            return WidgetCalendarSwitch(icon: previewReal ? nil : CalendarIcon.defaultName, me: previewReal ? me : nil)
+        }
         return WidgetCalendarSwitch(icon: activeCalendars.first { $0.id == id }?.icon ?? CalendarIcon.defaultName)
     }
 
@@ -171,19 +175,28 @@ struct WidgetSettingsView: View {
         }
     }
 
-    /// 自分のカレンダーで出す職場・ラベル(自分のカレンダーを選んでいるときだけ)
+    /// 自分のカレンダーで出す職場・ラベルと、開始・締切(自分のカレンダーを選んでいるときだけ)。最初は全部オン。外したものは出さない
     private var filterSection: some View {
-        chipSection("自分のカレンダーで出す職場・ラベル", note: "何も選ばなければ、すべて出します。") {
+        let p = prefs.wrappedValue
+        return chipSection("自分のカレンダーで出す職場・ラベル", note: nil) {
             ForEach(store.workplaces) { w in
-                colorChip(name: w.name, color: w.color, on: prefs.wrappedValue.workplaceIds.contains(w.id)) { toggle(w.id, \.workplaceIds) }
+                colorChip(name: w.name, color: w.color, on: p.shows(w.id, workplace: true)) { toggleKind(w.id, workplace: true) }
             }
             ForEach(store.labels) { l in
-                colorChip(name: l.name, color: l.color, on: prefs.wrappedValue.labelIds.contains(l.id)) { toggle(l.id, \.labelIds) }
+                colorChip(name: l.name, color: l.color, on: p.shows(l.id, workplace: false)) { toggleKind(l.id, workplace: false) }
             }
-            colorChip(name: "ラベルなし", color: EventLabel.noneColor, on: prefs.wrappedValue.labelIds.contains(Store.noLabelKey)) {
-                toggle(Store.noLabelKey, \.labelIds)
+            colorChip(name: "ラベルなし", color: EventLabel.noneColor, on: p.shows(Store.noLabelKey, workplace: false)) {
+                toggleKind(Store.noLabelKey, workplace: false)
+            }
+            colorChip(name: "開始・締切", color: TaskItem.defaultColor, on: p.showTasks) {
+                prefs.wrappedValue.showTasks.toggle()
             }
         }
+    }
+
+    private func toggleKind(_ id: String, workplace: Bool) {
+        prefs.wrappedValue.toggleShown(id, workplace: workplace, allWorkplaces: store.workplaces.map(\.id),
+                                       allLabels: store.labels.map(\.id) + [Store.noLabelKey])
     }
 
     private func colorChip(name: String, color: String, on: Bool, action: @escaping () -> Void) -> some View {
@@ -191,12 +204,6 @@ struct WidgetSettingsView: View {
             Circle().fill(Color(hex: color)).frame(width: 9, height: 9)
             Text(name).lineLimit(1)
         }
-    }
-
-    private func toggle(_ id: String, _ keyPath: WritableKeyPath<WidgetPrefs, [String]>) {
-        var p = prefs.wrappedValue
-        if let i = p[keyPath: keyPath].firstIndex(of: id) { p[keyPath: keyPath].remove(at: i) } else { p[keyPath: keyPath].append(id) }
-        prefs.wrappedValue = p
     }
 
     /// 労働時間・見込み給料を出せるか。自分のカレンダーは職場、共有カレンダーは共有している職場が要る

@@ -9,8 +9,11 @@ struct WidgetPrefs: Codable, Equatable {
     var calendarIds: [String]
     /// 自分のカレンダーで、見せる職場(空なら全部)
     var workplaceIds: [String]
-    /// 自分のカレンダーで、見せるラベル(空なら全部。「指定なし」は Store.noLabelKey)
+    /// 自分のカレンダーで、見せるラベル(空なら全部。「指定なし」は Store.noLabelKey)。
+    /// 職場もラベルも 1 つも見せないときは、noneKey だけを入れる(空だと「全部」になってしまうため)
     var labelIds: [String]
+    /// 自分のカレンダーで、開始・締切を見せるか
+    var showTasks: Bool
     var showBirthdays: Bool
     var showAnniversaries: Bool
     var showAlarms: Bool
@@ -24,7 +27,7 @@ struct WidgetPrefs: Codable, Equatable {
     init(calendarId: String? = nil, calendarIds: [String]? = nil, workplaceIds: [String] = [], labelIds: [String] = [],
          showBirthdays: Bool = true, showAnniversaries: Bool = true, showAlarms: Bool = true,
          showPayday: Bool = true, showHours: Bool = true, showEstimatedPay: Bool = true,
-         showOwnerIcons: Bool = true) {
+         showOwnerIcons: Bool = true, showTasks: Bool = true) {
         let ids = (calendarIds ?? []).isEmpty ? [calendarId ?? ""] : calendarIds!
         self.calendarIds = ids
         self.calendarId = ids[0].isEmpty ? nil : ids[0]
@@ -37,7 +40,11 @@ struct WidgetPrefs: Codable, Equatable {
         self.showHours = showHours
         self.showEstimatedPay = showEstimatedPay
         self.showOwnerIcons = showOwnerIcons
+        self.showTasks = showTasks
     }
+
+    /// 職場もラベルも、1 つも見せないときの印(どの予定にも当てはまらない名前)
+    static let noneKey = "~none"
 
     /// 項目が増えても、古い保存データを読めるようにする(無い項目は初期値)
     init(from decoder: Decoder) throws {
@@ -53,7 +60,8 @@ struct WidgetPrefs: Codable, Equatable {
                   showPayday: try c.decodeIfPresent(Bool.self, forKey: .showPayday) ?? true,
                   showHours: try c.decodeIfPresent(Bool.self, forKey: .showHours) ?? true,
                   showEstimatedPay: try c.decodeIfPresent(Bool.self, forKey: .showEstimatedPay) ?? true,
-                  showOwnerIcons: try c.decodeIfPresent(Bool.self, forKey: .showOwnerIcons) ?? true)
+                  showOwnerIcons: try c.decodeIfPresent(Bool.self, forKey: .showOwnerIcons) ?? true,
+                  showTasks: try c.decodeIfPresent(Bool.self, forKey: .showTasks) ?? true)
     }
 }
 
@@ -83,6 +91,34 @@ extension WidgetPrefs {
 
     /// 選んでいる共有カレンダーの ID(自分のカレンダーは含まない)
     var sharedCalendarIds: [String] { calendarIds.filter { !$0.isEmpty } }
+
+    /// 職場・ラベルで絞っていない(全部見せる)
+    var showsAllKinds: Bool { workplaceIds.isEmpty && labelIds.isEmpty }
+
+    /// その職場・ラベルを見せているか(絞っていなければ、全部見せている)
+    func shows(_ id: String, workplace: Bool) -> Bool {
+        showsAllKinds || (workplace ? workplaceIds : labelIds).contains(id)
+    }
+
+    /// 職場・ラベルを、見せる・見せないに切り替える。allWorkplaces・allLabels は、いまある全部(ラベルは「ラベルなし」も含む)。
+    /// 全部見せることになったら、絞らない(空)に戻す。1 つも見せないことになったら noneKey を入れる
+    mutating func toggleShown(_ id: String, workplace: Bool, allWorkplaces: [String], allLabels: [String]) {
+        var w = showsAllKinds ? allWorkplaces : workplaceIds.filter { allWorkplaces.contains($0) }
+        var l = showsAllKinds ? allLabels : labelIds.filter { allLabels.contains($0) }
+        if workplace {
+            if let i = w.firstIndex(of: id) { w.remove(at: i) } else { w.append(id) }
+        } else {
+            if let i = l.firstIndex(of: id) { l.remove(at: i) } else { l.append(id) }
+        }
+        if Set(w) == Set(allWorkplaces) && Set(l) == Set(allLabels) {
+            w = []
+            l = []
+        } else if w.isEmpty && l.isEmpty {
+            l = [Self.noneKey]
+        }
+        workplaceIds = w
+        labelIds = l
+    }
 }
 
 enum WidgetPrefsKey {

@@ -63,7 +63,8 @@ struct MediumWeekView: View {
         (Rules.weekday(content.days[0]) + i) % 7
     }
 
-    /// 日付の左に出す、アラームのベル(日付から 2pt 離す)
+    /// 日付の左に出す、アラームのベル(日付から 2pt 離す)。
+    /// 幅 0 の枠の右端にそろえて、日付の外側へはみ出させる(alignmentGuide は、条件つきの印では効かず、日付に重なっていた)
     @ViewBuilder
     private func alarmMark(_ i: Int) -> some View {
         if i < content.marks.count, content.marks[i].alarm {
@@ -71,11 +72,12 @@ struct MediumWeekView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.alarm)
                 .fixedSize()
-                .alignmentGuide(.leading) { d in d[.trailing] + 2 }
+                .padding(.trailing, 2)
+                .frame(width: 0, alignment: .trailing)
         }
     }
 
-    /// 日付の右に出す、給料日のコイン(日付から 2pt 離す)
+    /// 日付の右に出す、給料日のコイン(日付から 2pt 離す)。ベルと同じく、幅 0 の枠の左端にそろえて、外側へはみ出させる
     @ViewBuilder
     private func paydayMark(_ i: Int) -> some View {
         if i < content.marks.count, content.marks[i].payday {
@@ -85,7 +87,8 @@ struct MediumWeekView: View {
                 .scaledToFit()
                 .frame(width: 9, height: 9)
                 .foregroundStyle(Color(red: 0.95, green: 0.7, blue: 0.1))
-                .alignmentGuide(.trailing) { d in d[.leading] - 2 }
+                .padding(.leading, 2)
+                .frame(width: 0, alignment: .leading)
         }
     }
 

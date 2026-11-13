@@ -191,7 +191,7 @@ extension WidgetSource {
                                 owner: owner(of: ev.id), icon: calendarIcon(of: ev.id))
         }
         // 開始・締切(自分のカレンダーだけ。チェックを付けたものは出さない)。時刻のあるものは時刻順
-        let taskLines = sharedCal != nil ? [] : store.taskRows(on: ds).filter { !$0.task.done }.map { row in
+        let taskLines = sharedCal != nil || !prefs.showTasks ? [] : store.taskRows(on: ds).filter { !$0.task.done }.map { row in
             DayEventLine(id: "task:" + row.id, title: row.task.title, color: row.task.color, label: row.time ?? "",
                          isAllDay: false, showsTime: row.time != nil, owner: nil, icon: nil, taskStart: row.isStart)
         }
@@ -248,32 +248,25 @@ extension WidgetSource {
         let start = Rules.weekStart(of: ds, startMonday: startMonday)
         let days = (0..<7).map { Rules.addDays(start, $0) }
         // 開始・締切も、バーとして並べる(自分のカレンダーだけ)
-        let taskBars = sharedCal != nil ? [] : store.taskMarkers(linked: true)
+        let taskBars = sharedCal != nil || !prefs.showTasks ? [] : store.taskMarkers(linked: true)
         let rows = SpanLayout.rows(events: store.visibleEvents + taskBars, weekCells: days.map { Optional($0) })
         // 1 日に 4 件までは、4 段で全部出す。5 件以上ある日は、3 段まで出して、4 段目に「ほか○件」を出す
-        let maxLanes = WeekContent.maxLanes
-        var total = Array(repeating: 0, count: 7)
-        for row in rows { for s in row { for c in s.col..<min(7, s.col + s.span) { total[c] += 1 } } }
-        var shown = Array(repeating: 0, count: 7)
-        var lastLaneUsed = Array(repeating: false, count: 7)
+        let layout = WeekLanes.layout(rows: rows, maxLanes: WeekContent.maxLanes)
         var bars: [WeekBar] = []
-        for (lane, row) in rows.enumerated() where lane < maxLanes {
-            for s in row {
-                let cols = s.col..<min(7, s.col + s.span)
-                // 4 段目は、「ほか○件」を出す日にかかるなら、出さない(その日の「ほか」に数える)
-                if lane == maxLanes - 1, cols.contains(where: { total[$0] > maxLanes }) { continue }
-                cols.forEach { shown[$0] += 1 }
-                if lane == maxLanes - 1 { cols.forEach { lastLaneUsed[$0] = true } }
-                let ev = s.event
-                let mark = ev.taskMarker
-                // 開始・締切は、カレンダーと同じ矢印形のタグで、タイトルを出す
-                let isLink = mark?.isLink == true
-                let text = (s.isStart || isLink) ? (mark != nil ? ev.title : (ev.barShowsTime ? Rules.timeLabel(ev) : ev.title)) : "…"
-                bars.append(WeekBar(id: ev.id + "-\(s.col)", col: s.col, span: s.span, lane: lane,
-                                    text: text, color: ev.color, showsTime: mark == nil && s.isStart && ev.barShowsTime,
-                                    taskStart: isLink ? nil : mark?.isStart,
-                                    link: isLink, showsStart: isLink && s.isStart, showsDue: isLink && s.isEnd))
-            }
+        for piece in layout.pieces {
+            let s = piece.span
+            let ev = s.event
+            let mark = ev.taskMarker
+            // 開始・締切は、カレンダーと同じ矢印形のタグで、タイトルを出す。
+            // 点線でつないだものを日ごとに切り出したときは、ふつうの帯にする
+            let isLink = mark?.isLink == true && piece.isWhole
+            let startsHere = piece.startsHere && s.isStart
+            let text = (startsHere || mark?.isLink == true)
+                ? (mark != nil ? ev.title : (ev.barShowsTime ? Rules.timeLabel(ev) : ev.title)) : "…"
+            bars.append(WeekBar(id: ev.id + "-\(piece.col)", col: piece.col, span: piece.count, lane: piece.lane,
+                                text: text, color: ev.color, showsTime: mark == nil && startsHere && ev.barShowsTime,
+                                taskStart: mark?.isLink == true ? nil : mark?.isStart,
+                                link: isLink, showsStart: isLink && s.isStart, showsDue: isLink && s.isEnd))
         }
         let totals = (workStore ?? store).totals(from: days[0], to: days[6], isHoliday: isHoliday)
         let hours = totals.reduce(0) { $0 + $1.hours }
@@ -296,8 +289,84 @@ extension WidgetSource {
                                   pay: prefs.showEstimatedPay && canShowWork ? Money.yen(pay) : nil,
                                   calendarId: prefs.calendarId)
         content.marks = marks
-        // 4 段目が空いている日だけ、出しきれなかった数を「ほか○件」で出す
-        content.more = (0..<7).map { lastLaneUsed[$0] ? 0 : max(0, total[$0] - shown[$0]) }
+        // 5 件以上ある日だけ、出しきれなかった数を 4 段目に「ほか○件」で出す
+        content.more = layout.more
         return content
+    }
+}
+
+/// 中(1 週間)の段組みで、実際に描く 1 本。予定の帯を、日ごとに切り出したものもある
+struct WeekPiece: Equatable {
+    let span: BarSpan
+    let col: Int
+    let count: Int
+    let lane: Int
+
+    /// 帯をそのまま出しているか(切り出していない)
+    var isWhole: Bool { col == span.col && count == span.span }
+    /// この週の帯の、最初の日から出しているか
+    var startsHere: Bool { col == span.col }
+}
+
+/// 中(1 週間)の段組み
+enum WeekLanes {
+    /// 1 日 maxLanes 件までの日は、その日の予定を全部出す。maxLanes 件をこえる日は、maxLanes - 1 段まで出して、残りを more に数える。
+    /// 段に入りきらない帯や、件数の多い日にかかって最後の段に置けない帯は、件数の少ない日の分だけ切り出して、その日の空いた段に入れる
+    /// (前の日から続く予定が、前の日で隠れても、次の日の 1 段を空けたまま「ほか○件」にならないように)
+    static func layout(rows: [[BarSpan]], maxLanes: Int, days: Int = 7) -> (pieces: [WeekPiece], more: [Int]) {
+        func cols(_ s: BarSpan) -> Range<Int> { s.col..<min(days, s.col + s.span) }
+        var total = Array(repeating: 0, count: days)
+        for row in rows { for s in row { for c in cols(s) { total[c] += 1 } } }
+        let crowded = { (c: Int) in total[c] > maxLanes }
+
+        var occupied = Array(repeating: Array(repeating: false, count: days), count: maxLanes)
+        var shown = Array(repeating: 0, count: days)
+        var pieces: [WeekPiece] = []
+        func place(_ s: BarSpan, _ r: Range<Int>, lane: Int) {
+            for c in r {
+                occupied[lane][c] = true
+                shown[c] += 1
+            }
+            pieces.append(WeekPiece(span: s, col: r.lowerBound, count: r.count, lane: lane))
+        }
+
+        var pending: [BarSpan] = []
+        for (lane, row) in rows.enumerated() {
+            for s in row {
+                let r = cols(s)
+                if lane < maxLanes - 1 || (lane == maxLanes - 1 && !r.contains(where: crowded)) {
+                    place(s, r, lane: lane)
+                } else {
+                    pending.append(s)
+                }
+            }
+        }
+
+        // 置けなかった帯は、日ごとの件数の多い・少ないで区切って、空いた段に入れる。
+        // 件数の少ない日は、どの段でもよい(件数が段の数以下なので、必ず空きがある)。
+        // 件数の多い日は、「ほか○件」の段を空けておくため、その上の段が空いているときだけ
+        for s in pending {
+            var runs: [Range<Int>] = []
+            for c in cols(s) {
+                if let last = runs.last, last.upperBound == c, crowded(last.lowerBound) == crowded(c) {
+                    runs[runs.count - 1] = last.lowerBound..<(c + 1)
+                } else {
+                    runs.append(c..<(c + 1))
+                }
+            }
+            for r in runs {
+                let lanes = 0..<(crowded(r.lowerBound) ? maxLanes - 1 : maxLanes)
+                if let lane = lanes.first(where: { l in r.allSatisfy { !occupied[l][$0] } }) {
+                    place(s, r, lane: lane)
+                    continue
+                }
+                // 続いた日で同じ段が空いていなければ、1 日ずつ置く
+                for c in r {
+                    if let lane = lanes.first(where: { !occupied[$0][c] }) { place(s, c..<(c + 1), lane: lane) }
+                }
+            }
+        }
+        let more = (0..<days).map { crowded($0) ? max(0, total[$0] - shown[$0]) : 0 }
+        return (pieces, more)
     }
 }
