@@ -40,6 +40,6 @@ struct WeekLanesTests {
         let r = layout(events)
         #expect(r.more.allSatisfy { $0 == 0 })
         #expect(r.pieces.count == 4)
-        #expect(r.pieces.allSatisfy(\.isWhole))
+        #expect(r.pieces.allSatisfy { $0.isWhole })
     }
 }
