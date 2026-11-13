@@ -34,12 +34,14 @@ struct MediumWeekView: View {
                                                      : (content.dayTypes[i] == .normal ? Color.primary : content.dayTypes[i].color))
                             }
                             .frame(width: colW)
-                            // 曜日の両脇に、その日の印(左: 記念日・誕生日、右: 給料日・アラーム)
+                            // 曜日の行の右に、その日の印(アラーム、右上の角に給料日。アプリのカレンダーと同じ並び)
                             .overlay(alignment: .top) { dayMarks(i) }
                         }
                     }
                     bars(colW: colW)
                         .offset(y: 31)
+                    // 記念日・誕生日は、アプリのカレンダーと同じく、日の列の右下に並べる
+                    annivMarks(colW: colW, height: geo.size.height)
                     dayLinks(colW: colW, height: geo.size.height)
                 }
             }
@@ -60,15 +62,12 @@ struct MediumWeekView: View {
         if i < content.marks.count {
             let m = content.marks[i]
             HStack(spacing: 1) {
-                ForEach(m.annivs) { a in
-                    Image(a.asset)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 8, height: 8)
-                        .foregroundStyle(Color(hex: a.color))
-                }
                 Spacer(minLength: 0)
+                if m.alarm {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 7.5))
+                        .foregroundStyle(Theme.alarm)
+                }
                 if m.payday {
                     Image("CoinStack")
                         .renderingMode(.template)
@@ -77,15 +76,34 @@ struct MediumWeekView: View {
                         .frame(width: 8, height: 8)
                         .foregroundStyle(Color(red: 0.95, green: 0.7, blue: 0.1))
                 }
-                if m.alarm {
-                    Image(systemName: "bell.fill")
-                        .font(.system(size: 7.5))
-                        .foregroundStyle(Theme.alarm)
-                }
             }
             .padding(.horizontal, 3)
             .frame(height: 11)
         }
+    }
+
+    /// 日の列の右下に、記念日・誕生日のアイコンを右詰めで並べる(2 個まで)
+    private func annivMarks(colW: CGFloat, height: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            ForEach(0..<7, id: \.self) { i in
+                HStack(spacing: 1) {
+                    if i < content.marks.count {
+                        ForEach(content.marks[i].annivs) { a in
+                            Image(a.asset)
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 8, height: 8)
+                                .foregroundStyle(Color(hex: a.color))
+                        }
+                    }
+                }
+                .padding(.trailing, 3)
+                .padding(.bottom, 1)
+                .frame(width: colW, height: height, alignment: .bottomTrailing)
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     private var header: some View {

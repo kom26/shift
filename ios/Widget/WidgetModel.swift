@@ -156,7 +156,7 @@ struct WeekContent: Equatable {
     var more: [Int] = []
 }
 
-/// 中(1週間)で、曜日の両脇に出す印。左に記念日・誕生日(2 個まで)、右に給料日とアラーム
+/// 中(1週間)で出す、日ごとの印。曜日の行の右にアラームと給料日(右上の角)、日の列の右下に記念日・誕生日(2 個まで)
 struct WeekDayMarks: Equatable {
     var annivs: [DayAnnivIcon] = []
     var alarm = false
