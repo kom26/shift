@@ -30,11 +30,17 @@ struct DaySummaryTests {
     @Test func extendedTime() {
         let store = make()
         store.save(ev("x", "2026-10-01", allDay: false, st: "29:00", et: "36:00"))
-        // 始まった日(営業日)にも出る。翌日には前日からの予定として出る
+        // 始まった日(営業日)に出る。その日に収めた予定なので、翌日には出さない(カレンダーのバーと同じ)
         let d1 = store.daySummary(date: "2026-10-01").events
         #expect(d1.count == 1 && !d1[0].isContinuation)
-        let d2 = store.daySummary(date: "2026-10-02").events
-        #expect(d2.count == 1 && d2[0].isContinuation)
+        #expect(store.daySummary(date: "2026-10-02").events.isEmpty)
+    }
+
+    @Test func lateEndFitInOneDayIsNotShownOnTheNextDay() {
+        let store = make()
+        store.save(ev("f", "2026-10-03", allDay: false, st: "22:00", et: "25:00"))
+        #expect(store.daySummary(date: "2026-10-03").events.count == 1)
+        #expect(store.daySummary(date: "2026-10-04").events.isEmpty)
     }
 
     @Test func midnightStartShowsOnStartDay() {

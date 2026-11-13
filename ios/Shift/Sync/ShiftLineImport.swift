@@ -9,7 +9,7 @@ enum OvernightKind: String, Equatable {
 }
 
 /// 終了が24時をこえる予定の取り込み方
-enum LateEndChoice: String, CaseIterable, Equatable {
+enum LateEndChoice: String, CaseIterable, Equatable, Codable {
     /// 22:00〜30:00 のまま、その日に収める
     case fit
     /// 22:00〜翌日6:00 の日またぎにする
@@ -17,7 +17,7 @@ enum LateEndChoice: String, CaseIterable, Equatable {
 }
 
 /// 開始が24時以降の予定の取り込み方
-enum AfterMidnightChoice: String, CaseIterable, Equatable {
+enum AfterMidnightChoice: String, CaseIterable, Equatable, Codable {
     /// 24:00〜30:00 のまま
     case keep
     /// 24:00〜翌日6:00 の日またぎにする

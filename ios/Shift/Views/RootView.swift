@@ -1175,7 +1175,7 @@ struct RootView: View {
                 return
             }
             // 元と同じ日に離したときは、何も出さずに取り消す
-            if sharedView.event(id)?.startDate == date { return }
+            if sharedView.shownStartDate(id) == date { return }
             dropChoice = DropChoice(eventId: id, date: date, title: sharedView.event(id)?.title ?? "",
                                      rect: DragState.shared.dropRect, color: sharedView.event(id)?.color ?? "#bec1cc",
                                      label: sharedView.event(id)?.title ?? "")

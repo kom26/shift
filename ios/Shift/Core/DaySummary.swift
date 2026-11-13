@@ -24,7 +24,9 @@ extension Store {
                 if Rules.dateInRange(date, sd, ev.endDate) {
                     allDay.append(DayEventRow(event: ev, isAllDay: true, isContinuation: cont))
                 }
-            } else if let seg = Rules.timedSegment(ev, on: date) {
+            } else if let seg = Rules.timedSegment(ev, on: date), !cont || Rules.dateInRange(date, sd, ev.endDate) {
+                // 前の日から続く予定は、終了日までだけ出す(22:00〜30:00 や 24:00〜30:00 のように、
+                // 始まった日に収めた予定は、時刻が翌日にかかっても、翌日には出さない。カレンダーのバーと同じ)
                 timed.append((seg.top, DayEventRow(event: ev, isAllDay: false, isContinuation: cont)))
             } else if !cont, ev.startTime != nil {
                 // 24:00 以降の開始(営業日の25:00 など)は、時刻としては翌日に入るが、始まった日の予定としても出す

@@ -304,6 +304,8 @@ struct CalendarDetailSheet: View {
     /// 共有カレンダーの背景(持ち主だけが変えられる。共有者で共通)
     @State private var calendarBackgroundKey = ""
     @State private var showCalendarBackground = false
+    /// 24時をこえる予定の、この端末での見え方(自分だけ)
+    @State private var overnight = OvernightDisplay()
 
     private var uid: String? { auth.account?.uid }
     /// 見せるだけのカレンダーの持ち主か(相互に共有するカレンダーには、持ち主という立場はない)
@@ -319,6 +321,9 @@ struct CalendarDetailSheet: View {
             dialogs(
                 Form {
                     ownerSection
+                    if calendar.status == .active {
+                        OvernightLookSection(value: overnightBinding)
+                    }
                     memberSections
                     dangerSection
                 }
@@ -337,6 +342,7 @@ struct CalendarDetailSheet: View {
             }
             .task { await load() }
             .task { calendarBackgroundKey = await sharedView.backgroundKey(of: calendar.id) }
+            .task { overnight = sharedView.overnightDisplay(of: calendar.id) }
             .onChange(of: service.calendars) { _, list in
                 // 承認待ちの画面を開いている間に承認されたら、そのまま共有カレンダーを開く
                 if calendar.status == .pending, let c = list.first(where: { $0.id == calendar.id }), c.status == .active {
@@ -347,6 +353,15 @@ struct CalendarDetailSheet: View {
             )
         }
         .presentationDetents([.large])
+    }
+
+    /// 見え方は、選んだらすぐ反映する(保存ボタンは押さなくてよい)。ウィジェットの中身も作り直す
+    private var overnightBinding: Binding<OvernightDisplay> {
+        Binding(get: { overnight }, set: { value in
+            overnight = value
+            sharedView.setOvernightDisplay(value, in: calendar.id)
+            Task { await WidgetSharedFeed.refresh(store: store, calendars: service.calendars, sharedView: sharedView) }
+        })
     }
 
     /// 持ち主は、作るときと同じ項目(名前・アイコン・許可制)をここから変えられる

@@ -308,6 +308,8 @@ final class SharedViewState {
     private(set) var overrides: [String: String] = [:]
     /// この端末だけで効く、バーの表示の選び方(キーは colorKey。true: 時間 / false: 予定名)。ないものは共有した人の表示に合わせる
     private(set) var timeModes: [String: Bool] = [:]
+    /// この端末だけで効く、24時をこえる予定の見え方(開いている共有カレンダーの分)
+    private(set) var overnight = OvernightDisplay()
 
     @ObservationIgnored private let events: SharedEventsBacking
     @ObservationIgnored private let calendars: CalendarService
@@ -397,11 +399,22 @@ final class SharedViewState {
     }
 
     func placeOwn(id: String, on date: String) {
-        if let own = ownEventId(for: id) { mainStore?.place(id: own, on: date) }
+        if let own = ownEventId(for: id) { mainStore?.place(id: own, on: storedDate(for: id, droppedOn: date)) }
     }
 
     func copyOwn(id: String, on date: String) {
-        if let own = ownEventId(for: id) { mainStore?.copy(id: own, to: [date]) }
+        if let own = ownEventId(for: id) { mainStore?.copy(id: own, to: [storedDate(for: id, droppedOn: date)]) }
+    }
+
+    /// カレンダーで見えている開始日(見え方で「翌日の予定」にしていれば、本当の開始日の翌日)
+    func shownStartDate(_ id: String) -> String? {
+        store?.events.first { $0.id == id }?.startDate ?? event(id)?.startDate
+    }
+
+    /// 離した日を、本当の開始日に直す。見え方で開始日をずらして見せている予定は、見えている日を動かしたとして、同じだけずらす
+    private func storedDate(for id: String, droppedOn date: String) -> String {
+        guard let e = event(id), e.placed, let shown = shownStartDate(id), !shown.isEmpty, shown != e.startDate else { return date }
+        return Rules.addDays(date, Rules.daysBetween(shown, e.startDate))
     }
 
     func unplaceOwn(id: String) {
@@ -416,7 +429,7 @@ final class SharedViewState {
     @discardableResult
     func place(id: String, on date: String) async -> Bool {
         guard isEditable(id), let e = event(id) else { return false }
-        return await save(e.moved(to: date))
+        return await save(e.moved(to: storedDate(for: id, droppedOn: date)))
     }
 
     /// 未配置に戻す
@@ -443,7 +456,7 @@ final class SharedViewState {
         if let image = e.imageId, let cid = target?.id {
             made.imageId = await AttachmentCloud.duplicate(image, calendarId: cid) ?? image
         }
-        let ok = await save(made.moved(to: date), in: target)
+        let ok = await save(made.moved(to: storedDate(for: id, droppedOn: date)), in: target)
         // 保存できなかったら、複製した画像を片づける
         if !ok, let copied = made.imageId, copied != e.imageId { await AttachmentCloud.remove(copied) }
         return ok
@@ -490,6 +503,7 @@ final class SharedViewState {
         calendar = cal
         overrides = Self.loadOverrides(defaults: defaults)[cal.id] ?? [:]
         timeModes = Self.loadTimeModes(defaults: defaults)[cal.id] ?? [:]
+        overnight = OvernightDisplay.load(cal.id, defaults: defaults)
         store = Self.makeStore(events: [], overrides: [:])
         loading = true
         await loadNames()
@@ -647,6 +661,22 @@ final class SharedViewState {
         defaults.data(forKey: timeModesKey).flatMap { try? JSONDecoder().decode([String: [String: Bool]].self, from: $0) } ?? [:]
     }
 
+    // MARK: 24時をこえる予定の見え方(この端末の、共有カレンダーごと)
+
+    func overnightDisplay(of cid: String) -> OvernightDisplay {
+        calendar?.id == cid ? overnight : OvernightDisplay.load(cid, defaults: defaults)
+    }
+
+    /// 見え方を変える。開いているカレンダーと、自分のカレンダーに重ねている予定に、すぐ反映する
+    func setOvernightDisplay(_ value: OvernightDisplay, in cid: String) {
+        OvernightDisplay.save(value, for: cid, defaults: defaults)
+        if calendar?.id == cid {
+            overnight = value
+            rebuild()
+        }
+        rebuildOverlay()
+    }
+
     // MARK: 自分のカレンダーに重ねる
 
     func isOverlaid(_ id: String) -> Bool { overlayIds.contains(id) }
@@ -712,6 +742,7 @@ final class SharedViewState {
         for cid in overlayListeners.keys.sorted() {
             let map = saved[cid] ?? [:]
             let modes = savedTime[cid] ?? [:]
+            let look = OvernightDisplay.load(cid, defaults: defaults)
             for e in overlayLatest[cid] ?? [] {
                 // 日付のない予定(未配置)は、重ねない
                 if !e.placed { continue }
@@ -719,8 +750,8 @@ final class SharedViewState {
                 guard seen.insert(e.id).inserted else { continue }
                 items[e.id] = e
                 owners[e.id] = cid
-                shown.append(e.shiftEvent(color: map[Self.colorKey(for: e)] ?? e.color,
-                                          showsTime: modes[Self.colorKey(for: e)]))
+                shown.append(look.apply(e.shiftEvent(color: map[Self.colorKey(for: e)] ?? e.color,
+                                                     showsTime: modes[Self.colorKey(for: e)])))
             }
         }
         overlayItems = items
@@ -756,7 +787,7 @@ final class SharedViewState {
 
     private func rebuild() {
         store = Self.makeStore(events: latest, overrides: overrides, timeModes: timeModes,
-                               anniversaries: latestAnniversaries.map(\.anniversary))
+                               anniversaries: latestAnniversaries.map(\.anniversary), overnight: overnight)
     }
 
     private func applyAnniversaries(_ list: [SharedAnniversary], for id: String) {
@@ -870,8 +901,9 @@ final class SharedViewState {
         guard let list = try? await events.fetch(calendarId: calendar.id) else { return nil }
         let annivs = (try? await anniversaryBacking?.fetchAnniversaries(calendarId: calendar.id)) ?? []
         let members = await calendars.members(of: calendar) ?? []
+        let look = OvernightDisplay.load(calendar.id, defaults: defaults)
         return WidgetSharedCalendar(id: calendar.id, name: calendar.name, icon: calendar.icon,
-                                    events: list.map { $0.shiftEvent() }, anniversaries: annivs.map(\.anniversary),
+                                    events: list.map { look.apply($0.shiftEvent()) }, anniversaries: annivs.map(\.anniversary),
                                     sharedWorkplaceIds: calendar.mySharedKeys.filter { $0.hasPrefix("w:") }.map { String($0.dropFirst(2)) },
                                     eventOwners: Dictionary(list.filter { !$0.isCalendarOwned }.map { ($0.id, $0.ownerUid) }, uniquingKeysWith: { a, _ in a }),
                                     members: Dictionary(members.map { ($0.id, WidgetMember(name: $0.displayName, avatar: $0.avatar)) },
@@ -886,12 +918,12 @@ final class SharedViewState {
     /// 参加者の予定から、表示用の入れ物を組み立てる。バーはタイトルだけ(誰の予定かは日の一覧のアバターで見せる)。
     /// 色は、この端末で変えていればそれを使う
     static func makeStore(events: [SharedEvent], overrides: [String: String], timeModes: [String: Bool] = [:],
-                          anniversaries: [Anniversary] = []) -> Store {
+                          anniversaries: [Anniversary] = [], overnight: OvernightDisplay = OvernightDisplay()) -> Store {
         let name = "shared-" + UUID().uuidString
         let store = Store(fileURL: FileManager.default.temporaryDirectory.appending(path: name + ".json"),
                           defaults: UserDefaults(suiteName: name) ?? .standard)
         let list = events.map {
-            $0.shiftEvent(color: overrides[colorKey(for: $0)] ?? $0.color, showsTime: timeModes[colorKey(for: $0)])
+            overnight.apply($0.shiftEvent(color: overrides[colorKey(for: $0)] ?? $0.color, showsTime: timeModes[colorKey(for: $0)]))
         }
         store.applySnapshot(SyncSnapshot(events: list, workplaces: [], favorites: [], customColors: [], hiddenSuggestions: []))
         anniversaries.forEach { store.saveAnniversary($0) }
